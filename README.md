@@ -46,7 +46,12 @@ The WASM port now also includes:
 - **Crash catcher excluded**: POSIX signal-based crash handling is disabled under Emscripten.
 - **Synchronous data loading**: `std::async` replaced with synchronous loading for WASM (no background thread data loading).
 - **SDL adaptations**: Gamma ramp functions guarded (unsupported in browser SDL2), thread priority adjustments skipped.
-- **HTML shell**: A custom Emscripten HTML shell template at `files/wasm/openmw_shell.html` provides a loading screen and data folder picker UI.
+- **HTML shell**: A custom Emscripten HTML shell template at `files/wasm/openmw_shell.html` provides a loading screen, data folder picker UI, console overlay, and browser fullscreen toggle.
+- **MyGUI VAO rendering**: The MyGUI render manager uses VAO-based vertex attribute rendering under Emscripten instead of legacy fixed-function client state APIs.
+- **Thread safety**: Thread counts are automatically reduced for non-pthread WASM builds (physics=0, lua=0, preload=1, navmesh=1).
+- **Save game persistence**: Save games are automatically synced to IndexedDB (IDBFS) after each save operation.
+- **Post-processing disabled**: WebGL post-processing is disabled by default for performance.
+- **CMake helper**: `cmake/emscripten-wasm.cmake` provides a ready-to-use initial cache for Emscripten builds.
 
 This is still an early-stage port and not yet a complete, playable-in-browser configuration.
 

@@ -107,6 +107,14 @@ OpenMW uses background threads for physics, resource loading, and paging.
 - **Video playback**: Startup company/game logo videos are skipped under Emscripten since FFmpeg may not be compiled for WASM.
 - **Additional WASM performance defaults**: Navigator disk cache disabled, navmeshdb writes disabled.
 
+## Phase 3 Porting Status
+- **MyGUI rendering**: Replaced legacy fixed-function vertex array calls (`glEnableClientState`, `glVertexPointer`, `glColorPointer`, `glTexCoordPointer`) with VAO-based `glVertexAttribPointer` rendering under Emscripten. WebGL 2.0 requires Vertex Array Objects and does not support the legacy client-state API.
+- **Thread count overrides**: When building without pthread support (`__EMSCRIPTEN_PTHREADS__` undefined), thread counts are forced to safe values: physics async threads=0, Lua threads=0, preload threads=1, navmesh updater threads=1.
+- **Save game persistence**: After a save completes, an IDBFS sync is triggered via the global `__openmwSyncPersistentStorage()` function so save data is persisted to IndexedDB immediately.
+- **Browser fullscreen**: The HTML shell exposes `__openmwToggleFullscreen()` using the browser Fullscreen API.
+- **Post-processing disabled**: Post-processing is disabled under Emscripten to reduce WebGL FBO overhead and improve performance.
+- **CMake toolchain helper**: Added `cmake/emscripten-wasm.cmake` initial cache file that pre-configures all WASM-specific options (tool exclusions, LuaJIT off, tests off, etc.) for use with `cmake -C cmake/emscripten-wasm.cmake`.
+
 ## Remaining Work
 - **Dependency compilation**: OSG, Bullet, MyGUI, Boost (program_options, iostreams), FFmpeg, and standard Lua must be compiled to WASM with Emscripten.
 - **GLSL ES 3.00 shader porting**: The compatibility shaders use `#version 120` with `GL_ARB_uniform_buffer_object` and `GL_EXT_gpu_shader4` extensions not available in WebGL 2.0. A full `gles/` shader set needs to be created using `#version 300 es`.
