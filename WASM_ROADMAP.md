@@ -115,9 +115,15 @@ OpenMW uses background threads for physics, resource loading, and paging.
 - **Post-processing disabled**: Post-processing is disabled under Emscripten to reduce WebGL FBO overhead and improve performance.
 - **CMake toolchain helper**: Added `cmake/emscripten-wasm.cmake` initial cache file that pre-configures all WASM-specific options (tool exclusions, LuaJIT off, tests off, etc.) for use with `cmake -C cmake/emscripten-wasm.cmake`.
 
+## Phase 4 Porting Status
+- **GLSL ES 3.00 shader variants**: Created `gles/` shader directory with GLSL ES 3.00 ports of gui (vert/frag) and debug (vert/frag) shaders. These replace GLSL 1.20 built-ins (`gl_Vertex`, `gl_Color`, `gl_Normal`, `gl_MultiTexCoord0`, `gl_ModelViewMatrix`, `gl_FrontMaterial`, `gl_FragData[0]`) with vertex attribute inputs (`osg_Vertex`, `osg_Color`, `osg_Normal`), uniform matrices (`osg_ModelViewMatrix`, `osg_TextureMatrix0`), material uniforms (`osg_FrontMaterial*`), and output variables. The `ShaderManager` prefers `gles/` shaders over `compatibility/` under Emscripten.
+- **GLES library shaders**: Created `lib/gles/core/vertex.glsl` (GLSL ES 3.00 version of `modelToClip`/`modelToView`/`viewToClip`) and `gles/vertexcolors.glsl` (replaces `gl_FrontMaterial` with uniform equivalents).
+- **S3TC texture decompression**: Under Emscripten, S3TC compressed textures are always software-decompressed since browser WebGL extension support for `WEBGL_compressed_texture_s3tc` varies. This avoids missing-texture errors at the cost of slightly longer load times.
+- **OpenAL Emscripten guards**: `AL_SOFT_events` extension loading, `ALC_SOFT_reopen_device` extension loading, and `DefaultDeviceThread` creation are all guarded with `#ifndef __EMSCRIPTEN__` since Emscripten's OpenAL implementation doesn't support these desktop-specific extensions.
+
 ## Remaining Work
 - **Dependency compilation**: OSG, Bullet, MyGUI, Boost (program_options, iostreams), FFmpeg, and standard Lua must be compiled to WASM with Emscripten.
-- **GLSL ES 3.00 shader porting**: The compatibility shaders use `#version 120` with `GL_ARB_uniform_buffer_object` and `GL_EXT_gpu_shader4` extensions not available in WebGL 2.0. A full `gles/` shader set needs to be created using `#version 300 es`.
+- **Remaining shader porting**: The `objects`, `terrain`, `water`, `groundcover`, `shadowcasting`, and `sky` shaders still need GLSL ES 3.00 ports. The `sky` shaders use `gl_FrontMaterial` and `gl_Fog` built-ins that need uniform replacements.
 - **Large asset streaming**: Current file picker loads all data into Emscripten memory; consider chunked/lazy loading or OPFS (Origin Private File System) for large Morrowind installations.
 - **Audio decoder**: Verify FFmpeg/audio decoding works under Emscripten or provide Web Audio API fallback.
 - **SQLite for WASM**: If navmesh caching is desired, compile SQLite to WASM (sql.js) and integrate with Emscripten FS.
