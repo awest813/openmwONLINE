@@ -202,6 +202,17 @@
           logToConsole('Your browser does not support the File System Access API.', 'warn');
           logToConsole('Try Chrome, Edge, or another Chromium-based browser.', 'warn');
         }
+
+        globalThis.__openmwToggleFullscreen = function() {
+          var canvas = document.getElementById('canvas');
+          if (!document.fullscreenElement) {
+            (canvas.requestFullscreen || canvas.webkitRequestFullscreen || canvas.mozRequestFullScreen)
+              .call(canvas);
+          } else {
+            (document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen)
+              .call(document);
+          }
+        };
       },
     };
   </script>

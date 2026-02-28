@@ -6,6 +6,10 @@
 #include <osg/TexMat>
 #include <osg/Texture2D>
 
+#ifdef __EMSCRIPTEN__
+#include <GLES3/gl3.h>
+#endif
+
 #include <osgViewer/Viewer>
 
 #include <osgGA/GUIEventHandler>
@@ -93,16 +97,21 @@ namespace MyGUIPlatform
             state->apply();
 
             state->disableAllVertexArrays();
-            state->setClientActiveTextureUnit(0);
-            glEnableClientState(GL_VERTEX_ARRAY);
-            glEnableClientState(GL_TEXTURE_COORD_ARRAY);
-            glEnableClientState(GL_COLOR_ARRAY);
 
             mReadFrom = (mReadFrom + 1) % sNumBuffers;
             const std::vector<Batch>& vec = mBatchVector[mReadFrom];
-            for (std::vector<Batch>::const_iterator it = vec.begin(); it != vec.end(); ++it)
+
+#ifdef __EMSCRIPTEN__
+            constexpr GLuint kPositionAttrib = 0;
+            constexpr GLuint kColorAttrib = 1;
+            constexpr GLuint kTexCoordAttrib = 2;
+
+            GLuint vao = 0;
+            glGenVertexArrays(1, &vao);
+            glBindVertexArray(vao);
+
+            for (const auto& batch : vec)
             {
-                const Batch& batch = *it;
                 osg::VertexBufferObject* vbo = batch.mVertexBuffer;
 
                 if (batch.mStateSet)
@@ -111,9 +120,64 @@ namespace MyGUIPlatform
                     state->apply();
                 }
 
-                // A GUI element without an associated texture would be extremely rare.
-                // It is worth it to use a dummy 1x1 black texture sampler instead of either adding a conditional or
-                // relinking shaders.
+                osg::Texture2D* texture = batch.mTexture;
+                if (texture)
+                    state->applyTextureAttribute(0, texture);
+                else
+                    state->applyTextureAttribute(0, mDummyTexture);
+
+                osg::GLBufferObject* bufferobject = state->isVertexBufferObjectSupported()
+                    ? vbo->getOrCreateGLBufferObject(state->getContextID())
+                    : nullptr;
+
+                if (bufferobject)
+                {
+                    state->bindVertexBufferObject(bufferobject);
+
+                    glEnableVertexAttribArray(kPositionAttrib);
+                    glVertexAttribPointer(
+                        kPositionAttrib, 3, GL_FLOAT, GL_FALSE, sizeof(MyGUI::Vertex), reinterpret_cast<void*>(0));
+
+                    glEnableVertexAttribArray(kColorAttrib);
+                    glVertexAttribPointer(kColorAttrib, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(MyGUI::Vertex),
+                        reinterpret_cast<void*>(12));
+
+                    glEnableVertexAttribArray(kTexCoordAttrib);
+                    glVertexAttribPointer(
+                        kTexCoordAttrib, 2, GL_FLOAT, GL_FALSE, sizeof(MyGUI::Vertex), reinterpret_cast<void*>(16));
+                }
+
+                glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(batch.mVertexCount));
+
+                glDisableVertexAttribArray(kPositionAttrib);
+                glDisableVertexAttribArray(kColorAttrib);
+                glDisableVertexAttribArray(kTexCoordAttrib);
+
+                if (batch.mStateSet)
+                {
+                    state->popStateSet();
+                    state->apply();
+                }
+            }
+
+            glBindVertexArray(0);
+            glDeleteVertexArrays(1, &vao);
+#else
+            state->setClientActiveTextureUnit(0);
+            glEnableClientState(GL_VERTEX_ARRAY);
+            glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+            glEnableClientState(GL_COLOR_ARRAY);
+
+            for (const auto& batch : vec)
+            {
+                osg::VertexBufferObject* vbo = batch.mVertexBuffer;
+
+                if (batch.mStateSet)
+                {
+                    state->pushStateSet(batch.mStateSet);
+                    state->apply();
+                }
+
                 osg::Texture2D* texture = batch.mTexture;
                 if (texture)
                     state->applyTextureAttribute(0, texture);
@@ -153,6 +217,7 @@ namespace MyGUIPlatform
             glDisableClientState(GL_VERTEX_ARRAY);
             glDisableClientState(GL_TEXTURE_COORD_ARRAY);
             glDisableClientState(GL_COLOR_ARRAY);
+#endif
 
             state->popStateSet();
 

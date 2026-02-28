@@ -1069,6 +1069,13 @@ void OMW::Engine::go()
         Settings::shaders().mLightingMethod.set(SceneUtil::LightingMethod::PerObjectUniform);
     Settings::navigator().mEnableNavMeshDiskCache.set(false);
     Settings::navigator().mWriteToNavmeshdb.set(false);
+#ifndef __EMSCRIPTEN_PTHREADS__
+    Settings::cells().mPreloadNumThreads.set(1);
+    Settings::physics().mAsyncNumThreads.set(0);
+    Settings::lua().mLuaNumThreads.set(0);
+    Settings::navigator().mAsyncNavMeshUpdaterThreads.set(1);
+    Log(Debug::Info) << "WASM: Thread counts reduced (no pthread support)";
+#endif
 #endif
 
     MWClass::registerClasses();

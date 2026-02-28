@@ -4,6 +4,10 @@
 
 #include <SDL_clipboard.h>
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
+
 #include <components/debug/debuglog.hpp>
 
 #include <components/esm3/actoridconverter.hpp>
@@ -347,6 +351,13 @@ void MWState::StateManager::saveGame(std::string_view description, const Slot* s
         Log(Debug::Info) << '\'' << description << "' is saved in "
                          << std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(finish - start).count()
                          << "ms";
+
+#ifdef __EMSCRIPTEN__
+        emscripten_run_script(R"(
+            if (typeof globalThis !== 'undefined' && typeof globalThis.__openmwSyncPersistentStorage === 'function')
+                globalThis.__openmwSyncPersistentStorage();
+        )");
+#endif
     }
     catch (const std::exception& e)
     {
