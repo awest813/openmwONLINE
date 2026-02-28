@@ -204,6 +204,22 @@ namespace
                 if (error)
                     console.error('Initial IDBFS sync failed', error);
             });
+
+            const syncPersistentStorage = function() {
+                FS.syncfs(false, function(error) {
+                    if (error)
+                        console.error('Background IDBFS sync failed', error);
+                });
+            };
+
+            if (typeof window !== 'undefined' && !window.__openmwPersistentSyncRegistered) {
+                window.addEventListener('visibilitychange', function() {
+                    if (document.visibilityState === 'hidden')
+                        syncPersistentStorage();
+                });
+                window.addEventListener('pagehide', syncPersistentStorage);
+                window.__openmwPersistentSyncRegistered = true;
+            }
             }
         )");
 
