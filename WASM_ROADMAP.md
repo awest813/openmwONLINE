@@ -184,8 +184,13 @@ OpenMW uses background threads for physics, resource loading, and paging.
 - **Dependency build script**: `CI/build_emscripten_deps.sh` provides automated building of Lua and LZ4 for Emscripten, with instructions for OSG, Bullet, MyGUI, and Boost.
 - **CMake dependency hints**: `cmake/emscripten-wasm.cmake` now includes detailed build instructions for all dependencies with recommended CMake flags for each library.
 
+## Phase 10 Porting Status
+- **OSG GLES configuration**: OSG `DisplaySettings` configured for GLES 3.0 context under Emscripten with appropriate profile mask and shader hints.
+- **GLES material/fog uniform bridge**: Created `glesmaterial.hpp/cpp` that bridges `osg::Material` and `osg::Fog` state attributes to the explicit uniforms expected by the GLES shaders (`osg_FrontMaterialEmission`, `osg_FrontMaterialDiffuse`, `osg_FrontMaterialAmbient`, `osg_FrontMaterialSpecular`, `osg_FrontMaterialShininess`, `osg_FogColor`, `osg_FogStart`, `osg_FogEnd`, `osg_FogScale`, `osg_LightModelAmbient`). Default values are set on the root scene node at startup.
+- **Build documentation**: Comprehensive `docs/WASM_BUILD.md` created with step-by-step instructions for building all dependencies (Lua, LZ4, Bullet, OSG, MyGUI, Boost) with Emscripten, configuring OpenMW, hosting the result, browser requirements, and JavaScript API reference.
+
 ## Remaining Work
-- **Dependency compilation**: OSG, Bullet, MyGUI, Boost (program_options, iostreams), and FFmpeg must be cross-compiled with Emscripten. Build scripts and CMake flags are documented in `cmake/emscripten-wasm.cmake` and `CI/build_emscripten_deps.sh`.
-- **End-to-end build testing**: A complete Emscripten build has not yet been attempted. There will likely be additional compilation issues to resolve when all dependencies are available.
-- **Runtime testing**: Testing with actual Morrowind game data in Chrome to verify rendering, input, audio, save/load, and general gameplay.
-- **Performance optimization**: Profiling and optimization for WebGL 2.0 rendering performance, memory usage, and loading times.
+- **Dependency compilation**: OSG, Bullet, MyGUI, Boost, and FFmpeg must be cross-compiled with Emscripten. Build instructions are in `docs/WASM_BUILD.md`.
+- **End-to-end build testing**: Compile and link the full project. Resolve remaining issues.
+- **Runtime testing**: Test with actual Morrowind data in Chrome.
+- **Performance optimization**: Profile and optimize for WebGL 2.0.
