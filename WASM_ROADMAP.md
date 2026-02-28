@@ -170,9 +170,17 @@ OpenMW uses background threads for physics, resource loading, and paging.
 - **BS shaders**: Both `bs/default` (per-pixel lit) and `bs/nolighting` (unlit with falloff) ported with full material support.
 - **Simple shaders**: `depthclipped`, `ripples_blobber`, `ripples_simulate`, `luminance/luminance`, `luminance/resolve` all ported.
 
+## Phase 8 Porting Status
+- **Lighting library GLES port**: Created `lib/gles/light/lighting.glsl` replacing the last fixed-function built-in (`gl_LightModel.ambient.xyz` → `osg_LightModelAmbient.xyz` uniform). All library shaders now have GLES equivalents.
+- **Generalized lib/ redirection**: `ShaderManager` now redirects any `lib/` path to `lib/gles/` under Emscripten when the GLES variant exists, rather than only `lib/core/`.
+- **OpenAL device enumeration**: Device and HRTF enumeration skipped under Emscripten (not applicable in browser context).
+- **Drag-and-drop upload**: HTML shell now supports drag-and-drop of files/directories onto the page as an alternative to the File System Access API directory picker.
+- **Web Audio resume**: Audio context is automatically resumed on the first user interaction (click/keydown/touch) to comply with browser autoplay policies.
+- **Memory monitoring**: JavaScript periodically checks WASM heap size and warns in the console if it exceeds 2 GB.
+- **Error handling**: Global `error` and `unhandledrejection` handlers capture runtime errors and display them in the loading status UI.
+
 ## Remaining Work
 - **Dependency compilation**: OSG, Bullet, MyGUI, Boost (program_options, iostreams), FFmpeg, and standard Lua must be compiled to WASM with Emscripten.
 - **Large asset streaming**: Current file picker loads all data into Emscripten memory; consider chunked/lazy loading or OPFS (Origin Private File System) for large Morrowind installations.
-- **Audio decoder**: Verify FFmpeg/audio decoding works under Emscripten or provide Web Audio API fallback.
 - **Boost for WASM**: Boost.Program_Options and Boost.Iostreams need WASM compilation, or replace with header-only alternatives.
 - **Testing and profiling**: End-to-end testing in Chrome with actual Morrowind data, performance profiling and optimization.
