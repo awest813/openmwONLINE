@@ -64,7 +64,8 @@ OpenMW uses background threads for physics, resource loading, and paging.
 - The switch auto-enables when CMake is configured with an Emscripten toolchain and currently:
   - Disables desktop-only applications and tools (launcher, OpenMW-CS, importers, inspectors, etc.).
   - Forces standard Lua (`USE_LUAJIT=OFF`) to avoid LuaJIT incompatibilities on WASM.
-  - Applies baseline Emscripten linker flags for SDL2, WebGL 2.0, ES3, memory growth, forced virtual filesystem support, and pthread support.
+  - Applies baseline Emscripten linker flags for SDL2, WebGL 2.0, ES3, memory growth, and forced virtual filesystem support.
+  - Enables pthread/Web Worker support by default, with an opt-out switch (`-DOPENMW_EXPERIMENTAL_WASM_PTHREADS=OFF`) for early single-threaded bring-up or hosts without cross-origin isolation headers.
 - Refactors the desktop game loop body into `Engine::runMainLoopIteration(...)` so it can be reused by a browser-driven frame callback.
 - Adds an Emscripten-specific `emscripten_set_main_loop_arg(...)` integration that executes one `runMainLoopIteration(...)` per browser frame and cancels cleanly when the engine requests quit.
 - Consolidates post-loop shutdown/persistence in `Engine::shutdownAfterMainLoop()` so desktop and WASM paths share the same cleanup behavior.
