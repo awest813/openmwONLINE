@@ -147,7 +147,11 @@ namespace Resource
             image->setFileName(std::string(path.value()));
             if (!checkSupported(image))
             {
+#ifdef __EMSCRIPTEN__
+                static bool uncompress = true;
+#else
                 static bool uncompress = (getenv("OPENMW_DECOMPRESS_TEXTURES") != nullptr);
+#endif
                 if (!uncompress)
                 {
                     Log(Debug::Error) << "Error loading " << path << ": no S3TC texture compression support installed";

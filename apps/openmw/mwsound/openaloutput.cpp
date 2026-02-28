@@ -791,6 +791,7 @@ namespace MWSound
                          << "  Version: " << alGetString(AL_VERSION) << "\n"
                          << "  Extensions: " << alGetString(AL_EXTENSIONS);
 
+#ifndef __EMSCRIPTEN__
         if (alIsExtensionPresent("AL_SOFT_events"))
         {
             getALFunc(alEventControlSOFT, "alEventControlSOFT");
@@ -806,6 +807,8 @@ namespace MWSound
         }
         else
             Log(Debug::Warning) << "Cannot detect audio device changes";
+#endif
+#ifndef __EMSCRIPTEN__
         if (mDeviceName.empty() && !name.empty())
         {
             // If we opened the default device, switch devices if a new default is selected
@@ -814,6 +817,7 @@ namespace MWSound
             else
                 Log(Debug::Warning) << "Cannot switch audio devices if the default changes";
         }
+#endif
 
         if (!ALC.SOFT_HRTF)
             Log(Debug::Warning) << "HRTF status unavailable";
