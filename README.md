@@ -35,7 +35,7 @@ To build without browser `SharedArrayBuffer`/worker requirements during early br
 
     -DOPENMW_EXPERIMENTAL_WASM_PTHREADS=OFF
 
-When this switch is enabled, desktop-only tools are excluded, the game loop uses a browser-driven main loop callback under Emscripten, and linker flags keep Emscripten's virtual filesystem runtime available for settings/save paths. The Emscripten runtime now also mounts an IDBFS-backed `/persistent` directory and points HOME/XDG user paths there so configuration/save data can survive browser reloads after sync. Pthread-enabled WASM builds now emit a browser console warning when cross-origin isolation headers are missing, helping diagnose non-threaded startup failures on misconfigured hosts. This is still an early-stage port and not yet a complete, playable-in-browser configuration.
+When this switch is enabled, desktop-only tools are excluded, the game loop uses a browser-driven main loop callback under Emscripten, and linker flags keep Emscripten's virtual filesystem runtime available for settings/save paths. The Emscripten runtime now also mounts an IDBFS-backed `/persistent` directory, pre-creates HOME/XDG subdirectories there, and points HOME/XDG user paths at that mount so configuration/save data can survive browser reloads after sync. Pthread-enabled WASM builds now emit a browser console warning when cross-origin isolation headers are missing, helping diagnose non-threaded startup failures on misconfigured hosts, and FS/IDBFS availability checks now log clear diagnostics when persistent storage APIs are unavailable. This is still an early-stage port and not yet a complete, playable-in-browser configuration.
 
 Getting Started
 ---------------

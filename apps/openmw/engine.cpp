@@ -240,10 +240,14 @@ void OMW::Engine::shutdownAfterMainLoop()
 
 #ifdef __EMSCRIPTEN__
     emscripten_run_script(R"(
-        FS.syncfs(false, function(error) {
-            if (error)
-                console.error('Final IDBFS sync failed', error);
-        });
+        if (typeof FS === 'undefined') {
+            console.warn('Emscripten FS API unavailable during shutdown; skipping final IDBFS sync.');
+        } else {
+            FS.syncfs(false, function(error) {
+                if (error)
+                    console.error('Final IDBFS sync failed', error);
+            });
+        }
     )");
 #endif
 }
