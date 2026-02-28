@@ -26,10 +26,17 @@
 extern "C" __declspec(dllexport) DWORD AmdPowerXpressRequestHighPerformance = 0x00000001;
 #endif
 
+#include <cerrno>
 #include <filesystem>
+#include <limits>
+#include <string>
 
 #if (defined(__APPLE__) || defined(__linux) || defined(__unix) || defined(__posix))
 #include <unistd.h>
+#endif
+
+#if !defined(_WIN32)
+#include <cstdlib>
 #endif
 
 /**
@@ -168,8 +175,57 @@ bool parseOptions(int argc, char** argv, OMW::Engine& engine, Files::Configurati
 namespace
 {
 #ifdef __EMSCRIPTEN__
+    int getWasmPersistentSyncIntervalMs()
+    {
+        static constexpr int sDefaultIntervalMs = 15000;
+        static constexpr int sMinIntervalMs = 1000;
+        static constexpr int sMaxIntervalMs = 300000;
+
+        const char* intervalEnv = std::getenv("OPENMW_WASM_PERSISTENT_SYNC_INTERVAL_MS");
+        if (intervalEnv == nullptr || intervalEnv[0] == '\0')
+            return sDefaultIntervalMs;
+
+        char* end = nullptr;
+        errno = 0;
+        const long parsedValue = std::strtol(intervalEnv, &end, 10);
+
+        if (errno != 0 || end == intervalEnv || (end != nullptr && *end != '\0'))
+        {
+            Log(Debug::Warning) << "Ignoring invalid OPENMW_WASM_PERSISTENT_SYNC_INTERVAL_MS value: '" << intervalEnv
+                                << "'. Falling back to " << sDefaultIntervalMs << " ms.";
+            return sDefaultIntervalMs;
+        }
+
+        if (parsedValue <= 0)
+        {
+            Log(Debug::Info) << "OPENMW_WASM_PERSISTENT_SYNC_INTERVAL_MS<=0 disables periodic IDBFS sync timer.";
+            return 0;
+        }
+
+        if (parsedValue < sMinIntervalMs)
+        {
+            Log(Debug::Warning) << "OPENMW_WASM_PERSISTENT_SYNC_INTERVAL_MS=" << parsedValue
+                                << " is too small; clamping to " << sMinIntervalMs << " ms.";
+            return sMinIntervalMs;
+        }
+
+        if (parsedValue > sMaxIntervalMs)
+        {
+            Log(Debug::Warning) << "OPENMW_WASM_PERSISTENT_SYNC_INTERVAL_MS=" << parsedValue
+                                << " is too large; clamping to " << sMaxIntervalMs << " ms.";
+            return sMaxIntervalMs;
+        }
+
+        if (parsedValue > std::numeric_limits<int>::max())
+            return sDefaultIntervalMs;
+
+        return static_cast<int>(parsedValue);
+    }
+
     void initializeWasmPersistentStorage()
     {
+        const int periodicSyncIntervalMs = getWasmPersistentSyncIntervalMs();
+
 #ifdef __EMSCRIPTEN_PTHREADS__
         emscripten_run_script(R"(
             if (typeof crossOriginIsolated !== 'undefined' && !crossOriginIsolated) {
@@ -180,7 +236,7 @@ namespace
         )");
 #endif
 
-        emscripten_run_script(R"(
+        std::string persistenceScript = R"(
             if (typeof FS === 'undefined' || typeof IDBFS === 'undefined') {
                 console.error('Emscripten FS/IDBFS APIs are unavailable; persistent storage disabled.');
             } else {
@@ -237,7 +293,10 @@ namespace
                 if (state.periodicSyncTimer)
                     return;
 
-                const periodicSyncIntervalMs = 15000;
+                const periodicSyncIntervalMs = __OPENMW_SYNC_INTERVAL_MS__;
+                if (periodicSyncIntervalMs <= 0)
+                    return;
+
                 state.periodicSyncTimer = setInterval(function() {
                     syncPersistentStorage();
                 }, periodicSyncIntervalMs);
@@ -259,7 +318,12 @@ namespace
 
             schedulePeriodicPersistentSync();
             }
-        )");
+        )";
+
+        const std::string intervalToken = "__OPENMW_SYNC_INTERVAL_MS__";
+        persistenceScript.replace(
+            persistenceScript.find(intervalToken), intervalToken.size(), std::to_string(periodicSyncIntervalMs));
+        emscripten_run_script(persistenceScript.c_str());
 
         setenv("HOME", "/persistent/home", 1);
         setenv("XDG_CONFIG_HOME", "/persistent/home/.config", 1);
