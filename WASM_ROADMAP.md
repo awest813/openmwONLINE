@@ -189,8 +189,13 @@ OpenMW uses background threads for physics, resource loading, and paging.
 - **GLES material/fog uniform bridge**: Created `glesmaterial.hpp/cpp` that bridges `osg::Material` and `osg::Fog` state attributes to the explicit uniforms expected by the GLES shaders (`osg_FrontMaterialEmission`, `osg_FrontMaterialDiffuse`, `osg_FrontMaterialAmbient`, `osg_FrontMaterialSpecular`, `osg_FrontMaterialShininess`, `osg_FogColor`, `osg_FogStart`, `osg_FogEnd`, `osg_FogScale`, `osg_LightModelAmbient`). Default values are set on the root scene node at startup.
 - **Build documentation**: Comprehensive `docs/WASM_BUILD.md` created with step-by-step instructions for building all dependencies (Lua, LZ4, Bullet, OSG, MyGUI, Boost) with Emscripten, configuring OpenMW, hosting the result, browser requirements, and JavaScript API reference.
 
+## Phase 11 Porting Status
+- **Critical bug fix**: Fixed GLES shader include path resolution - `gles` added as a recognized root prefix to prevent double-nesting (e.g., `gles/gles/fog.glsl`), and `lib/` to `lib/gles/` redirection added to the include resolver (`parseIncludes`) so `#include "lib/light/lighting.glsl"` in GLES shaders correctly resolves to the GLES version.
+- **Include path audit**: All 33 GLES shader files verified for correct include resolution. All `lib/` includes with GLES variants redirect correctly; all `lib/` includes without GLES variants (e.g., `lib/material/parallax.glsl`) use the originals which contain no `gl_*` built-ins.
+- **Lighting define verification**: Confirmed that `@getLight` resolves to `"LightBuffer"` (not `"gl_LightSource"`) and `@lightingMethodFFP` resolves to `"0"` under forced `PerObjectUniform` lighting, ensuring no fixed-function GL references appear in compiled GLES shaders.
+
 ## Remaining Work
 - **Dependency compilation**: OSG, Bullet, MyGUI, Boost, and FFmpeg must be cross-compiled with Emscripten. Build instructions are in `docs/WASM_BUILD.md`.
-- **End-to-end build testing**: Compile and link the full project. Resolve remaining issues.
-- **Runtime testing**: Test with actual Morrowind data in Chrome.
+- **End-to-end build testing**: Compile and link the full project with all dependencies. Resolve remaining compilation/linking issues.
+- **Runtime testing**: Test with actual Morrowind data in Chrome to verify rendering, input, audio, and gameplay.
 - **Performance optimization**: Profile and optimize for WebGL 2.0.
