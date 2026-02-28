@@ -270,12 +270,27 @@
       onRuntimeInitialized: function() {
         setStatus('Engine initialized');
         setProgress(100);
-        if (typeof window.showDirectoryPicker === 'function') {
+        if (typeof globalThis.__openmwRestoreFromOPFS === 'function') {
+          setStatus('Checking for cached game data...');
+          globalThis.__openmwRestoreFromOPFS().then(function(restored) {
+            if (restored) {
+              setStatus('Game data restored from cache!');
+              logToConsole('Game data restored from OPFS cache', 'info');
+            } else {
+              if (typeof window.showDirectoryPicker === 'function') {
+                dataPickerSection.classList.add('visible');
+                setStatus('Ready - select your Morrowind data folder to begin');
+              } else {
+                setStatus('File System Access API not available in this browser');
+                logToConsole('Try Chrome, Edge, or another Chromium-based browser.', 'warn');
+              }
+            }
+          });
+        } else if (typeof window.showDirectoryPicker === 'function') {
           dataPickerSection.classList.add('visible');
           setStatus('Ready - select your Morrowind data folder to begin');
         } else {
           setStatus('File System Access API not available in this browser');
-          logToConsole('Your browser does not support the File System Access API.', 'warn');
           logToConsole('Try Chrome, Edge, or another Chromium-based browser.', 'warn');
         }
 

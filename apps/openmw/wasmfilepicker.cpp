@@ -110,8 +110,86 @@ namespace OMW::WasmFilePicker
                     };
                 }
 
+                    globalThis.__openmwCacheToOPFS = async function() {
+                        if (!navigator.storage || !navigator.storage.getDirectory) {
+                            console.warn('OPFS not available in this browser');
+                            return;
+                        }
+                        try {
+                            var opfsRoot = await navigator.storage.getDirectory();
+                            var openmwDir = await opfsRoot.getDirectoryHandle('openmw-data', { create: true });
+
+                            async function cacheDir(emPath, opfsParent) {
+                                var entries = FS.readdir(emPath).filter(function(e) { return e !== '.' && e !== '..'; });
+                                for (var i = 0; i < entries.length; i++) {
+                                    var fullPath = emPath + '/' + entries[i];
+                                    var stat = FS.stat(fullPath);
+                                    if (FS.isDir(stat.mode)) {
+                                        var subDir = await opfsParent.getDirectoryHandle(entries[i], { create: true });
+                                        await cacheDir(fullPath, subDir);
+                                    } else {
+                                        var fileHandle = await opfsParent.getFileHandle(entries[i], { create: true });
+                                        var writable = await fileHandle.createWritable();
+                                        var data = FS.readFile(fullPath);
+                                        await writable.write(data);
+                                        await writable.close();
+                                    }
+                                }
+                            }
+
+                            console.log('Caching game data to OPFS...');
+                            await cacheDir(mountPath, openmwDir);
+                            console.log('OPFS cache complete');
+                        } catch (e) {
+                            console.error('OPFS cache error:', e);
+                        }
+                    };
+
+                    globalThis.__openmwRestoreFromOPFS = async function() {
+                        if (!navigator.storage || !navigator.storage.getDirectory)
+                            return false;
+                        try {
+                            var opfsRoot = await navigator.storage.getDirectory();
+                            var openmwDir = await opfsRoot.getDirectoryHandle('openmw-data');
+                            var count = 0;
+
+                            async function restoreDir(opfsParent, emPath) {
+                                for await (var [name, handle] of opfsParent) {
+                                    var fullPath = emPath + '/' + name;
+                                    if (handle.kind === 'directory') {
+                                        if (!FS.analyzePath(fullPath).exists) FS.mkdir(fullPath);
+                                        await restoreDir(handle, fullPath);
+                                    } else {
+                                        var file = await handle.getFile();
+                                        var buf = await file.arrayBuffer();
+                                        var parts = fullPath.split('/');
+                                        var dir = '';
+                                        for (var i = 1; i < parts.length - 1; i++) {
+                                            dir += '/' + parts[i];
+                                            if (!FS.analyzePath(dir).exists) FS.mkdir(dir);
+                                        }
+                                        FS.writeFile(fullPath, new Uint8Array(buf));
+                                        count++;
+                                    }
+                                }
+                            }
+
+                            await restoreDir(openmwDir, mountPath);
+                            if (count > 0) {
+                                console.log('Restored', count, 'files from OPFS cache');
+                                _openmw_wasm_notify_data_ready();
+                                return true;
+                            }
+                            return false;
+                        } catch (e) {
+                            return false;
+                        }
+                    };
+
                 console.log('OpenMW WASM file picker initialized. Mount path:', mountPath);
                 console.log('Call __openmwPickDataDirectory() to select your Morrowind data folder.');
+                console.log('Call __openmwRestoreFromOPFS() to restore cached data.');
+                console.log('Call __openmwCacheToOPFS() after loading to cache data for next visit.');
             })();
         )";
 

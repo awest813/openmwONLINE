@@ -29,3 +29,27 @@ set(BUILD_OPENCS_TESTS OFF CACHE BOOL "" FORCE)
 
 # Emscripten provides these via ports
 set(USE_SYSTEM_TINYXML OFF CACHE BOOL "" FORCE)
+
+# Emscripten has built-in zlib support via -sUSE_ZLIB=1
+# LZ4 must be cross-compiled with Emscripten separately.
+# zlib: Emscripten port available, enable with -sUSE_ZLIB=1 or emcmake
+# Boost: Build with Emscripten. Only program_options and iostreams are needed.
+#   emcmake cmake .. && emmake make
+#   Or use the b2 build system with toolset=emscripten
+# OSG: Must be cross-compiled with Emscripten. Key configuration:
+#   -DOSG_GL3_AVAILABLE=OFF
+#   -DOSG_GLES2_AVAILABLE=OFF  
+#   -DOSG_GLES3_AVAILABLE=ON
+#   -DOSG_GL_DISPLAYLISTS_AVAILABLE=OFF
+#   -DOSG_GL_FIXED_FUNCTION_AVAILABLE=OFF
+#   -DOSG_GL_VERTEX_FUNCS_AVAILABLE=OFF
+#   -DDYNAMIC_OPENSCENEGRAPH=OFF
+#   -DDYNAMIC_OPENTHREADS=OFF
+# Bullet: Cross-compile with Emscripten:
+#   emcmake cmake -DBUILD_BULLET2_DEMOS=OFF -DBUILD_UNIT_TESTS=OFF
+#                 -DBUILD_EXTRAS=OFF -DBUILD_CPU_DEMOS=OFF ..
+# MyGUI: Cross-compile with Emscripten:
+#   emcmake cmake -DMYGUI_RENDERSYSTEM=1 -DMYGUI_BUILD_DEMOS=OFF
+#                 -DMYGUI_BUILD_TOOLS=OFF -DMYGUI_BUILD_PLUGINS=OFF ..
+# Lua: Compiles cleanly with Emscripten:
+#   emcc -c src/*.c && emar rcs liblua.a *.o
