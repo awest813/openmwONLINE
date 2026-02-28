@@ -45,15 +45,23 @@ if(OPENMW_EXPERIMENTAL_WASM)
     set(BUILD_BULLETOBJECTTOOL OFF CACHE BOOL "Build Bullet object tool" FORCE)
     set(USE_LUAJIT OFF CACHE BOOL "Switch Lua/LuaJit (TRUE is highly recommended)" FORCE)
 
-    add_compile_options("-pthread")
+    option(OPENMW_EXPERIMENTAL_WASM_PTHREADS
+        "Enable Emscripten pthread/Web Worker support for the experimental WebAssembly build."
+        ON)
+
+    if(OPENMW_EXPERIMENTAL_WASM_PTHREADS)
+        add_compile_options("-pthread")
+        add_link_options("-pthread" "-sPTHREAD_POOL_SIZE=navigator.hardwareConcurrency")
+    else()
+        message(STATUS "OPENMW_EXPERIMENTAL_WASM_PTHREADS=OFF: building without pthread/Web Worker support")
+    endif()
+
     add_link_options(
-        "-pthread"
         "-sUSE_SDL=2"
         "-sUSE_WEBGL2=1"
         "-sFULL_ES3=1"
         "-sALLOW_MEMORY_GROWTH=1"
         "-sFORCE_FILESYSTEM=1"
-        "-sPTHREAD_POOL_SIZE=navigator.hardwareConcurrency"
     )
 endif()
 
