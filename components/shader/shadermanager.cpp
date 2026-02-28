@@ -521,6 +521,14 @@ namespace Shader
             templateName = "compatibility/" + templateName;
 #endif
         }
+#ifdef __EMSCRIPTEN__
+        else if (templateName.starts_with("lib/core/"))
+        {
+            std::string glesName = "lib/gles/core/" + templateName.substr(9);
+            if (std::filesystem::exists(mPath / glesName))
+                templateName = std::move(glesName);
+        }
+#endif
 
         // read the template if we haven't already
         TemplateMap::iterator templateIt = mShaderTemplates.find(templateName);

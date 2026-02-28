@@ -6,6 +6,10 @@
 
 #include <osg/Texture2D>
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
+
 #include <MyGUI_Gui.h>
 #include <MyGUI_ScrollBar.h>
 #include <MyGUI_TextBox.h>
@@ -240,6 +244,19 @@ namespace MWGui
         mProgressBar->setScrollPosition(0);
         mProgressBar->setTrackSize(
             static_cast<int>(value / (float)(mProgressBar->getScrollRange()) * mProgressBar->getLineSize()));
+
+#ifdef __EMSCRIPTEN__
+        {
+            float pct = value / static_cast<float>(mProgressBar->getScrollRange()) * 100.f;
+            char buf[128];
+            std::snprintf(buf, sizeof(buf),
+                "if (typeof Module !== 'undefined' && Module.setStatus)"
+                " Module.setStatus('Loading (%d/%d)');",
+                static_cast<int>(value), static_cast<int>(mProgressBar->getScrollRange()));
+            emscripten_run_script(buf);
+        }
+#endif
+
         draw();
     }
 
