@@ -97,11 +97,55 @@ OpenMW uses background threads for physics, resource loading, and paging.
   - Exported C functions (`openmw_wasm_notify_data_ready`, `openmw_wasm_is_data_ready`, `openmw_wasm_get_data_path`).
 - **HTML shell template**: Custom `openmw_shell.html` with loading progress bar, "Select Morrowind Data Folder" button, console output overlay (toggle with tilde key), and responsive canvas layout.
 
+## Dependency Cross-Compilation Status
+
+Build infrastructure for cross-compiling all major OpenMW dependencies to WebAssembly is now in place. The two main scripts are:
+
+- **`CI/build_wasm_deps.sh`**: Builds the external dependencies that are not managed by FetchContent — Lua 5.4, LZ4, Boost (program_options + iostreams), FFmpeg (avcodec/avformat/avutil/swscale/swresample), and ICU 70.1 (with host-build for tools).
+- **`CI/before_script.wasm.sh`**: Full orchestration script that installs Emscripten SDK, pre-fetches Emscripten ports, runs `build_wasm_deps.sh`, builds ICU host tools, and configures the OpenMW CMake build.
+
+### Dependencies provided by Emscripten ports (no build needed)
+| Dependency | Port flag | Notes |
+|---|---|---|
+| SDL2 | `-sUSE_SDL=2` | Window, input, audio device |
+| zlib | `-sUSE_ZLIB=1` | Compression |
+| libpng | `-sUSE_LIBPNG=1` | PNG image loading (OSG plugin) |
+| libjpeg | `-sUSE_LIBJPEG=1` | JPEG image loading (OSG plugin) |
+| FreeType | `-sUSE_FREETYPE=1` | Font rendering (OSG plugin) |
+| OpenAL | `-lopenal` | 3D audio via Web Audio API |
+
+### Dependencies built by `CI/build_wasm_deps.sh`
+| Dependency | Version | Notes |
+|---|---|---|
+| Lua | 5.4.7 | Standard Lua (LuaJIT cannot target WASM) |
+| LZ4 | 1.9.4 | Static library via `emcc` |
+| Boost | 1.84.0 | `program_options` + `iostreams`; b2 emscripten toolset with manual fallback |
+| FFmpeg | 6.1.2 | Minimal build: only codecs/formats OpenMW uses (Bink, Vorbis, MP3, etc.) |
+| ICU | 70.1 | Host-build for tools, then cross-compile static libs for WASM |
+
+### Dependencies built by FetchContent (in `extern/CMakeLists.txt`)
+| Dependency | Version | Emscripten adaptations |
+|---|---|---|
+| Bullet Physics | 3.17 | Double precision ON; multithreading OFF for Emscripten |
+| OpenSceneGraph | 3.6 (OpenMW fork) | GLES3 profile forced (WebGL 2.0); GL1/GL2 disabled; COLLADA plugin disabled |
+| MyGUI | 3.4.3 | OSG render system 4; static build |
+| RecastNavigation | (OpenMW fork) | Static build, no changes needed |
+| SQLite3 | 3.41.1 | Amalgamation, no changes needed |
+| yaml-cpp | 0.8.0+ | Static build, no changes needed |
+
+### CMake integration
+- `CMakeLists.txt` now forces all `OPENMW_USE_SYSTEM_*` options to `OFF` when `OPENMW_IS_EMSCRIPTEN` is true, ensuring FetchContent-managed dependencies are used.
+- Emscripten port compile/link flags (`-sUSE_SDL=2`, `-sUSE_ZLIB=1`, etc.) are added globally so that both OpenMW and its FetchContent sub-builds pick them up.
+- Dummy CMake imported targets are created for SDL2, OpenAL, ZLIB, and OpenGL so that existing `find_package()` / `target_link_libraries()` calls continue to work.
+- The OSG FetchContent block sets `OPENGL_PROFILE=GLES3` and disables all desktop GL profiles.
+- ICU ExternalProject now supports Emscripten cross-compilation alongside Android.
+- Boost `find_package` falls back from CONFIG to MODULE mode for cross-compiled builds.
+
 ## Remaining Work
-- **Dependency compilation**: OSG, Bullet, MyGUI, Boost, FFmpeg, and standard Lua must be compiled to WASM with Emscripten.
 - **GLSL ES 3.00 shaders**: All shaders must be verified/ported to GLSL ES 3.00 for WebGL 2.0 compatibility.
 - **Large asset streaming**: Current file picker loads all data into memory; consider chunked/lazy loading for large Morrowind installations.
 - **Config file bootstrapping**: Provide a minimal `openmw.cfg` for WASM builds pointing to `/gamedata` as the data directory.
 - **Audio decoder**: Verify FFmpeg/audio decoding works under Emscripten or provide fallback.
 - **Input handling**: Verify pointer lock, keyboard, and gamepad input through Emscripten SDL2.
 - **Testing and profiling**: End-to-end testing in Chrome with actual Morrowind data, performance profiling and optimization.
+- **End-to-end WASM build validation**: Run `CI/before_script.wasm.sh` on a CI runner with Emscripten to verify all dependencies compile and link.

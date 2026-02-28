@@ -51,6 +51,22 @@ if(OPENMW_EXPERIMENTAL_WASM)
     set(BUILD_BULLETOBJECTTOOL OFF CACHE BOOL "Build Bullet object tool" FORCE)
     set(USE_LUAJIT OFF CACHE BOOL "Switch Lua/LuaJit (TRUE is highly recommended)" FORCE)
 
+    # Force bundled/static builds for all FetchContent-managed dependencies;
+    # system packages are not available when cross-compiling for WASM.
+    set(OPENMW_USE_SYSTEM_BULLET OFF CACHE BOOL "" FORCE)
+    set(OPENMW_USE_SYSTEM_OSG OFF CACHE BOOL "" FORCE)
+    set(OPENMW_USE_SYSTEM_MYGUI OFF CACHE BOOL "" FORCE)
+    set(OPENMW_USE_SYSTEM_RECASTNAVIGATION OFF CACHE BOOL "" FORCE)
+    set(OPENMW_USE_SYSTEM_SQLITE3 OFF CACHE BOOL "" FORCE)
+    set(OPENMW_USE_SYSTEM_YAML_CPP OFF CACHE BOOL "" FORCE)
+    set(USE_SYSTEM_TINYXML OFF CACHE BOOL "" FORCE)
+
+    # Force static linking for all bundled deps
+    set(BULLET_STATIC ON CACHE BOOL "" FORCE)
+    set(OSG_STATIC ON CACHE BOOL "" FORCE)
+    set(MYGUI_STATIC ON CACHE BOOL "" FORCE)
+    set(RECASTNAVIGATION_STATIC ON CACHE BOOL "" FORCE)
+
     option(OPENMW_EXPERIMENTAL_WASM_PTHREADS
         "Enable Emscripten pthread/Web Worker support for the experimental WebAssembly build."
         ON)
@@ -62,8 +78,23 @@ if(OPENMW_EXPERIMENTAL_WASM)
         message(STATUS "OPENMW_EXPERIMENTAL_WASM_PTHREADS=OFF: building without pthread/Web Worker support")
     endif()
 
+    # Emscripten ports: these inject the right -I/-L/-l flags automatically.
+    # USE_SDL=2 provides SDL2; USE_ZLIB, USE_LIBPNG, USE_LIBJPEG, USE_FREETYPE
+    # provide the image and font libraries that OSG plugins depend on.
+    add_compile_options(
+        "-sUSE_SDL=2"
+        "-sUSE_ZLIB=1"
+        "-sUSE_LIBPNG=1"
+        "-sUSE_LIBJPEG=1"
+        "-sUSE_FREETYPE=1"
+    )
+
     add_link_options(
         "-sUSE_SDL=2"
+        "-sUSE_ZLIB=1"
+        "-sUSE_LIBPNG=1"
+        "-sUSE_LIBJPEG=1"
+        "-sUSE_FREETYPE=1"
         "-sUSE_WEBGL2=1"
         "-sFULL_ES3=1"
         "-sALLOW_MEMORY_GROWTH=1"
@@ -320,7 +351,13 @@ if(MSVC)
 endif()
 
 # Dependencies
-if (APPLE)
+if(OPENMW_IS_EMSCRIPTEN)
+    # Emscripten provides OpenGL ES 3.0 via WebGL 2.0; no system OpenGL needed.
+    # Create a dummy target so downstream code can link against OpenGL::GL.
+    if(NOT TARGET OpenGL::GL)
+        add_library(OpenGL::GL INTERFACE IMPORTED)
+    endif()
+elseif (APPLE)
     # Force CMake to use the installed version of OpenGL on macOS
     set(_SAVE_CMAKE_FIND_FRAMEWORK ${CMAKE_FIND_FRAMEWORK})
     set(CMAKE_FIND_FRAMEWORK ONLY)
@@ -370,7 +407,9 @@ if(NOT COLLADA_DOM_VERSION_MINOR)
     set(COLLADA_DOM_VERSION_MINOR 5)
 endif()
 
-find_package(collada_dom 2.5)
+if(NOT OPENMW_IS_EMSCRIPTEN)
+    find_package(collada_dom 2.5)
+endif()
 
 option(OPENMW_USE_SYSTEM_ICU "Use system ICU library instead of internal. If disabled, requires autotools" ON)
 if(OPENMW_USE_SYSTEM_ICU)
@@ -405,8 +444,8 @@ find_package(FFmpeg REQUIRED COMPONENTS AVCODEC AVFORMAT AVUTIL SWSCALE SWRESAMP
 if(FFmpeg_FOUND)
     SET(FFVER_OK TRUE)
 
-    # Can not detect FFmpeg version on Windows or Android for now
-    if (NOT WIN32 AND NOT ANDROID)
+    # Can not detect FFmpeg version on Windows, Android, or Emscripten for now
+    if (NOT WIN32 AND NOT ANDROID AND NOT OPENMW_IS_EMSCRIPTEN)
         if(FFmpeg_AVFORMAT_VERSION VERSION_LESS "57.56.100")
             message(STATUS "libavformat is too old! (${FFmpeg_AVFORMAT_VERSION}, wanted 57.56.100)")
             set(FFVER_OK FALSE)
@@ -546,14 +585,53 @@ endif(HAVE_MULTIVIEW)
 
 set(BOOST_COMPONENTS iostreams program_options)
 
-find_package(Boost 1.70.0 CONFIG REQUIRED COMPONENTS ${BOOST_COMPONENTS} OPTIONAL_COMPONENTS ${BOOST_OPTIONAL_COMPONENTS})
+if(OPENMW_IS_EMSCRIPTEN)
+    # Cross-compiled Boost for Emscripten may not ship CMake config files.
+    # Try CONFIG first, then fall back to MODULE mode.
+    find_package(Boost 1.70.0 CONFIG QUIET COMPONENTS ${BOOST_COMPONENTS})
+    if(NOT Boost_FOUND)
+        find_package(Boost 1.70.0 REQUIRED COMPONENTS ${BOOST_COMPONENTS})
+    endif()
+else()
+    find_package(Boost 1.70.0 CONFIG REQUIRED COMPONENTS ${BOOST_COMPONENTS} OPTIONAL_COMPONENTS ${BOOST_OPTIONAL_COMPONENTS})
+endif()
 
 if(OPENMW_USE_SYSTEM_MYGUI)
     find_package(MyGUI 3.4.3 REQUIRED)
 endif()
-find_package(SDL2 2.0.20 REQUIRED)
-find_package(OpenAL REQUIRED)
-find_package(ZLIB REQUIRED)
+if(OPENMW_IS_EMSCRIPTEN)
+    # SDL2 is provided by Emscripten port (-sUSE_SDL=2).
+    # Create minimal imported targets so the rest of CMake is satisfied.
+    if(NOT TARGET SDL2::SDL2)
+        add_library(SDL2::SDL2 INTERFACE IMPORTED)
+    endif()
+    set(SDL2_FOUND TRUE)
+    set(SDL2_INCLUDE_DIRS "")
+    set(SDL2_LIBRARIES "")
+
+    # OpenAL is provided by Emscripten's built-in OpenAL → Web Audio wrapper.
+    if(NOT TARGET OpenAL::OpenAL)
+        add_library(OpenAL::OpenAL INTERFACE IMPORTED)
+        set_target_properties(OpenAL::OpenAL PROPERTIES
+            INTERFACE_COMPILE_OPTIONS "-lopenal"
+            INTERFACE_LINK_LIBRARIES "-lopenal")
+    endif()
+    set(OPENAL_FOUND TRUE)
+    set(OPENAL_INCLUDE_DIR "")
+    set(OPENAL_LIBRARY "")
+
+    # zlib is provided by Emscripten port (-sUSE_ZLIB=1).
+    if(NOT TARGET ZLIB::ZLIB)
+        add_library(ZLIB::ZLIB INTERFACE IMPORTED)
+    endif()
+    set(ZLIB_FOUND TRUE)
+    set(ZLIB_INCLUDE_DIRS "")
+    set(ZLIB_LIBRARIES "")
+else()
+    find_package(SDL2 2.0.20 REQUIRED)
+    find_package(OpenAL REQUIRED)
+    find_package(ZLIB REQUIRED)
+endif()
 
 option(USE_LUAJIT "Switch Lua/LuaJit (TRUE is highly recommended)" TRUE)
 if(USE_LUAJIT)
