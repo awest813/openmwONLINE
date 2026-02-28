@@ -229,6 +229,20 @@ namespace
                 });
             };
 
+            const schedulePeriodicPersistentSync = function() {
+                const state = (typeof globalThis !== 'undefined')
+                    ? (globalThis.__openmwPersistentSyncState = globalThis.__openmwPersistentSyncState || {})
+                    : {};
+
+                if (state.periodicSyncTimer)
+                    return;
+
+                const periodicSyncIntervalMs = 15000;
+                state.periodicSyncTimer = setInterval(function() {
+                    syncPersistentStorage();
+                }, periodicSyncIntervalMs);
+            };
+
             if (typeof globalThis !== 'undefined')
                 globalThis.__openmwSyncPersistentStorage = syncPersistentStorage;
 
@@ -239,8 +253,11 @@ namespace
                 });
                 window.addEventListener('pagehide', syncPersistentStorage);
                 window.addEventListener('beforeunload', syncPersistentStorage);
+                window.addEventListener('online', syncPersistentStorage);
                 window.__openmwPersistentSyncRegistered = true;
             }
+
+            schedulePeriodicPersistentSync();
             }
         )");
 
