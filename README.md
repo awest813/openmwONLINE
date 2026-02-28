@@ -24,6 +24,15 @@ The main quests in Morrowind, Tribunal and Bloodmoon are all completable. Some i
 
 Pre-existing modifications created for the original Morrowind engine can be hit-and-miss. The OpenMW script compiler performs more thorough error-checking than Morrowind does, meaning that a mod created for Morrowind may not necessarily run in OpenMW. Some mods also rely on quirky behaviour or engine bugs in order to work. We are considering such compatibility issues on a case-by-case basis - in some cases adding a workaround to OpenMW may be feasible, in other cases fixing the mod will be the only option. If you know of any mods that work or don't work, feel free to add them to the [Mod status](https://wiki.openmw.org/index.php?title=Mod_status) wiki page.
 
+Experimental WebAssembly build
+------------------------------
+
+An experimental WASM port bootstrap is available for Emscripten builds by configuring CMake with:
+
+    -DOPENMW_EXPERIMENTAL_WASM=ON
+
+When this switch is enabled, desktop-only tools are excluded and the game loop uses a browser-driven main loop callback under Emscripten. This is still an early-stage port and not yet a complete, playable-in-browser configuration.
+
 Getting Started
 ---------------
 

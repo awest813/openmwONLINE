@@ -199,6 +199,12 @@ namespace OMW
 
         Files::ConfigurationManager& mCfgMgr;
         int mGlMaxTextureImageUnits;
+        bool mMainLoopShutdownCompleted = false;
+#ifdef __EMSCRIPTEN__
+        MWWorld::DateTimeManager* mWasmTimeManager = nullptr;
+        Misc::FrameRateLimiter* mWasmFrameRateLimiter = nullptr;
+        std::ostream* mWasmStats = nullptr;
+#endif
 
         // not implemented
         Engine(const Engine&);
@@ -211,6 +217,10 @@ namespace OMW
         /// Returns false when the loop should stop.
         bool runMainLoopIteration(
             MWWorld::DateTimeManager& timeManager, Misc::FrameRateLimiter& frameRateLimiter, std::ostream* stats);
+        void shutdownAfterMainLoop();
+#ifdef __EMSCRIPTEN__
+        static void runWasmMainLoop(void* arg);
+#endif
 
         /// Prepare engine for game play
         void prepareEngine();
