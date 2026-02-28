@@ -193,6 +193,18 @@ An automatic GLSL 120 → GLSL ES 300 source-level translator has been added to 
 3. Declarations for replaced built-in identifiers are only added when the identifier is actually used in the source, keeping the output minimal.
 4. Word-boundary-aware identifier matching prevents false replacements (e.g., `gl_ModelViewMatrix` won't match inside `gl_ModelViewProjectionMatrix`).
 
+## C++ Source-Level GLES3 / WebGL 2.0 Fixes
+
+Desktop OpenGL APIs that don't exist in WebGL 2.0 / OpenGL ES 3.0 have been guarded with `#ifdef __EMSCRIPTEN__` / `#ifndef __EMSCRIPTEN__` compile-time conditionals:
+
+| File | Issue | Fix |
+|---|---|---|
+| `apps/openmw/mwrender/water.cpp` | `GL_DEPTH_CLAMP` (desktop GL 3.2+) | Bypassed; draw without depth clamp on Emscripten |
+| `components/myguiplatform/myguirendermanager.cpp` | `glEnableClientState`, `glVertexPointer`, `glColorPointer`, `glTexCoordPointer` (FFP client-state API) | Replaced with `glVertexAttribPointer` / `glEnableVertexAttribArray` using OSG standard attribute locations (0=position, 3=color, 8=texcoord) |
+| `components/myguiplatform/myguirendermanager.cpp` | `GL_LIGHTING`, `GL_TEXTURE_2D` state modes | Guarded out (not valid state enums in GLES 3.0) |
+| `components/sceneutil/lightmanager.cpp` | `DisableLight`, `FFPLightStateAttribute`, `StateSetGeneratorFFP` classes using `glLight*` / `GL_LIGHT0..7` | Entire FFP lighting classes wrapped in `#ifndef __EMSCRIPTEN__`; `initFFP()` guarded; `setLightingMethod()` FFP case emits error log |
+| `components/stereo/multiview.cpp` | `glTextureView` (desktop GL 4.3+) | Guarded out with warning log; stereo/multiview not supported on WebGL2 |
+
 ## Remaining Work
 - **Large asset streaming**: Current file picker loads all data into memory; consider chunked/lazy loading for large Morrowind installations.
 - **Audio decoder**: Verify FFmpeg/audio decoding works under Emscripten or provide fallback.

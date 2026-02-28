@@ -164,6 +164,11 @@ namespace Stereo
 
     void Texture2DViewSubloadCallback::load(const osg::Texture2D& texture, osg::State& state) const
     {
+#ifdef __EMSCRIPTEN__
+        // glTextureView is a desktop GL 4.3+ function with no WebGL2 equivalent.
+        // Stereo/multiview rendering is not supported on Emscripten.
+        Log(Debug::Warning) << "Texture2DViewSubloadCallback: glTextureView not available in WebGL2";
+#else
         state.checkGLErrors("before Texture2DViewSubloadCallback::load()");
 
         auto contextId = state.getContextID();
@@ -225,6 +230,7 @@ namespace Stereo
         gl->glTextureView(targetId, GL_TEXTURE_2D, sourceId, internalFormat, 0, levels, mLayer, 1);
         state.checkGLErrors("after Texture2DViewSubloadCallback::load()::glTextureView");
         glBindTexture(GL_TEXTURE_2D, targetId);
+#endif // __EMSCRIPTEN__
     }
 
     void Texture2DViewSubloadCallback::subload(const osg::Texture2D& texture, osg::State& state) const

@@ -93,10 +93,27 @@ namespace MyGUIPlatform
             state->apply();
 
             state->disableAllVertexArrays();
+
+#ifdef __EMSCRIPTEN__
+            // GLES 3.0 / WebGL 2.0: use generic vertex attributes instead of deprecated
+            // client-state functions (glVertexPointer, glEnableClientState, etc.)
+            // Attribute layout matches OSG's standard vertex attribute aliases:
+            //   location 0 = vertex position (osg_Vertex)
+            //   location 3 = vertex color   (osg_Color)
+            //   location 8 = texcoord 0     (osg_MultiTexCoord0)
+            constexpr GLuint ATTRIB_POSITION = 0;
+            constexpr GLuint ATTRIB_COLOR = 3;
+            constexpr GLuint ATTRIB_TEXCOORD = 8;
+
+            glEnableVertexAttribArray(ATTRIB_POSITION);
+            glEnableVertexAttribArray(ATTRIB_COLOR);
+            glEnableVertexAttribArray(ATTRIB_TEXCOORD);
+#else
             state->setClientActiveTextureUnit(0);
             glEnableClientState(GL_VERTEX_ARRAY);
             glEnableClientState(GL_TEXTURE_COORD_ARRAY);
             glEnableClientState(GL_COLOR_ARRAY);
+#endif
 
             mReadFrom = (mReadFrom + 1) % sNumBuffers;
             const std::vector<Batch>& vec = mBatchVector[mReadFrom];
@@ -127,18 +144,37 @@ namespace MyGUIPlatform
                 {
                     state->bindVertexBufferObject(bufferobject);
 
+#ifdef __EMSCRIPTEN__
+                    glVertexAttribPointer(ATTRIB_POSITION, 3, GL_FLOAT, GL_FALSE, sizeof(MyGUI::Vertex),
+                        reinterpret_cast<const void*>(0));
+                    glVertexAttribPointer(ATTRIB_COLOR, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(MyGUI::Vertex),
+                        reinterpret_cast<const void*>(12));
+                    glVertexAttribPointer(ATTRIB_TEXCOORD, 2, GL_FLOAT, GL_FALSE, sizeof(MyGUI::Vertex),
+                        reinterpret_cast<const void*>(16));
+#else
                     glVertexPointer(3, GL_FLOAT, sizeof(MyGUI::Vertex), reinterpret_cast<char*>(0));
                     glColorPointer(4, GL_UNSIGNED_BYTE, sizeof(MyGUI::Vertex), reinterpret_cast<char*>(12));
                     glTexCoordPointer(2, GL_FLOAT, sizeof(MyGUI::Vertex), reinterpret_cast<char*>(16));
+#endif
                 }
                 else
                 {
+#ifdef __EMSCRIPTEN__
+                    const char* base = reinterpret_cast<const char*>(vbo->getArray(0)->getDataPointer());
+                    glVertexAttribPointer(
+                        ATTRIB_POSITION, 3, GL_FLOAT, GL_FALSE, sizeof(MyGUI::Vertex), base);
+                    glVertexAttribPointer(
+                        ATTRIB_COLOR, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(MyGUI::Vertex), base + 12);
+                    glVertexAttribPointer(
+                        ATTRIB_TEXCOORD, 2, GL_FLOAT, GL_FALSE, sizeof(MyGUI::Vertex), base + 16);
+#else
                     glVertexPointer(3, GL_FLOAT, sizeof(MyGUI::Vertex),
                         reinterpret_cast<const char*>(vbo->getArray(0)->getDataPointer()));
                     glColorPointer(4, GL_UNSIGNED_BYTE, sizeof(MyGUI::Vertex),
                         reinterpret_cast<const char*>(vbo->getArray(0)->getDataPointer()) + 12);
                     glTexCoordPointer(2, GL_FLOAT, sizeof(MyGUI::Vertex),
                         reinterpret_cast<const char*>(vbo->getArray(0)->getDataPointer()) + 16);
+#endif
                 }
 
                 glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(batch.mVertexCount));
@@ -150,9 +186,15 @@ namespace MyGUIPlatform
                 }
             }
 
+#ifdef __EMSCRIPTEN__
+            glDisableVertexAttribArray(ATTRIB_POSITION);
+            glDisableVertexAttribArray(ATTRIB_COLOR);
+            glDisableVertexAttribArray(ATTRIB_TEXCOORD);
+#else
             glDisableClientState(GL_VERTEX_ARRAY);
             glDisableClientState(GL_TEXTURE_COORD_ARRAY);
             glDisableClientState(GL_COLOR_ARRAY);
+#endif
 
             state->popStateSet();
 
@@ -178,8 +220,10 @@ namespace MyGUIPlatform
             setUpdateCallback(frameUpdate);
 
             mStateSet = new osg::StateSet;
+#ifndef __EMSCRIPTEN__
             mStateSet->setMode(GL_LIGHTING, osg::StateAttribute::OFF);
             mStateSet->setTextureMode(0, GL_TEXTURE_2D, osg::StateAttribute::ON);
+#endif
             mStateSet->setMode(GL_DEPTH_TEST, osg::StateAttribute::OFF);
             mStateSet->setMode(GL_BLEND, osg::StateAttribute::ON);
 

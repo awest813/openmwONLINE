@@ -290,6 +290,9 @@ namespace SceneUtil
         }
     }
 
+#ifndef __EMSCRIPTEN__
+    // FFP lighting classes use glLight* / GL_LIGHT0 APIs not available in WebGL2 / GLES 3.0.
+    // On Emscripten, lighting is forced to PerObjectUniform or SingleUBO mode.
     class DisableLight : public osg::StateAttribute
     {
     public:
@@ -419,6 +422,7 @@ namespace SceneUtil
         size_t mIndex;
         std::vector<osg::ref_ptr<osg::Light>> mLights;
     };
+#endif // __EMSCRIPTEN__
 
     struct StateSetGenerator
     {
@@ -433,6 +437,7 @@ namespace SceneUtil
         osg::Matrix mViewMatrix;
     };
 
+#ifndef __EMSCRIPTEN__
     struct StateSetGeneratorFFP : StateSetGenerator
     {
         osg::ref_ptr<osg::StateSet> generate(const LightManager::LightList& lightList, size_t frameNum) override
@@ -463,6 +468,7 @@ namespace SceneUtil
             return stateset;
         }
     };
+#endif // __EMSCRIPTEN__
 
     struct StateSetGeneratorSingleUBO : StateSetGenerator
     {
@@ -963,6 +969,7 @@ namespace SceneUtil
             mPointLightFadeStart = mPointLightFadeEnd * lightFadeStart;
     }
 
+#ifndef __EMSCRIPTEN__
     void LightManager::initFFP(int targetLights)
     {
         setLightingMethod(LightingMethod::FFP);
@@ -971,6 +978,7 @@ namespace SceneUtil
         for (int i = 0; i < getMaxLights(); ++i)
             mDummies.push_back(new FFPLightStateAttribute(i, std::vector<osg::ref_ptr<osg::Light>>()));
     }
+#endif
 
     void LightManager::initPerObjectUniform(int targetLights)
     {
@@ -995,7 +1003,11 @@ namespace SceneUtil
         switch (method)
         {
             case LightingMethod::FFP:
+#ifdef __EMSCRIPTEN__
+                Log(Debug::Error) << "FFP lighting not available on Emscripten; this code path should not be reached";
+#else
                 mStateSetGenerator = std::make_unique<StateSetGeneratorFFP>();
+#endif
                 break;
             case LightingMethod::SingleUBO:
                 mStateSetGenerator = std::make_unique<StateSetGeneratorSingleUBO>();
@@ -1024,6 +1036,7 @@ namespace SceneUtil
         if (!usingFFP())
             return;
 
+#ifndef __EMSCRIPTEN__
         // Set default light state to zero
         // This is necessary because shaders don't respect glDisable(GL_LIGHTX) so in addition to disabling
         // we'll have to set a light state that has no visible effect
@@ -1032,6 +1045,7 @@ namespace SceneUtil
             osg::ref_ptr<DisableLight> defaultLight(new DisableLight(i));
             getOrCreateStateSet()->setAttributeAndModes(defaultLight, osg::StateAttribute::OFF);
         }
+#endif
     }
 
     int LightManager::getStartLight() const
