@@ -11,6 +11,10 @@
 
 #include <SDL.h>
 
+#ifdef __EMSCRIPTEN__
+#    include <emscripten.h>
+#endif
+
 #include <components/debug/debuglog.hpp>
 #include <components/debug/gldebug.hpp>
 
@@ -220,6 +224,32 @@ bool OMW::Engine::runMainLoopIteration(
 
     return !mViewer->done() && !mStateManager->hasQuitRequest();
 }
+
+void OMW::Engine::shutdownAfterMainLoop()
+{
+    if (mMainLoopShutdownCompleted)
+        return;
+
+    mMainLoopShutdownCompleted = true;
+    mLuaWorker->join();
+
+    // Save user settings
+    Settings::Manager::saveUser(mCfgMgr.getUserConfigPath() / "settings.cfg");
+    Settings::ShaderManager::get().save();
+    mLuaManager->savePermanentStorage(mCfgMgr.getUserConfigPath());
+}
+
+#ifdef __EMSCRIPTEN__
+void OMW::Engine::runWasmMainLoop(void* arg)
+{
+    auto* engine = static_cast<Engine*>(arg);
+    if (!engine->runMainLoopIteration(*engine->mWasmTimeManager, *engine->mWasmFrameRateLimiter, engine->mWasmStats))
+    {
+        engine->shutdownAfterMainLoop();
+        emscripten_cancel_main_loop();
+    }
+}
+#endif
 
 void OMW::Engine::executeLocalScripts()
 {
@@ -1073,16 +1103,19 @@ void OMW::Engine::go()
     // Start the main rendering loop
     MWWorld::DateTimeManager& timeManager = *mWorld->getTimeManager();
     Misc::FrameRateLimiter frameRateLimiter = Misc::makeFrameRateLimiter(mEnvironment.getFrameRateLimit());
+
+#ifdef __EMSCRIPTEN__
+    mWasmTimeManager = &timeManager;
+    mWasmFrameRateLimiter = &frameRateLimiter;
+    mWasmStats = stats.is_open() ? &stats : nullptr;
+    emscripten_set_main_loop_arg(&Engine::runWasmMainLoop, this, 0, 1);
+#else
     while (runMainLoopIteration(timeManager, frameRateLimiter, stats.is_open() ? &stats : nullptr))
     {
     }
 
-    mLuaWorker->join();
-
-    // Save user settings
-    Settings::Manager::saveUser(mCfgMgr.getUserConfigPath() / "settings.cfg");
-    Settings::ShaderManager::get().save();
-    mLuaManager->savePermanentStorage(mCfgMgr.getUserConfigPath());
+    shutdownAfterMainLoop();
+#endif
 }
 
 void OMW::Engine::setCompileAll(bool all)
