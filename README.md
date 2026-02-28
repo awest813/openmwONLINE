@@ -31,6 +31,10 @@ An experimental WASM port bootstrap is available for Emscripten builds by config
 
     -DOPENMW_EXPERIMENTAL_WASM=ON
 
+Pthread/Web Worker support is enabled by default. To build without browser `SharedArrayBuffer`/worker requirements during early bring-up, it can be disabled (this option is only used when `OPENMW_EXPERIMENTAL_WASM=ON`):
+
+    -DOPENMW_EXPERIMENTAL_WASM_PTHREADS=OFF
+
 When this switch is enabled, desktop-only tools are excluded, the game loop uses a browser-driven main loop callback under Emscripten, and linker flags keep Emscripten's virtual filesystem runtime available for settings/save paths. This is still an early-stage port and not yet a complete, playable-in-browser configuration.
 
 Getting Started
