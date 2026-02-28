@@ -58,3 +58,12 @@ OpenMW uses background threads for physics, resource loading, and paging.
 4. **VFS Integration:** Implement IDBFS and File System Access API for user data.
 5. **Graphics Fixes:** Resolve WebGL shader and OSG compatibility issues.
 6. **Testing & Optimization:** Profile and test the build in Google Chrome.
+
+## Current Bootstrap Status
+- Added an experimental CMake switch: `-DOPENMW_EXPERIMENTAL_WASM=ON`.
+- The switch auto-enables when CMake is configured with an Emscripten toolchain and currently:
+  - Disables desktop-only applications and tools (launcher, OpenMW-CS, importers, inspectors, etc.).
+  - Forces standard Lua (`USE_LUAJIT=OFF`) to avoid LuaJIT incompatibilities on WASM.
+  - Applies baseline Emscripten linker flags for SDL2, WebGL 2.0, ES3, memory growth, and pthread support.
+
+This is intended as a first step only: additional dependency and runtime refactoring work is still required before OpenMW is playable in-browser.

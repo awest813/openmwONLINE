@@ -8,6 +8,11 @@ endif()
 
 project(OpenMW)
 
+set(OPENMW_IS_EMSCRIPTEN FALSE)
+if(CMAKE_SYSTEM_NAME STREQUAL "Emscripten" OR EMSCRIPTEN)
+    set(OPENMW_IS_EMSCRIPTEN TRUE)
+endif()
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -17,6 +22,38 @@ include(GNUInstallDirs)
 option(OPENMW_GL4ES_MANUAL_INIT "Manually initialize gl4es. This is more reliable on platforms without a windowing system. Requires gl4es to be configured with -DNOEGL=ON -DNO_LOADER=ON -DNO_INIT_CONSTRUCTOR=ON." OFF)
 if(OPENMW_GL4ES_MANUAL_INIT)
     add_compile_definitions(OPENMW_GL4ES_MANUAL_INIT)
+endif()
+
+option(OPENMW_EXPERIMENTAL_WASM "Enable experimental WebAssembly build configuration." ${OPENMW_IS_EMSCRIPTEN})
+if(OPENMW_EXPERIMENTAL_WASM)
+    if(NOT OPENMW_IS_EMSCRIPTEN)
+        message(FATAL_ERROR "OPENMW_EXPERIMENTAL_WASM requires an Emscripten toolchain")
+    endif()
+
+    message(STATUS "Configuring experimental WebAssembly build")
+
+    set(BUILD_LAUNCHER OFF CACHE BOOL "Build Launcher" FORCE)
+    set(BUILD_WIZARD OFF CACHE BOOL "Build Installation Wizard" FORCE)
+    set(BUILD_MWINIIMPORTER OFF CACHE BOOL "Build MWiniImporter" FORCE)
+    set(BUILD_OPENCS OFF CACHE BOOL "Build OpenMW Construction Set" FORCE)
+    set(BUILD_ESSIMPORTER OFF CACHE BOOL "Build ESS (Morrowind save game) importer" FORCE)
+    set(BUILD_BSATOOL OFF CACHE BOOL "Build BSA extractor" FORCE)
+    set(BUILD_ESMTOOL OFF CACHE BOOL "Build ESM inspector" FORCE)
+    set(BUILD_NIFTEST OFF CACHE BOOL "Build nif file tester" FORCE)
+    set(BUILD_BENCHMARKS OFF CACHE BOOL "Build benchmarks with Google Benchmark" FORCE)
+    set(BUILD_NAVMESHTOOL OFF CACHE BOOL "Build navmesh tool" FORCE)
+    set(BUILD_BULLETOBJECTTOOL OFF CACHE BOOL "Build Bullet object tool" FORCE)
+    set(USE_LUAJIT OFF CACHE BOOL "Switch Lua/LuaJit (TRUE is highly recommended)" FORCE)
+
+    add_compile_options("-pthread")
+    add_link_options(
+        "-pthread"
+        "-sUSE_SDL=2"
+        "-sUSE_WEBGL2=1"
+        "-sFULL_ES3=1"
+        "-sALLOW_MEMORY_GROWTH=1"
+        "-sPTHREAD_POOL_SIZE=navigator.hardwareConcurrency"
+    )
 endif()
 
 if (APPLE OR WIN32)
