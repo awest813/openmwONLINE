@@ -121,11 +121,19 @@ OpenMW uses background threads for physics, resource loading, and paging.
 - **S3TC texture decompression**: Under Emscripten, S3TC compressed textures are always software-decompressed since browser WebGL extension support for `WEBGL_compressed_texture_s3tc` varies. This avoids missing-texture errors at the cost of slightly longer load times.
 - **OpenAL Emscripten guards**: `AL_SOFT_events` extension loading, `ALC_SOFT_reopen_device` extension loading, and `DefaultDeviceThread` creation are all guarded with `#ifndef __EMSCRIPTEN__` since Emscripten's OpenAL implementation doesn't support these desktop-specific extensions.
 
+## Phase 5 Porting Status
+- **Sky shader port**: Created GLES `sky.vert/frag` replacing `gl_FrontMaterial.emission`/`.diffuse` with `osg_FrontMaterialEmission`/`osg_FrontMaterialDiffuse` uniforms, `gl_Fog.color` with `osg_FogColor` uniform, `gl_Vertex`/`gl_Color`/`gl_MultiTexCoord0` with vertex attribute inputs, and `texture2D` with `texture`.
+- **Shadow casting shader port**: Created GLES `shadowcasting.vert/frag` replacing `gl_ModelViewProjectionMatrix`, `gl_ModelViewMatrix`, `gl_TextureMatrix[0]`, `gl_Vertex`, `gl_Color`, and `gl_FrontMaterial.diffuse` with uniforms and vertex attributes.
+- **Fullscreen triangle shader port**: Created GLES `fullscreen_tri.vert/frag` with `osg_Vertex` attribute input and `osg_FragColor` output.
+- **Fog system port**: Created GLES `fog.glsl` replacing `gl_Fog.start`/`.end`/`.scale`/`.color` with individual uniforms (`osg_FogStart`, `osg_FogEnd`, `osg_FogScale`, `osg_FogColor`).
+- **Fragment library port**: Created GLES `lib/core/fragment.glsl` replacing all `texture2D` calls with `texture` for WebGL 2.0.
+- **Linked shader redirection**: `ShaderManager::getShader` now redirects `lib/core/` linked shader targets to `lib/gles/core/` under Emscripten when the GLES variant exists.
+- **Loading progress**: `LoadingScreen::setProgress` pushes progress updates to the browser `Module.setStatus` callback under Emscripten for real-time loading feedback.
+
 ## Remaining Work
 - **Dependency compilation**: OSG, Bullet, MyGUI, Boost (program_options, iostreams), FFmpeg, and standard Lua must be compiled to WASM with Emscripten.
-- **Remaining shader porting**: The `objects`, `terrain`, `water`, `groundcover`, `shadowcasting`, and `sky` shaders still need GLSL ES 3.00 ports. The `sky` shaders use `gl_FrontMaterial` and `gl_Fog` built-ins that need uniform replacements.
+- **Remaining shader porting**: The `objects`, `terrain`, `water`, and `groundcover` shaders still need GLSL ES 3.00 ports. These are the most complex shaders with extensive lighting, normal mapping, and material calculations.
 - **Large asset streaming**: Current file picker loads all data into Emscripten memory; consider chunked/lazy loading or OPFS (Origin Private File System) for large Morrowind installations.
 - **Audio decoder**: Verify FFmpeg/audio decoding works under Emscripten or provide Web Audio API fallback.
-- **SQLite for WASM**: If navmesh caching is desired, compile SQLite to WASM (sql.js) and integrate with Emscripten FS.
 - **Boost for WASM**: Boost.Program_Options and Boost.Iostreams need WASM compilation, or replace with header-only alternatives.
 - **Testing and profiling**: End-to-end testing in Chrome with actual Morrowind data, performance profiling and optimization.
