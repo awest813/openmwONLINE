@@ -1,7 +1,9 @@
 #ifndef ENGINE_H
 #define ENGINE_H
 
+#include <chrono>
 #include <filesystem>
+#include <iosfwd>
 
 #include <components/compiler/extensions.hpp>
 #include <components/debug/debuglog.hpp>
@@ -90,6 +92,7 @@ namespace MWSound
 
 namespace MWWorld
 {
+    class DateTimeManager;
     class World;
 }
 
@@ -119,6 +122,11 @@ namespace L10n
 }
 
 struct SDL_Window;
+
+namespace Misc
+{
+    class FrameRateLimiter;
+}
 
 namespace OMW
 {
@@ -193,6 +201,8 @@ namespace OMW
         void executeLocalScripts();
 
         bool frame(unsigned frameNumber, float dt);
+        bool runMainLoopIteration(MWWorld::DateTimeManager& timeManager, Misc::FrameRateLimiter& frameRateLimiter,
+            const std::chrono::steady_clock::duration& maxSimulationInterval, bool reportStats, std::ostream* statsOutput);
 
         /// Prepare engine for game play
         void prepareEngine();

@@ -65,5 +65,6 @@ OpenMW uses background threads for physics, resource loading, and paging.
   - Disables desktop-only applications and tools (launcher, OpenMW-CS, importers, inspectors, etc.).
   - Forces standard Lua (`USE_LUAJIT=OFF`) to avoid LuaJIT incompatibilities on WASM.
   - Applies baseline Emscripten linker flags for SDL2, WebGL 2.0, ES3, memory growth, and pthread support.
+- Refactors the desktop game loop body into `Engine::runMainLoopIteration(...)` so it can be reused by a future browser-driven frame callback.
 
 This is intended as a first step only: additional dependency and runtime refactoring work is still required before OpenMW is playable in-browser.
