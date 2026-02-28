@@ -18,6 +18,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 include(GNUInstallDirs)
+include(CMakeDependentOption)
 
 option(OPENMW_GL4ES_MANUAL_INIT "Manually initialize gl4es. This is more reliable on platforms without a windowing system. Requires gl4es to be configured with -DNOEGL=ON -DNO_LOADER=ON -DNO_INIT_CONSTRUCTOR=ON." OFF)
 if(OPENMW_GL4ES_MANUAL_INIT)
@@ -25,6 +26,11 @@ if(OPENMW_GL4ES_MANUAL_INIT)
 endif()
 
 option(OPENMW_EXPERIMENTAL_WASM "Enable experimental WebAssembly build configuration." ${OPENMW_IS_EMSCRIPTEN})
+cmake_dependent_option(OPENMW_EXPERIMENTAL_WASM_PTHREADS
+    "Enable Emscripten pthread/Web Worker support for the experimental WebAssembly build."
+    ON
+    "OPENMW_EXPERIMENTAL_WASM"
+    OFF)
 if(OPENMW_EXPERIMENTAL_WASM)
     if(NOT OPENMW_IS_EMSCRIPTEN)
         message(FATAL_ERROR "OPENMW_EXPERIMENTAL_WASM requires an Emscripten toolchain")
