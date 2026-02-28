@@ -52,6 +52,8 @@ namespace
             return "compatibility";
         else if (path.starts_with("core"))
             return "core";
+        else if (path.starts_with("gles"))
+            return "gles";
         return {};
     }
 
@@ -143,6 +145,15 @@ namespace
             if (getRootPrefix(includeFilename).empty())
                 includeFilename
                     = Files::pathToUnicodeString(std::filesystem::path(fileName).parent_path() / includeFilename);
+
+#ifdef __EMSCRIPTEN__
+            if (includeFilename.starts_with("lib/") && !includeFilename.starts_with("lib/gles/"))
+            {
+                std::string glesInclude = "lib/gles/" + includeFilename.substr(4);
+                if (std::filesystem::exists(shaderPath / glesInclude))
+                    includeFilename = std::move(glesInclude);
+            }
+#endif
 
             std::filesystem::path includePath = shaderPath / includeFilename;
 

@@ -1,7 +1,7 @@
 #ifndef LIB_LIGHT_LIGHTING
 #define LIB_LIGHT_LIGHTING
 
-#include "lighting_util.glsl"
+#include "lib/light/lighting_util.glsl"
 
 uniform vec4 osg_LightModelAmbient;
 
