@@ -1070,6 +1070,10 @@ void OMW::Engine::go()
     Settings::camera().mViewingDistance.set(std::min(Settings::camera().mViewingDistance.get(), 4096.f));
     Settings::video().mAntialiasing.set(0);
     Settings::camera().mReverseZ.set(false);
+    Settings::shaders().mForceShaders.set(true);
+    Settings::shaders().mForcePerPixelLighting.set(true);
+    if (Settings::shaders().mLightingMethod == SceneUtil::LightingMethod::FFP)
+        Settings::shaders().mLightingMethod.set(SceneUtil::LightingMethod::PerObjectUniform);
 #endif
 
     MWClass::registerClasses();

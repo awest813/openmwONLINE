@@ -509,10 +509,18 @@ namespace Shader
     {
         std::unique_lock<std::mutex> lock(mMutex);
 
-        // TODO: Implement mechanism to switch to core or compatibility profile shaders.
-        // This logic is temporary until core support is supported.
         if (getRootPrefix(templateName).empty())
+        {
+#ifdef __EMSCRIPTEN__
+            std::filesystem::path glesPath = mPath / "gles" / templateName;
+            if (std::filesystem::exists(glesPath))
+                templateName = "gles/" + templateName;
+            else
+                templateName = "compatibility/" + templateName;
+#else
             templateName = "compatibility/" + templateName;
+#endif
+        }
 
         // read the template if we haven't already
         TemplateMap::iterator templateIt = mShaderTemplates.find(templateName);

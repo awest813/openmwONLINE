@@ -29,6 +29,7 @@ extern "C" __declspec(dllexport) DWORD AmdPowerXpressRequestHighPerformance = 0x
 
 #include <cerrno>
 #include <filesystem>
+#include <fstream>
 #include <limits>
 #include <sstream>
 #include <string>
@@ -443,6 +444,27 @@ int runApplication(int argc, char* argv[])
     initializeWasmPersistentStorage();
     OMW::WasmFilePicker::initialize("/gamedata");
     OMW::WasmFilePicker::registerBrowserCallbacks();
+
+    {
+        const std::string persistentRoot = getWasmPersistentRootPath();
+        const std::string configDir = persistentRoot + "/home/.config/openmw";
+        const std::string cfgPath = configDir + "/openmw.cfg";
+        std::filesystem::create_directories(configDir);
+
+        if (!std::filesystem::exists(cfgPath))
+        {
+            std::ofstream cfg(cfgPath);
+            if (cfg.is_open())
+            {
+                cfg << "# Auto-generated WASM config\n";
+                cfg << "data=\"/gamedata/Data Files\"\n";
+                cfg << "data=\"/gamedata\"\n";
+                cfg << "content=Morrowind.esm\n";
+                cfg << "fallback-archive=Morrowind.bsa\n";
+                Log(Debug::Info) << "WASM: Bootstrap config written to " << cfgPath;
+            }
+        }
+    }
 #endif
 
 #ifdef __APPLE__
