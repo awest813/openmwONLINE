@@ -35,7 +35,20 @@ To build without browser `SharedArrayBuffer`/worker requirements during early br
 
     -DOPENMW_EXPERIMENTAL_WASM_PTHREADS=OFF
 
-When this switch is enabled, desktop-only tools are excluded, the game loop uses a browser-driven main loop callback under Emscripten, and linker flags keep Emscripten's virtual filesystem runtime available for settings/save paths. The Emscripten runtime now also mounts an IDBFS-backed persistent directory, pre-creates HOME/XDG subdirectories there, and points HOME/XDG user paths at that mount so configuration/save data can survive browser reloads after sync. By default the mount path is `/persistent`, but it can be overridden via `OPENMW_WASM_PERSISTENT_ROOT` (must be an absolute path). Pthread-enabled WASM builds now emit a browser console warning when cross-origin isolation headers are missing, helping diagnose non-threaded startup failures on misconfigured hosts, and FS/IDBFS availability checks now log clear diagnostics when persistent storage APIs are unavailable. WASM startup additionally registers browser `visibilitychange`/`pagehide` hooks so background tab switches and page unloads trigger an IDBFS sync, performs periodic background syncs while gameplay continues, and coalesces overlapping sync requests to avoid races. The periodic sync cadence can be tuned with `OPENMW_WASM_PERSISTENT_SYNC_INTERVAL_MS` (default `15000`, `<=0` disables timer-based syncs). This is still an early-stage port and not yet a complete, playable-in-browser configuration.
+When this switch is enabled, desktop-only tools are excluded, the game loop uses a browser-driven main loop callback under Emscripten, and linker flags keep Emscripten's virtual filesystem runtime available for settings/save paths. The Emscripten runtime now also mounts an IDBFS-backed persistent directory, pre-creates HOME/XDG subdirectories there, and points HOME/XDG user paths at that mount so configuration/save data can survive browser reloads after sync. By default the mount path is `/persistent`, but it can be overridden via `OPENMW_WASM_PERSISTENT_ROOT` (must be an absolute path). Pthread-enabled WASM builds now emit a browser console warning when cross-origin isolation headers are missing, helping diagnose non-threaded startup failures on misconfigured hosts, and FS/IDBFS availability checks now log clear diagnostics when persistent storage APIs are unavailable. WASM startup additionally registers browser `visibilitychange`/`pagehide` hooks so background tab switches and page unloads trigger an IDBFS sync, performs periodic background syncs while gameplay continues, and coalesces overlapping sync requests to avoid races. The periodic sync cadence can be tuned with `OPENMW_WASM_PERSISTENT_SYNC_INTERVAL_MS` (default `15000`, `<=0` disables timer-based syncs).
+
+The WASM port now also includes:
+
+- **Platform paths**: Emscripten-specific path resolution (`EmscriptenPath`) for config, data, and cache directories under the Emscripten virtual filesystem.
+- **Browser data loading**: A File System Access API bridge (`wasmfilepicker`) that allows users to select their Morrowind "Data Files" folder in the browser via `__openmwPickDataDirectory()`. Files are uploaded into the Emscripten virtual FS at `/gamedata`.
+- **WebGL context**: SDL/GL context setup requests WebGL 2.0 (OpenGL ES 3.0), disables MSAA, stereo, fullscreen, and debug GL contexts for browser compatibility.
+- **Rendering guards**: Shadows disabled by default, compute shaders disabled, `GL_DEPTH_CLAMP`/`ClipControl` guarded (unavailable in WebGL), reverse-z depth buffer disabled, and draw distance capped for browser performance.
+- **Crash catcher excluded**: POSIX signal-based crash handling is disabled under Emscripten.
+- **Synchronous data loading**: `std::async` replaced with synchronous loading for WASM (no background thread data loading).
+- **SDL adaptations**: Gamma ramp functions guarded (unsupported in browser SDL2), thread priority adjustments skipped.
+- **HTML shell**: A custom Emscripten HTML shell template at `files/wasm/openmw_shell.html` provides a loading screen and data folder picker UI.
+
+This is still an early-stage port and not yet a complete, playable-in-browser configuration.
 
 Getting Started
 ---------------

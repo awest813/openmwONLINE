@@ -1064,6 +1064,14 @@ void OMW::Engine::go()
 
     Settings::ShaderManager::get().load(mCfgMgr.getUserConfigPath() / "shaders.yaml");
 
+#ifdef __EMSCRIPTEN__
+    Log(Debug::Info) << "Applying WASM performance defaults";
+    Settings::shadows().mEnableShadows.set(false);
+    Settings::camera().mViewingDistance.set(std::min(Settings::camera().mViewingDistance.get(), 4096.f));
+    Settings::video().mAntialiasing.set(0);
+    Settings::camera().mReverseZ.set(false);
+#endif
+
     MWClass::registerClasses();
 
     // Create encoder

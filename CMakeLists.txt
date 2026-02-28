@@ -68,6 +68,11 @@ if(OPENMW_EXPERIMENTAL_WASM)
         "-sFULL_ES3=1"
         "-sALLOW_MEMORY_GROWTH=1"
         "-sFORCE_FILESYSTEM=1"
+        "-sEXPORTED_FUNCTIONS=['_main','_openmw_wasm_notify_data_ready','_openmw_wasm_is_data_ready','_openmw_wasm_get_data_path']"
+        "-sEXPORTED_RUNTIME_METHODS=['UTF8ToString','stringToUTF8','ccall','cwrap']"
+        "-sINITIAL_MEMORY=256mb"
+        "-sSTACK_SIZE=5mb"
+        "--shell-file" "${CMAKE_SOURCE_DIR}/files/wasm/openmw_shell.html"
     )
 endif()
 
