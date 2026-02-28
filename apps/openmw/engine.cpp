@@ -1069,6 +1069,7 @@ void OMW::Engine::go()
         Settings::shaders().mLightingMethod.set(SceneUtil::LightingMethod::PerObjectUniform);
     Settings::navigator().mEnableNavMeshDiskCache.set(false);
     Settings::navigator().mWriteToNavmeshdb.set(false);
+    Settings::postProcessing().mEnabled.set(false);
 #ifndef __EMSCRIPTEN_PTHREADS__
     Settings::cells().mPreloadNumThreads.set(1);
     Settings::physics().mAsyncNumThreads.set(0);
