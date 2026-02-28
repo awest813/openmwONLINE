@@ -130,9 +130,41 @@ OpenMW uses background threads for physics, resource loading, and paging.
 - **Linked shader redirection**: `ShaderManager::getShader` now redirects `lib/core/` linked shader targets to `lib/gles/core/` under Emscripten when the GLES variant exists.
 - **Loading progress**: `LoadingScreen::setProgress` pushes progress updates to the browser `Module.setStatus` callback under Emscripten for real-time loading feedback.
 
+## Phase 6 Porting Status
+- **Runtime GLSL version fix**: `technique.cpp` sets GLSL version to `300` with `es` profile under Emscripten. `pass.cpp` forces modern GLSL path (`mLegacyGLSL = false`) for Emscripten. `lightmanager.cpp` UBO dummy shader uses `#version 300 es` with `precision highp float` under Emscripten.
+- **Water shader port**: Created GLES `water.vert/frag` replacing `gl_ModelViewMatrixInverse` with `osg_ModelViewMatrixInverse` uniform, `gl_LightModel.ambient` with `osg_LightModelAmbient` uniform, `gl_NormalMatrix` with `osg_NormalMatrix` uniform, all `texture2D` with `texture`, and `gl_FragData[0]` with `osg_FragColor` output.
+- **Support shader ports**: Created GLES versions of `normals.glsl` (varying → in), `shadows_vertex.glsl` (varying → out), and `shadows_fragment.glsl` (varying → in, `shadow2DProj` → `textureProj`, `gl_FragData[0]` → `osg_FragColor`).
+
+## GLES Shader Port Status
+| Shader | Ported | Notes |
+|--------|--------|-------|
+| gui.vert/frag | Yes | |
+| debug.vert/frag | Yes | |
+| sky.vert/frag | Yes | |
+| shadowcasting.vert/frag | Yes | |
+| fullscreen_tri.vert/frag | Yes | |
+| water.vert/frag | Yes | |
+| fog.glsl | Yes | |
+| vertexcolors.glsl | Yes | |
+| normals.glsl | Yes | |
+| shadows_vertex.glsl | Yes | |
+| shadows_fragment.glsl | Yes | |
+| lib/core/vertex.glsl | Yes | |
+| lib/core/fragment.glsl | Yes | |
+| objects.vert/frag | No | Complex: many texture maps, lighting, normal mapping |
+| terrain.vert/frag | No | Complex: multi-layer texturing, lighting |
+| groundcover.vert/frag | No | Complex: custom attributes, wind animation |
+| bs/default.vert/frag | No | Bethesda Softworks format shaders |
+| bs/nolighting.vert/frag | No | |
+| depthclipped.vert/frag | No | |
+| ripples_blobber.frag | No | |
+| ripples_simulate.frag | No | |
+| luminance/*.frag | No | |
+| multiview_resolve.vert/frag | No | VR-only, not needed for WASM |
+
 ## Remaining Work
 - **Dependency compilation**: OSG, Bullet, MyGUI, Boost (program_options, iostreams), FFmpeg, and standard Lua must be compiled to WASM with Emscripten.
-- **Remaining shader porting**: The `objects`, `terrain`, `water`, and `groundcover` shaders still need GLSL ES 3.00 ports. These are the most complex shaders with extensive lighting, normal mapping, and material calculations.
+- **Remaining shader porting**: The `objects`, `terrain`, and `groundcover` shaders are the most complex remaining shaders. The `bs/*`, `depthclipped`, `ripples_*`, and `luminance/*` shaders are also needed but simpler.
 - **Large asset streaming**: Current file picker loads all data into Emscripten memory; consider chunked/lazy loading or OPFS (Origin Private File System) for large Morrowind installations.
 - **Audio decoder**: Verify FFmpeg/audio decoding works under Emscripten or provide Web Audio API fallback.
 - **Boost for WASM**: Boost.Program_Options and Boost.Iostreams need WASM compilation, or replace with header-only alternatives.
