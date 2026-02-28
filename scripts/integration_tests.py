@@ -55,6 +55,10 @@ def run_test(test_name):
     config_dir.mkdir()
     shutil.copyfile(example_suite_dir / "settings.cfg", config_dir / "settings.cfg")
     test_dir = tests_dir / test_name
+    test_config = test_dir / "openmw.cfg"
+    if not test_config.is_file():
+        print(f"[  FAILED  ] fatal error: missing test config {test_config}")
+        return False
     with open(config_dir / "openmw.cfg", "w", encoding="utf-8") as omw_cfg:
         for path in content_paths:
             omw_cfg.write(f'data="{path.parent}"\n')
@@ -68,7 +72,7 @@ def run_test(test_name):
         )
         for path in content_paths:
             omw_cfg.write(f'content={path.name}\n')
-        with open(test_dir / "openmw.cfg") as stream:
+        with open(test_config) as stream:
             omw_cfg.write(stream.read())
     with open(config_dir / "settings.cfg", "a", encoding="utf-8") as settings_cfg:
         settings_cfg.write(
