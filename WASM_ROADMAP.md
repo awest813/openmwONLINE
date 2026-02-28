@@ -179,8 +179,13 @@ OpenMW uses background threads for physics, resource loading, and paging.
 - **Memory monitoring**: JavaScript periodically checks WASM heap size and warns in the console if it exceeds 2 GB.
 - **Error handling**: Global `error` and `unhandledrejection` handlers capture runtime errors and display them in the loading status UI.
 
+## Phase 9 Porting Status
+- **OPFS persistent cache**: Game data can now be cached to the browser's Origin Private File System across sessions. `__openmwCacheToOPFS()` saves loaded data, `__openmwRestoreFromOPFS()` restores it on the next visit. The HTML shell automatically checks for cached data on startup, eliminating the need to re-upload files.
+- **Dependency build script**: `CI/build_emscripten_deps.sh` provides automated building of Lua and LZ4 for Emscripten, with instructions for OSG, Bullet, MyGUI, and Boost.
+- **CMake dependency hints**: `cmake/emscripten-wasm.cmake` now includes detailed build instructions for all dependencies with recommended CMake flags for each library.
+
 ## Remaining Work
-- **Dependency compilation**: OSG, Bullet, MyGUI, Boost (program_options, iostreams), FFmpeg, and standard Lua must be compiled to WASM with Emscripten.
-- **Large asset streaming**: Current file picker loads all data into Emscripten memory; consider chunked/lazy loading or OPFS (Origin Private File System) for large Morrowind installations.
-- **Boost for WASM**: Boost.Program_Options and Boost.Iostreams need WASM compilation, or replace with header-only alternatives.
-- **Testing and profiling**: End-to-end testing in Chrome with actual Morrowind data, performance profiling and optimization.
+- **Dependency compilation**: OSG, Bullet, MyGUI, Boost (program_options, iostreams), and FFmpeg must be cross-compiled with Emscripten. Build scripts and CMake flags are documented in `cmake/emscripten-wasm.cmake` and `CI/build_emscripten_deps.sh`.
+- **End-to-end build testing**: A complete Emscripten build has not yet been attempted. There will likely be additional compilation issues to resolve when all dependencies are available.
+- **Runtime testing**: Testing with actual Morrowind game data in Chrome to verify rendering, input, audio, save/load, and general gameplay.
+- **Performance optimization**: Profiling and optimization for WebGL 2.0 rendering performance, memory usage, and loading times.
