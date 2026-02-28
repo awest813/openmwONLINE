@@ -67,7 +67,11 @@ namespace MWGui
         mVideo->setVFS(vfs);
 
         mVideo->playVideo("video\\menu_background.bik");
+#if defined(__EMSCRIPTEN__) && !defined(__EMSCRIPTEN_PTHREADS__)
+        Log(Debug::Info) << "Menu background video thread disabled (no pthread support)";
+#else
         mThread = std::thread([this] { run(); });
+#endif
     }
 
     void MenuVideo::resize(int screenWidth, int screenHeight)
@@ -81,7 +85,10 @@ namespace MWGui
     MenuVideo::~MenuVideo()
     {
         mRunning = false;
-        mThread.join();
+#if !defined(__EMSCRIPTEN__) || defined(__EMSCRIPTEN_PTHREADS__)
+        if (mThread.joinable())
+            mThread.join();
+#endif
         try
         {
             MyGUI::Gui::getInstance().destroyWidget(mVideoBackground);

@@ -242,6 +242,8 @@ namespace Debug
 
             // some console emulators may not use the Win32 API, so try the Unixy approach
             return std::getenv("TERM") != nullptr && GetFileType(GetStdHandle(STD_ERROR_HANDLE)) == FILE_TYPE_CHAR;
+#elif defined(__EMSCRIPTEN__)
+            return false;
 #else
             return std::getenv("TERM") != nullptr && std::getenv("NO_COLOR") == nullptr && isatty(fileno(stderr));
 #endif
@@ -482,10 +484,14 @@ namespace Debug
         }
         catch (const std::exception& e)
         {
-#if (defined(__APPLE__) || defined(__linux) || defined(__unix) || defined(__posix))
-            if (!isatty(fileno(stdin)))
-#endif
+#if defined(__EMSCRIPTEN__)
                 SDL_ShowSimpleMessageBox(0, (std::string(appName) + ": Fatal error").c_str(), e.what(), nullptr);
+#elif (defined(__APPLE__) || defined(__linux) || defined(__unix) || defined(__posix))
+            if (!isatty(fileno(stdin)))
+                SDL_ShowSimpleMessageBox(0, (std::string(appName) + ": Fatal error").c_str(), e.what(), nullptr);
+#else
+                SDL_ShowSimpleMessageBox(0, (std::string(appName) + ": Fatal error").c_str(), e.what(), nullptr);
+#endif
 
             Log(Debug::Error) << "Fatal error: " << e.what();
 

@@ -16,6 +16,7 @@
 
 #ifdef __EMSCRIPTEN__
 #    include <emscripten.h>
+#    include "wasmfilepicker.hpp"
 #endif
 
 #if defined(_WIN32)
@@ -440,6 +441,8 @@ int runApplication(int argc, char* argv[])
 
 #ifdef __EMSCRIPTEN__
     initializeWasmPersistentStorage();
+    OMW::WasmFilePicker::initialize("/gamedata");
+    OMW::WasmFilePicker::registerBrowserCallbacks();
 #endif
 
 #ifdef __APPLE__

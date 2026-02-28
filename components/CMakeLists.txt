@@ -318,7 +318,7 @@ IF(NOT WIN32 AND NOT APPLE)
     add_compile_definitions(GLOBAL_CONFIG_PATH="${GLOBAL_CONFIG_PATH}")
 ENDIF()
 add_component_dir (files
-    linuxpath androidpath windowspath macospath fixedpath multidircollection collections configurationmanager
+    linuxpath androidpath windowspath macospath emscriptenpath fixedpath multidircollection collections configurationmanager
     constrainedfilestream memorystream hash configfileparser openfile constrainedfilestreambuf conversion
     istreamptr streamwithbuffer utils
     )
@@ -399,7 +399,7 @@ if(WIN32)
         windowscrashmonitor
         windowscrashshm
     )
-elseif(NOT ANDROID)
+elseif(NOT ANDROID AND NOT OPENMW_IS_EMSCRIPTEN)
     add_component_dir (crashcatcher
         crashcatcher
     )
