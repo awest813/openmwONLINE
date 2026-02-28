@@ -84,8 +84,13 @@ namespace Fx
         mDescription = {};
         mVersion = {};
         mGLSLExtensions.clear();
+#ifdef __EMSCRIPTEN__
+        mGLSLVersion = 300;
+        mGLSLProfile = "es";
+#else
         mGLSLVersion = (mUBO || Stereo::getMultiview()) ? 330 : 120;
         mGLSLProfile.clear();
+#endif
         mDynamic = false;
     }
 

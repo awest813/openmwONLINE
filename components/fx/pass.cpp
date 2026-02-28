@@ -357,7 +357,11 @@ float omw_EstimateFogCoverageFromUV(vec2 uv)
         if (mCompiled)
             return;
 
+#ifdef __EMSCRIPTEN__
+        mLegacyGLSL = false;
+#else
         mLegacyGLSL = technique.getGLSLVersion() < 330;
+#endif
 
         if (mType == Type::Pixel)
         {

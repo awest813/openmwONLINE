@@ -745,6 +745,24 @@ namespace SceneUtil
     {
         const std::string define = "@maxLightsInScene";
 
+#ifdef __EMSCRIPTEN__
+        std::string shader = R"GLSL(
+            #version 300 es
+            precision highp float;
+            struct LightData {
+                ivec4 packedColors;
+                vec4 position;
+                vec4 attenuation;
+            };
+            uniform LightBufferBinding {
+                LightData LightBuffer[@maxLightsInScene];
+            };
+            void main()
+            {
+                gl_Position = vec4(0.0);
+            }
+        )GLSL";
+#else
         std::string shader = R"GLSL(
             #version 120
             #extension GL_ARB_uniform_buffer_object : require
@@ -761,6 +779,7 @@ namespace SceneUtil
                 gl_Position = vec4(0.0);
             }
         )GLSL";
+#endif
 
         shader.replace(shader.find(define), define.length(), std::to_string(maxLightsInScene));
         return shader;
