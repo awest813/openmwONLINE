@@ -240,7 +240,9 @@ void OMW::Engine::shutdownAfterMainLoop()
 
 #ifdef __EMSCRIPTEN__
     emscripten_run_script(R"(
-        if (typeof FS === 'undefined') {
+        if (typeof globalThis !== 'undefined' && typeof globalThis.__openmwSyncPersistentStorage === 'function') {
+            globalThis.__openmwSyncPersistentStorage();
+        } else if (typeof FS === 'undefined') {
             console.warn('Emscripten FS API unavailable during shutdown; skipping final IDBFS sync.');
         } else {
             FS.syncfs(false, function(error) {

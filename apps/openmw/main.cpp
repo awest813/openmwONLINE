@@ -212,12 +212,16 @@ namespace
                 });
             };
 
+            if (typeof globalThis !== 'undefined')
+                globalThis.__openmwSyncPersistentStorage = syncPersistentStorage;
+
             if (typeof window !== 'undefined' && !window.__openmwPersistentSyncRegistered) {
                 window.addEventListener('visibilitychange', function() {
                     if (document.visibilityState === 'hidden')
                         syncPersistentStorage();
                 });
                 window.addEventListener('pagehide', syncPersistentStorage);
+                window.addEventListener('beforeunload', syncPersistentStorage);
                 window.__openmwPersistentSyncRegistered = true;
             }
             }
