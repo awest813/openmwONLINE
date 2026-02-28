@@ -552,7 +552,7 @@ if (NOT WIN32 AND BUILD_WIZARD) # windows users can just run the morrowind insta
 endif()
 
 # Fix for not visible pthreads functions for linker with glibc 2.15
-if (UNIX AND NOT APPLE)
+if (UNIX AND NOT APPLE AND NOT OPENMW_IS_EMSCRIPTEN)
     find_package (Threads)
 endif()
 
@@ -642,7 +642,7 @@ else(USE_LUAJIT)
     find_package(Lua REQUIRED)
     add_compile_definitions(NO_LUAJIT)
 endif(USE_LUAJIT)
-if (NOT WIN32 AND NOT ANDROID)
+if (NOT WIN32 AND NOT ANDROID AND NOT OPENMW_IS_EMSCRIPTEN)
     include(cmake/CheckLuaCustomAllocator.cmake)
 endif()
 
@@ -705,7 +705,12 @@ pack_resource_file(${OpenMW_SOURCE_DIR}/files/settings-default.cfg
 configure_resource_file(${OpenMW_SOURCE_DIR}/files/openmw.appdata.xml
     "${OpenMW_BINARY_DIR}" "openmw.appdata.xml")
 
-if (APPLE)
+if (OPENMW_IS_EMSCRIPTEN)
+    # WASM builds use a special openmw.cfg that points data paths to the
+    # Emscripten virtual filesystem locations (/gamedata, /persistent/home).
+    configure_file(${OpenMW_SOURCE_DIR}/files/wasm/openmw.cfg
+        "${OpenMW_BINARY_DIR}/openmw.cfg")
+elseif (APPLE)
     configure_file(${OpenMW_SOURCE_DIR}/files/openmw.cfg
         "${OpenMW_BINARY_DIR}/openmw.cfg")
 elseif (WIN32)

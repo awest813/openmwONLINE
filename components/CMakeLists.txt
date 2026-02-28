@@ -612,7 +612,7 @@ target_link_libraries(components
     Boost::iostreams
 
     SDL2::SDL2
-    ${OPENGL_gl_LIBRARY}
+    OpenGL::GL
     ${MyGUI_LIBRARIES}
     ${LUA_LIBRARIES}
     LZ4::LZ4
@@ -663,7 +663,7 @@ if (WIN32)
 endif()
 
 # Fix for not visible pthreads functions for linker with glibc 2.15
-if (UNIX AND NOT APPLE)
+if (UNIX AND NOT APPLE AND NOT OPENMW_IS_EMSCRIPTEN)
     target_link_libraries(components ${CMAKE_THREAD_LIBS_INIT})
 endif()
 

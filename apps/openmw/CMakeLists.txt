@@ -147,6 +147,11 @@ if(BUILD_OPENMW)
             main.cpp
             androidmain.cpp
         )
+    elseif(OPENMW_IS_EMSCRIPTEN)
+        # Emscripten: add_executable produces .html + .js + .wasm outputs.
+        # The .html uses the shell template configured via --shell-file.
+        add_executable(openmw main.cpp)
+        set_target_properties(openmw PROPERTIES SUFFIX ".html")
     else()
         openmw_add_executable(openmw
             ${APPLE_BUNDLE_RESOURCES}
@@ -159,7 +164,7 @@ if(BUILD_OPENMW)
 
     # Workaround necessary to ensure osgAnimation::MatrixLinearSampler dynamic casts work under Clang
     # NOTE: it's unclear whether the broken behavior is spec-compliant
-    if (CMAKE_CXX_COMPILER_ID STREQUAL Clang)
+    if (CMAKE_CXX_COMPILER_ID STREQUAL Clang AND NOT OPENMW_IS_EMSCRIPTEN)
         set_target_properties(openmw PROPERTIES ENABLE_EXPORTS ON)
     endif()
 endif()
@@ -183,7 +188,6 @@ target_link_libraries(openmw-lib
     ${OSGUTIL_LIBRARIES}
     ${OSG_LIBRARIES}
     Boost::program_options
-    ${OPENAL_LIBRARY}
     ${FFmpeg_LIBRARIES}
     ${MyGUI_LIBRARIES}
     SDL2::SDL2
@@ -192,6 +196,14 @@ target_link_libraries(openmw-lib
     oics
     components
 )
+
+# OpenAL: Emscripten provides it as a built-in mapped to Web Audio API;
+# on other platforms use the system library found by find_package.
+if(OPENMW_IS_EMSCRIPTEN)
+    target_link_options(openmw-lib PUBLIC "-lopenal")
+else()
+    target_link_libraries(openmw-lib ${OPENAL_LIBRARY})
+endif()
 
 if (MSVC AND PRECOMPILE_HEADERS_WITH_MSVC)
     target_precompile_headers(openmw-lib PRIVATE
@@ -232,7 +244,7 @@ if (NOT UNIX)
 endif()
 
 # Fix for not visible pthreads functions for linker with glibc 2.15
-if (UNIX AND NOT APPLE)
+if (UNIX AND NOT APPLE AND NOT OPENMW_IS_EMSCRIPTEN)
     target_link_libraries(openmw-lib ${CMAKE_THREAD_LIBS_INIT})
 endif()
 
