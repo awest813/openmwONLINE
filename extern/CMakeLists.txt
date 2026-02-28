@@ -16,7 +16,14 @@ if(NOT OPENMW_USE_SYSTEM_BULLET)
     set(BUILD_EGL OFF CACHE BOOL "")
 
     set(USE_DOUBLE_PRECISION ON CACHE BOOL "")
-    set(BULLET2_MULTITHREADING ON CACHE BOOL "")
+    if(OPENMW_IS_EMSCRIPTEN)
+        # Emscripten pthreads are optional and may not be available;
+        # disable Bullet's multithreading to avoid linker errors when
+        # building without -pthread.
+        set(BULLET2_MULTITHREADING OFF CACHE BOOL "")
+    else()
+        set(BULLET2_MULTITHREADING ON CACHE BOOL "")
+    endif()
 
     if(BULLET_STATIC)
         set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
@@ -95,7 +102,26 @@ if(NOT OPENMW_USE_SYSTEM_OSG)
     set(OSG_USE_FLOAT_PLANE OFF CACHE BOOL "")
     set(OSG_USE_FLOAT_QUAT OFF CACHE BOOL "")
 
-    set(OPENGL_PROFILE "GL2" CACHE STRING "")
+    if(OPENMW_IS_EMSCRIPTEN)
+        # WebGL 2.0 exposes OpenGL ES 3.0; use GLES3 profile instead of GL2
+        set(OPENGL_PROFILE "GLES3" CACHE STRING "" FORCE)
+        set(OSG_GLES3_AVAILABLE ON CACHE BOOL "" FORCE)
+        set(OSG_GL1_AVAILABLE OFF CACHE BOOL "" FORCE)
+        set(OSG_GL2_AVAILABLE OFF CACHE BOOL "" FORCE)
+        set(OSG_GL3_AVAILABLE OFF CACHE BOOL "" FORCE)
+        set(OSG_GLES1_AVAILABLE OFF CACHE BOOL "" FORCE)
+        set(OSG_GLES2_AVAILABLE OFF CACHE BOOL "" FORCE)
+        set(OSG_GL_DISPLAYLISTS_AVAILABLE OFF CACHE BOOL "" FORCE)
+        set(OSG_GL_FIXED_FUNCTION_AVAILABLE OFF CACHE BOOL "" FORCE)
+        set(OSG_GL_MATRICES_AVAILABLE OFF CACHE BOOL "" FORCE)
+        set(OSG_GL_VERTEX_FUNCS_AVAILABLE OFF CACHE BOOL "" FORCE)
+        set(OSG_GL_VERTEX_ARRAY_FUNCS_AVAILABLE OFF CACHE BOOL "" FORCE)
+
+        # Disable COLLADA plugin for WASM (avoids large libxml2 dependency)
+        set(BUILD_OSG_PLUGIN_DAE OFF CACHE BOOL "" FORCE)
+    else()
+        set(OPENGL_PROFILE "GL2" CACHE STRING "")
+    endif()
 
     if(OSG_STATIC)
         set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
@@ -229,32 +255,50 @@ endif()
 
 if (NOT OPENMW_USE_SYSTEM_ICU)
     set(ICU_ENV "ICU_DATA_FILTER_FILE=${CMAKE_CURRENT_SOURCE_DIR}/icufilters.json")
-    if (ANDROID)
+    if (ANDROID OR OPENMW_IS_EMSCRIPTEN)
         # Note: Must be a build directory, not an install root, since the configure script
         # looks for a configuration file which does not get installed.
         set(OPENMW_ICU_HOST_BUILD_DIR "" CACHE STRING "A pre-built ICU build directory for the host system if cross-compiling")
         if (OPENMW_ICU_HOST_BUILD_DIR STREQUAL "")
-            message(FATAL_ERROR "If cross-compiling on android you must set the \
-            OPENMW_ICU_HOST_BUILD_DIR to the path of a pre-compiled build of \
-            ICU 70.1 for the system doing the build, as ICU needs to be able \
-            to run its own executables as part of the build process.")
+            message(FATAL_ERROR "Cross-compiling ICU requires OPENMW_ICU_HOST_BUILD_DIR \
+            to point at a pre-compiled build of ICU 70.1 for the host system, \
+            because ICU needs to run its own executables during the build.")
         endif()
-        # We need a host version of ICU so that the tools can be run when building the data library.
-        set(NDK_STANDARD_ROOT ${CMAKE_ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64)
-        string(REPLACE "android-" "" ANDROIDVER ${ANDROID_PLATFORM})
-        # Wants a triple such as aarch64-linux-android, excluding a trailing
-        # -clang etc.
-        string(REGEX MATCH "^[^-]\+-[^-]+-[^-]+" ICU_TOOLCHAIN_NAME ${ANDROID_TOOLCHAIN_NAME})
-        set(ICU_ENV
-            ${ICU_ENV}
-            "CC=${CMAKE_C_COMPILER_LAUNCHER} ${NDK_STANDARD_ROOT}/bin/${ICU_TOOLCHAIN_NAME}${ANDROIDVER}-clang"
-            "CXX=${CMAKE_CXX_COMPILER_LAUNCHER} ${NDK_STANDARD_ROOT}/bin/${ICU_TOOLCHAIN_NAME}${ANDROIDVER}-clang"
-            "RANLIB=${NDK_STANDARD_ROOT}/bin/${ICU_TOOLCHAIN_NAME}-ranlib"
-            "AR=${NDK_STANDARD_ROOT}/bin/${ICU_TOOLCHAIN_NAME}-ar"
-            "CPPFLAGS=${ANDROID_COMPILER_FLAGS}"
-            "LDFLAGS=${ANDROID_LINKER_FLAGS} -lc -lstdc++"
-            )
-        set(ICU_ADDITIONAL_OPTS --disable-tools --host=${ICU_TOOLCHAIN_NAME}${ANDROIDVER} --with-cross-build=${OPENMW_ICU_HOST_BUILD_DIR})
+
+        if (ANDROID)
+            # We need a host version of ICU so that the tools can be run when building the data library.
+            set(NDK_STANDARD_ROOT ${CMAKE_ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64)
+            string(REPLACE "android-" "" ANDROIDVER ${ANDROID_PLATFORM})
+            # Wants a triple such as aarch64-linux-android, excluding a trailing
+            # -clang etc.
+            string(REGEX MATCH "^[^-]\+-[^-]+-[^-]+" ICU_TOOLCHAIN_NAME ${ANDROID_TOOLCHAIN_NAME})
+            set(ICU_ENV
+                ${ICU_ENV}
+                "CC=${CMAKE_C_COMPILER_LAUNCHER} ${NDK_STANDARD_ROOT}/bin/${ICU_TOOLCHAIN_NAME}${ANDROIDVER}-clang"
+                "CXX=${CMAKE_CXX_COMPILER_LAUNCHER} ${NDK_STANDARD_ROOT}/bin/${ICU_TOOLCHAIN_NAME}${ANDROIDVER}-clang"
+                "RANLIB=${NDK_STANDARD_ROOT}/bin/${ICU_TOOLCHAIN_NAME}-ranlib"
+                "AR=${NDK_STANDARD_ROOT}/bin/${ICU_TOOLCHAIN_NAME}-ar"
+                "CPPFLAGS=${ANDROID_COMPILER_FLAGS}"
+                "LDFLAGS=${ANDROID_LINKER_FLAGS} -lc -lstdc++"
+                )
+            set(ICU_ADDITIONAL_OPTS --disable-tools --host=${ICU_TOOLCHAIN_NAME}${ANDROIDVER} --with-cross-build=${OPENMW_ICU_HOST_BUILD_DIR})
+        elseif (OPENMW_IS_EMSCRIPTEN)
+            # Emscripten cross-compilation: emconfigure sets CC/CXX to emcc/em++
+            set(ICU_ENV
+                ${ICU_ENV}
+                "CC=emcc"
+                "CXX=em++"
+                "AR=emar"
+                "RANLIB=emranlib"
+                "CFLAGS=-O2"
+                "CXXFLAGS=-O2"
+                )
+            set(ICU_ADDITIONAL_OPTS
+                --enable-static --disable-shared
+                --disable-tools
+                --host=wasm32-unknown-emscripten
+                --with-cross-build=${OPENMW_ICU_HOST_BUILD_DIR})
+        endif()
     endif()
     include(ExternalProject)
     ExternalProject_Add(icu
