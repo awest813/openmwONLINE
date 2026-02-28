@@ -29,6 +29,7 @@ extern "C" __declspec(dllexport) DWORD AmdPowerXpressRequestHighPerformance = 0x
 #include <cerrno>
 #include <filesystem>
 #include <limits>
+#include <sstream>
 #include <string>
 
 #if (defined(__APPLE__) || defined(__linux) || defined(__unix) || defined(__posix))
@@ -175,6 +176,42 @@ bool parseOptions(int argc, char** argv, OMW::Engine& engine, Files::Configurati
 namespace
 {
 #ifdef __EMSCRIPTEN__
+    std::string getWasmPersistentRootPath()
+    {
+        static constexpr const char* sDefaultRoot = "/persistent";
+
+        const char* rootEnv = std::getenv("OPENMW_WASM_PERSISTENT_ROOT");
+        if (rootEnv == nullptr || rootEnv[0] == '\0')
+            return sDefaultRoot;
+
+        std::string rootPath(rootEnv);
+        if (rootPath.front() != '/')
+        {
+            Log(Debug::Warning) << "Ignoring OPENMW_WASM_PERSISTENT_ROOT='" << rootPath
+                                << "' because it is not an absolute path. Falling back to " << sDefaultRoot << ".";
+            return sDefaultRoot;
+        }
+
+        while (rootPath.size() > 1 && rootPath.back() == '/')
+            rootPath.pop_back();
+
+        return rootPath;
+    }
+
+    std::string toJavaScriptStringLiteral(const std::string& input)
+    {
+        std::ostringstream escaped;
+        escaped << '"';
+        for (char c : input)
+        {
+            if (c == '\\' || c == '"')
+                escaped << '\\';
+            escaped << c;
+        }
+        escaped << '"';
+        return escaped.str();
+    }
+
     int getWasmPersistentSyncIntervalMs()
     {
         static constexpr int sDefaultIntervalMs = 15000;
@@ -225,6 +262,10 @@ namespace
     void initializeWasmPersistentStorage()
     {
         const int periodicSyncIntervalMs = getWasmPersistentSyncIntervalMs();
+        const std::string persistentRootPath = getWasmPersistentRootPath();
+        const std::string homePath = persistentRootPath + "/home";
+        const std::string configPath = homePath + "/.config";
+        const std::string dataPath = homePath + "/.local/share";
 
 #ifdef __EMSCRIPTEN_PTHREADS__
         emscripten_run_script(R"(
@@ -240,21 +281,27 @@ namespace
             if (typeof FS === 'undefined' || typeof IDBFS === 'undefined') {
                 console.error('Emscripten FS/IDBFS APIs are unavailable; persistent storage disabled.');
             } else {
-                if (!FS.analyzePath('/persistent').exists)
-                    FS.mkdir('/persistent');
-                if (!FS.analyzePath('/persistent/home').exists)
-                    FS.mkdir('/persistent/home');
-                if (!FS.analyzePath('/persistent/home/.config').exists)
-                    FS.mkdir('/persistent/home/.config');
-                if (!FS.analyzePath('/persistent/home/.local').exists)
-                    FS.mkdir('/persistent/home/.local');
-                if (!FS.analyzePath('/persistent/home/.local/share').exists)
-                    FS.mkdir('/persistent/home/.local/share');
+                const persistentRoot = __OPENMW_PERSISTENT_ROOT__;
+                const homeRoot = __OPENMW_HOME_PATH__;
+                const configRoot = __OPENMW_CONFIG_PATH__;
+                const localRoot = homeRoot + '/.local';
+                const dataRoot = __OPENMW_DATA_PATH__;
+
+                if (!FS.analyzePath(persistentRoot).exists)
+                    FS.mkdir(persistentRoot);
+                if (!FS.analyzePath(homeRoot).exists)
+                    FS.mkdir(homeRoot);
+                if (!FS.analyzePath(configRoot).exists)
+                    FS.mkdir(configRoot);
+                if (!FS.analyzePath(localRoot).exists)
+                    FS.mkdir(localRoot);
+                if (!FS.analyzePath(dataRoot).exists)
+                    FS.mkdir(dataRoot);
             try {
-                FS.mount(IDBFS, {}, '/persistent');
+                FS.mount(IDBFS, {}, persistentRoot);
             } catch (error) {
                 if (!error.message || !error.message.includes('already mounted'))
-                    console.error('Failed to mount IDBFS at /persistent', error);
+                    console.error('Failed to mount IDBFS at', persistentRoot, error);
             }
             FS.syncfs(true, function(error) {
                 if (error)
@@ -323,11 +370,21 @@ namespace
         const std::string intervalToken = "__OPENMW_SYNC_INTERVAL_MS__";
         persistenceScript.replace(
             persistenceScript.find(intervalToken), intervalToken.size(), std::to_string(periodicSyncIntervalMs));
+        const std::string rootToken = "__OPENMW_PERSISTENT_ROOT__";
+        persistenceScript.replace(
+            persistenceScript.find(rootToken), rootToken.size(), toJavaScriptStringLiteral(persistentRootPath));
+        const std::string homeToken = "__OPENMW_HOME_PATH__";
+        persistenceScript.replace(persistenceScript.find(homeToken), homeToken.size(), toJavaScriptStringLiteral(homePath));
+        const std::string configToken = "__OPENMW_CONFIG_PATH__";
+        persistenceScript.replace(
+            persistenceScript.find(configToken), configToken.size(), toJavaScriptStringLiteral(configPath));
+        const std::string dataToken = "__OPENMW_DATA_PATH__";
+        persistenceScript.replace(persistenceScript.find(dataToken), dataToken.size(), toJavaScriptStringLiteral(dataPath));
         emscripten_run_script(persistenceScript.c_str());
 
-        setenv("HOME", "/persistent/home", 1);
-        setenv("XDG_CONFIG_HOME", "/persistent/home/.config", 1);
-        setenv("XDG_DATA_HOME", "/persistent/home/.local/share", 1);
+        setenv("HOME", homePath.c_str(), 1);
+        setenv("XDG_CONFIG_HOME", configPath.c_str(), 1);
+        setenv("XDG_DATA_HOME", dataPath.c_str(), 1);
     }
 #endif
 
