@@ -237,6 +237,15 @@ void OMW::Engine::shutdownAfterMainLoop()
     Settings::Manager::saveUser(mCfgMgr.getUserConfigPath() / "settings.cfg");
     Settings::ShaderManager::get().save();
     mLuaManager->savePermanentStorage(mCfgMgr.getUserConfigPath());
+
+#ifdef __EMSCRIPTEN__
+    emscripten_run_script(R"(
+        FS.syncfs(false, function(error) {
+            if (error)
+                console.error('Final IDBFS sync failed', error);
+        });
+    )");
+#endif
 }
 
 #ifdef __EMSCRIPTEN__
