@@ -39,8 +39,7 @@ namespace MWRender
 
         addPrimitiveSet(new osg::DrawArrays(osg::PrimitiveSet::TRIANGLES, 0, 3));
 
-#ifdef __APPLE__
-        // we can not trust Apple :)
+#if defined(__APPLE__) || defined(__EMSCRIPTEN__)
         mUseCompute = false;
 #else
         constexpr float minimumGLVersionRequiredForCompute = 4.4f;
