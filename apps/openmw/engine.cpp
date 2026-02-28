@@ -589,6 +589,13 @@ void OMW::Engine::createWindow()
     const SDLUtil::VSyncMode vsync = Settings::video().mVsyncMode;
     unsigned antialiasing = static_cast<unsigned>(Settings::video().mAntialiasing);
 
+#ifdef __EMSCRIPTEN__
+    int posX = SDL_WINDOWPOS_UNDEFINED;
+    int posY = SDL_WINDOWPOS_UNDEFINED;
+    Uint32 flags = SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE;
+    antialiasing = 0;
+    Log(Debug::Info) << "Emscripten: creating WebGL canvas window (" << width << "x" << height << ")";
+#else
     int posX = SDL_WINDOWPOS_CENTERED_DISPLAY(screen);
     int posY = SDL_WINDOWPOS_CENTERED_DISPLAY(screen);
 
@@ -612,14 +619,17 @@ void OMW::Engine::createWindow()
         flags |= SDL_WINDOW_BORDERLESS;
 
     SDL_SetHint(SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS, Settings::video().mMinimizeOnFocusLoss ? "1" : "0");
+#endif
 
     checkSDLError(SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8));
     checkSDLError(SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8));
     checkSDLError(SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8));
     checkSDLError(SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 0));
     checkSDLError(SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24));
+#ifndef __EMSCRIPTEN__
     if (Debug::shouldDebugOpenGL())
         checkSDLError(SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG));
+#endif
 
     if (antialiasing > 0)
     {
@@ -715,12 +725,15 @@ void OMW::Engine::createWindow()
     realizeOperations->add(identifyOp);
     realizeOperations->add(new SceneUtil::GetGLExtensionsOperation());
 
+#ifndef __EMSCRIPTEN__
     if (Debug::shouldDebugOpenGL())
         realizeOperations->add(new Debug::EnableGLDebugOperation());
+#endif
 
     realizeOperations->add(mSelectDepthFormatOperation);
     realizeOperations->add(mSelectColorFormatOperation);
 
+#ifndef __EMSCRIPTEN__
     if (Stereo::getStereo())
     {
         Stereo::Settings settings;
@@ -779,6 +792,7 @@ void OMW::Engine::createWindow()
 
         realizeOperations->add(new Stereo::InitializeStereoOperation(settings));
     }
+#endif
 
     mViewer->realize();
     mGlMaxTextureImageUnits = identifyOp->getMaxTextureImageUnits();
@@ -934,6 +948,19 @@ void OMW::Engine::prepareEngine()
     mEnvironment.setESMStore(mWorld->getStore());
 
     Loading::Listener* listener = MWBase::Environment::get().getWindowManager()->getLoadingScreen();
+
+#ifdef __EMSCRIPTEN__
+    if (!mSkipMenu)
+    {
+        std::string_view logo = Fallback::Map::getString("Movies_Company_Logo");
+        if (!logo.empty())
+            mWindowManager->playVideo(logo, true);
+    }
+
+    listener->loadingOn();
+    mWorld->loadData(mFileCollections, mContentFiles, mGroundcoverFiles, mEncoder.get(), listener);
+    listener->loadingOff();
+#else
     Loading::AsyncListener asyncListener(*listener);
     auto dataLoading = std::async(std::launch::async,
         [&] { mWorld->loadData(mFileCollections, mContentFiles, mGroundcoverFiles, mEncoder.get(), &asyncListener); });
@@ -953,6 +980,7 @@ void OMW::Engine::prepareEngine()
         dataLoading.get();
     }
     listener->loadingOff();
+#endif
 
     mWorld->init(mMaxRecastLogLevel, mViewer, std::move(rootNode), mWorkQueue.get(), *mUnrefQueue);
     mEnvironment.setWorldScene(mWorld->getWorldScene());

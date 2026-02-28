@@ -18,16 +18,20 @@ namespace SDLUtil
         , mContrast(1.f)
         , mHasSetGammaContrast(false)
     {
+#ifndef __EMSCRIPTEN__
         SDL_GetWindowGammaRamp(mWindow, mOldSystemGammaRamp, &mOldSystemGammaRamp[256], &mOldSystemGammaRamp[512]);
+#endif
     }
 
     VideoWrapper::~VideoWrapper()
     {
         SDL_SetWindowFullscreen(mWindow, 0);
 
+#ifndef __EMSCRIPTEN__
         // If user hasn't touched the defaults no need to restore
         if (mHasSetGammaContrast)
             SDL_SetWindowGammaRamp(mWindow, mOldSystemGammaRamp, &mOldSystemGammaRamp[256], &mOldSystemGammaRamp[512]);
+#endif
     }
 
     void VideoWrapper::setSyncToVBlank(VSyncMode vsyncMode)
@@ -54,6 +58,9 @@ namespace SDLUtil
         mGamma = gamma;
         mContrast = contrast;
 
+#ifdef __EMSCRIPTEN__
+        Log(Debug::Info) << "Gamma/contrast adjustment is not supported in the browser";
+#else
         mHasSetGammaContrast = true;
 
         Uint16 red[256], green[256], blue[256];
@@ -73,6 +80,7 @@ namespace SDLUtil
         }
         if (SDL_SetWindowGammaRamp(mWindow, red, green, blue) < 0)
             Log(Debug::Warning) << "Couldn't set gamma: " << SDL_GetError();
+#endif
     }
 
     void VideoWrapper::setVideoMode(int width, int height, Settings::WindowMode windowMode, bool windowBorder)

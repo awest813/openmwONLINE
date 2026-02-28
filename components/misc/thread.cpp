@@ -5,7 +5,17 @@
 #include <cstring>
 #include <thread>
 
-#ifdef __linux__
+#ifdef __EMSCRIPTEN__
+
+namespace Misc
+{
+    void setCurrentThreadIdlePriority()
+    {
+        Log(Debug::Verbose) << "Thread priority is not adjustable under Emscripten/WASM";
+    }
+}
+
+#elif defined(__linux__) && !defined(__EMSCRIPTEN__)
 
 #include <pthread.h>
 #include <sched.h>

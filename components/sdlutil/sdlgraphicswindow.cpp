@@ -103,7 +103,11 @@ namespace SDLUtil
         SDL_Window* oldWin = SDL_GL_GetCurrentWindow();
         SDL_GLContext oldCtx = SDL_GL_GetCurrentContext();
 
-#if defined(ANDROID) || defined(OPENMW_GL4ES_MANUAL_INIT)
+#if defined(__EMSCRIPTEN__)
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+#elif defined(ANDROID) || defined(OPENMW_GL4ES_MANUAL_INIT)
         int major = 1;
         int minor = 1;
         char* ver = getenv("OPENMW_GLES_VERSION");
