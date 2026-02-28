@@ -139,6 +139,7 @@ namespace MWSound
             return;
         }
 
+#ifndef __EMSCRIPTEN__
         std::vector<std::string> names = mOutput->enumerate();
         std::stringstream stream;
 
@@ -158,6 +159,7 @@ namespace MWSound
 
             Log(Debug::Info) << stream.str();
         }
+#endif
     }
 
     SoundManager::~SoundManager()

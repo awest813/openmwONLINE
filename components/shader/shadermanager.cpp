@@ -522,9 +522,9 @@ namespace Shader
 #endif
         }
 #ifdef __EMSCRIPTEN__
-        else if (templateName.starts_with("lib/core/"))
+        else if (templateName.starts_with("lib/"))
         {
-            std::string glesName = "lib/gles/core/" + templateName.substr(9);
+            std::string glesName = "lib/gles/" + templateName.substr(4);
             if (std::filesystem::exists(mPath / glesName))
                 templateName = std::move(glesName);
         }

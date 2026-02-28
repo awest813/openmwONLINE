@@ -94,9 +94,13 @@
         Select Morrowind Data Folder
       </button>
       <p id="data-hint">
-        Select the "Data Files" folder from your Morrowind installation.
+        Select the "Data Files" folder from your Morrowind installation,
+        or drag and drop files onto this page.
         This typically contains files like Morrowind.esm, Morrowind.bsa, etc.
       </p>
+    </div>
+    <div id="drop-zone" style="display:none; margin-top:1.5rem; padding:2rem; border:2px dashed #c8a86e; border-radius:8px; text-align:center; color:#c8a86e;">
+      Drop Morrowind data files here
     </div>
   </div>
 
@@ -107,6 +111,21 @@
   <div id="console-output"></div>
 
   <script>
+    window.addEventListener('error', function(e) {
+      var msg = 'Runtime error: ' + (e.message || 'unknown');
+      if (e.filename) msg += ' at ' + e.filename + ':' + e.lineno;
+      console.error(msg);
+      var el = document.getElementById('status');
+      if (el) el.textContent = msg;
+    });
+
+    window.addEventListener('unhandledrejection', function(e) {
+      var msg = 'Unhandled promise rejection: ' + (e.reason ? (e.reason.message || e.reason) : 'unknown');
+      console.error(msg);
+      var el = document.getElementById('status');
+      if (el) el.textContent = msg;
+    });
+
     var statusEl = document.getElementById('status');
     var progressBar = document.getElementById('progress-bar');
     var loadingOverlay = document.getElementById('loading-overlay');
@@ -146,6 +165,63 @@
       if (e.key === '`' || e.key === '~') {
         e.preventDefault();
         toggleConsole();
+      }
+    });
+
+    var dropZone = document.getElementById('drop-zone');
+    document.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      if (dropZone) dropZone.style.display = 'block';
+    });
+    document.addEventListener('dragleave', function(e) {
+      if (e.relatedTarget === null && dropZone) dropZone.style.display = 'none';
+    });
+    document.addEventListener('drop', async function(e) {
+      e.preventDefault();
+      if (dropZone) dropZone.style.display = 'none';
+
+      if (!globalThis.__openmwUploadFile) {
+        setStatus('Engine not ready yet');
+        return;
+      }
+
+      setStatus('Processing dropped files...');
+      var count = 0;
+
+      async function handleEntry(entry, pathPrefix) {
+        if (entry.isFile) {
+          return new Promise(function(resolve) {
+            entry.file(function(file) {
+              file.arrayBuffer().then(function(buf) {
+                globalThis.__openmwUploadFile(pathPrefix + file.name, buf);
+                count++;
+                if (count % 50 === 0) setStatus('Uploading... ' + count + ' files');
+                resolve();
+              });
+            });
+          });
+        } else if (entry.isDirectory) {
+          var reader = entry.createReader();
+          return new Promise(function(resolve) {
+            reader.readEntries(async function(entries) {
+              for (var i = 0; i < entries.length; i++) {
+                await handleEntry(entries[i], pathPrefix + entry.name + '/');
+              }
+              resolve();
+            });
+          });
+        }
+      }
+
+      var items = e.dataTransfer.items;
+      for (var i = 0; i < items.length; i++) {
+        var entry = items[i].webkitGetAsEntry ? items[i].webkitGetAsEntry() : null;
+        if (entry) await handleEntry(entry, '');
+      }
+
+      if (count > 0) {
+        setStatus('Uploaded ' + count + ' files');
+        if (globalThis.__openmwNotifyDataReady) globalThis.__openmwNotifyDataReady();
       }
     });
 
@@ -203,6 +279,19 @@
           logToConsole('Try Chrome, Edge, or another Chromium-based browser.', 'warn');
         }
 
+        var audioResumed = false;
+        function resumeAudio() {
+          if (audioResumed) return;
+          if (typeof Module !== 'undefined' && Module.SDL2 && Module.SDL2.audioContext) {
+            Module.SDL2.audioContext.resume();
+            audioResumed = true;
+            logToConsole('Audio context resumed', 'info');
+          }
+        }
+        document.addEventListener('click', resumeAudio);
+        document.addEventListener('keydown', resumeAudio);
+        document.addEventListener('touchstart', resumeAudio);
+
         globalThis.__openmwToggleFullscreen = function() {
           var canvas = document.getElementById('canvas');
           if (!document.fullscreenElement) {
@@ -213,6 +302,21 @@
               .call(document);
           }
         };
+
+        globalThis.__openmwGetMemoryUsage = function() {
+          if (typeof Module !== 'undefined' && Module.HEAPU8) {
+            var totalMB = Module.HEAPU8.length / (1024 * 1024);
+            return { totalMB: totalMB.toFixed(1) };
+          }
+          return null;
+        };
+
+        setInterval(function() {
+          var mem = globalThis.__openmwGetMemoryUsage ? globalThis.__openmwGetMemoryUsage() : null;
+          if (mem && parseFloat(mem.totalMB) > 2048) {
+            console.warn('OpenMW WASM heap exceeds 2 GB (' + mem.totalMB + ' MB). Performance may degrade.');
+          }
+        }, 30000);
       },
     };
   </script>
