@@ -52,6 +52,7 @@ if(OPENMW_EXPERIMENTAL_WASM)
         "-sUSE_WEBGL2=1"
         "-sFULL_ES3=1"
         "-sALLOW_MEMORY_GROWTH=1"
+        "-sFORCE_FILESYSTEM=1"
         "-sPTHREAD_POOL_SIZE=navigator.hardwareConcurrency"
     )
 endif()

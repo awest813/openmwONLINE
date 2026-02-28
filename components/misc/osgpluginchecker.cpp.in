@@ -15,7 +15,7 @@
 
 namespace Misc
 {
-#if defined(OSG_LIBRARY_STATIC) || defined(__APPLE__)
+#if defined(OSG_LIBRARY_STATIC) || defined(__APPLE__) || defined(__EMSCRIPTEN__)
 
     bool checkRequiredOSGPluginsArePresent()
     {
