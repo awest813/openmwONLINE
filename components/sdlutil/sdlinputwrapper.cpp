@@ -5,6 +5,11 @@
 
 #include <osgViewer/Viewer>
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#include <emscripten/html5.h>
+#endif
+
 namespace SDLUtil
 {
 
@@ -348,6 +353,28 @@ namespace SDLUtil
     void InputWrapper::updateMouseSettings()
     {
         mGrabPointer = mWantGrab && mMouseInWindow && mWindowHasFocus;
+#ifdef __EMSCRIPTEN__
+        SDL_ShowCursor(mWantMouseVisible || !mWindowHasFocus);
+
+        bool relative = mWantRelative && mMouseInWindow && mWindowHasFocus;
+        if (mMouseRelative == relative)
+            return;
+
+        mMouseRelative = relative;
+        mWrapPointer = false;
+
+        if (relative)
+        {
+            EmscriptenPointerlockChangeEvent plce;
+            if (emscripten_get_pointerlock_status(&plce) == EMSCRIPTEN_RESULT_SUCCESS && plce.isActive)
+                return;
+            emscripten_request_pointerlock("#canvas", true);
+        }
+        else
+        {
+            emscripten_exit_pointerlock();
+        }
+#else
         SDL_SetWindowGrab(mSDLWindow, mGrabPointer && mAllowGrab ? SDL_TRUE : SDL_FALSE);
 
         SDL_ShowCursor(mWantMouseVisible || !mWindowHasFocus);
@@ -360,13 +387,10 @@ namespace SDLUtil
 
         mWrapPointer = false;
 
-        // eep, wrap the pointer manually if the input driver doesn't support
-        // relative positioning natively
-        // also use wrapping if no-grab was specified in options (SDL_SetRelativeMouseMode
-        // appears to eat the mouse cursor when pausing in a debugger)
         bool success = mAllowGrab && SDL_SetRelativeMouseMode(relative ? SDL_TRUE : SDL_FALSE) == 0;
         if (relative && !success)
             mWrapPointer = true;
+#endif
 
         // now remove all mouse events using the old setting from the queue
         SDL_PumpEvents();

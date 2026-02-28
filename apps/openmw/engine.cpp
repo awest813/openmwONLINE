@@ -950,13 +950,6 @@ void OMW::Engine::prepareEngine()
     Loading::Listener* listener = MWBase::Environment::get().getWindowManager()->getLoadingScreen();
 
 #ifdef __EMSCRIPTEN__
-    if (!mSkipMenu)
-    {
-        std::string_view logo = Fallback::Map::getString("Movies_Company_Logo");
-        if (!logo.empty())
-            mWindowManager->playVideo(logo, true);
-    }
-
     listener->loadingOn();
     mWorld->loadData(mFileCollections, mContentFiles, mGroundcoverFiles, mEncoder.get(), listener);
     listener->loadingOff();
@@ -1074,6 +1067,8 @@ void OMW::Engine::go()
     Settings::shaders().mForcePerPixelLighting.set(true);
     if (Settings::shaders().mLightingMethod == SceneUtil::LightingMethod::FFP)
         Settings::shaders().mLightingMethod.set(SceneUtil::LightingMethod::PerObjectUniform);
+    Settings::navigator().mEnableNavMeshDiskCache.set(false);
+    Settings::navigator().mWriteToNavmeshdb.set(false);
 #endif
 
     MWClass::registerClasses();
