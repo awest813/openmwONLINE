@@ -215,6 +215,10 @@ namespace OMW
         bool runMainLoopIteration(
             MWWorld::DateTimeManager& timeManager, Misc::FrameRateLimiter& frameRateLimiter, std::ostream* stats);
 
+        /// Execute one simulation/render iteration of the main loop.
+        void runMainLoopIteration(
+            MWWorld::DateTimeManager& timeManager, Misc::FrameRateLimiter& frameRateLimiter, std::ostream* stats);
+
         /// Prepare engine for game play
         void prepareEngine();
 
