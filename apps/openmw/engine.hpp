@@ -207,16 +207,9 @@ namespace OMW
         void executeLocalScripts();
 
         bool frame(unsigned frameNumber, float dt);
-        bool runMainLoopIteration(MWWorld::DateTimeManager& timeManager, Misc::FrameRateLimiter& frameRateLimiter,
-            const std::chrono::steady_clock::duration& maxSimulationInterval, bool reportStats, std::ostream* statsOutput);
-
         /// Execute one simulation/render iteration of the main loop.
         /// Returns false when the loop should stop.
         bool runMainLoopIteration(
-            MWWorld::DateTimeManager& timeManager, Misc::FrameRateLimiter& frameRateLimiter, std::ostream* stats);
-
-        /// Execute one simulation/render iteration of the main loop.
-        void runMainLoopIteration(
             MWWorld::DateTimeManager& timeManager, Misc::FrameRateLimiter& frameRateLimiter, std::ostream* stats);
 
         /// Prepare engine for game play
