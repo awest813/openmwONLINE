@@ -174,6 +174,52 @@ namespace
     }
 }
 
+void OMW::Engine::runMainLoopIteration(
+    MWWorld::DateTimeManager& timeManager, Misc::FrameRateLimiter& frameRateLimiter, std::ostream* stats)
+{
+    static constexpr std::chrono::steady_clock::duration sMaxSimulationInterval(std::chrono::milliseconds(200));
+
+    const double dt = std::chrono::duration_cast<std::chrono::duration<double>>(
+                          std::min(frameRateLimiter.getLastFrameDuration(), sMaxSimulationInterval))
+                          .count()
+        * timeManager.getSimulationTimeScale();
+
+    mViewer->advance(timeManager.getRenderingSimulationTime());
+
+    const unsigned frameNumber = mViewer->getFrameStamp()->getFrameNumber();
+
+    if (!frame(frameNumber, static_cast<float>(dt)))
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        return;
+    }
+
+    timeManager.updateIsPaused();
+    if (!timeManager.isPaused())
+    {
+        timeManager.setSimulationTime(timeManager.getSimulationTime() + dt);
+        timeManager.setRenderingSimulationTime(timeManager.getRenderingSimulationTime() + dt);
+    }
+
+    if (stats != nullptr)
+    {
+        // The delay is required because rendering happens in parallel to the main thread and stats from there is
+        // available with delay.
+        constexpr unsigned statsReportDelay = 3;
+        if (frameNumber >= statsReportDelay)
+        {
+            // Viewer frame number can be different from frameNumber because of loading screens which render new
+            // frames inside a simulation frame.
+            const unsigned currentFrameNumber = mViewer->getFrameStamp()->getFrameNumber();
+            for (unsigned i = frameNumber; i <= currentFrameNumber; ++i)
+                reportStats(i - statsReportDelay, *mViewer, *stats);
+        }
+    }
+
+    frameRateLimiter.limit();
+
+}
+
 void OMW::Engine::executeLocalScripts()
 {
     MWWorld::LocalScripts& localScripts = mWorld->getLocalScripts();
@@ -1026,46 +1072,9 @@ void OMW::Engine::go()
     // Start the main rendering loop
     MWWorld::DateTimeManager& timeManager = *mWorld->getTimeManager();
     Misc::FrameRateLimiter frameRateLimiter = Misc::makeFrameRateLimiter(mEnvironment.getFrameRateLimit());
-    const std::chrono::steady_clock::duration maxSimulationInterval(std::chrono::milliseconds(200));
     while (!mViewer->done() && !mStateManager->hasQuitRequest())
     {
-        const double dt = std::chrono::duration_cast<std::chrono::duration<double>>(
-                              std::min(frameRateLimiter.getLastFrameDuration(), maxSimulationInterval))
-                              .count()
-            * timeManager.getSimulationTimeScale();
-
-        mViewer->advance(timeManager.getRenderingSimulationTime());
-
-        const unsigned frameNumber = mViewer->getFrameStamp()->getFrameNumber();
-
-        if (!frame(frameNumber, static_cast<float>(dt)))
-        {
-            std::this_thread::sleep_for(std::chrono::milliseconds(5));
-            continue;
-        }
-        timeManager.updateIsPaused();
-        if (!timeManager.isPaused())
-        {
-            timeManager.setSimulationTime(timeManager.getSimulationTime() + dt);
-            timeManager.setRenderingSimulationTime(timeManager.getRenderingSimulationTime() + dt);
-        }
-
-        if (stats)
-        {
-            // The delay is required because rendering happens in parallel to the main thread and stats from there is
-            // available with delay.
-            constexpr unsigned statsReportDelay = 3;
-            if (frameNumber >= statsReportDelay)
-            {
-                // Viewer frame number can be different from frameNumber because of loading screens which render new
-                // frames inside a simulation frame.
-                const unsigned currentFrameNumber = mViewer->getFrameStamp()->getFrameNumber();
-                for (unsigned i = frameNumber; i <= currentFrameNumber; ++i)
-                    reportStats(i - statsReportDelay, *mViewer, stats);
-            }
-        }
-
-        frameRateLimiter.limit();
+        runMainLoopIteration(timeManager, frameRateLimiter, stats.is_open() ? &stats : nullptr);
     }
 
     mLuaWorker->join();

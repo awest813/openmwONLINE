@@ -2,6 +2,7 @@
 #define ENGINE_H
 
 #include <filesystem>
+#include <iosfwd>
 
 #include <components/compiler/extensions.hpp>
 #include <components/debug/debuglog.hpp>
@@ -30,6 +31,11 @@ namespace SceneUtil
 namespace VFS
 {
     class Manager;
+}
+
+namespace Misc
+{
+    class FrameRateLimiter;
 }
 
 namespace Compiler
@@ -91,6 +97,7 @@ namespace MWSound
 namespace MWWorld
 {
     class World;
+    class DateTimeManager;
 }
 
 namespace MWScript
@@ -193,6 +200,10 @@ namespace OMW
         void executeLocalScripts();
 
         bool frame(unsigned frameNumber, float dt);
+
+        /// Execute one simulation/render iteration of the main loop.
+        void runMainLoopIteration(
+            MWWorld::DateTimeManager& timeManager, Misc::FrameRateLimiter& frameRateLimiter, std::ostream* stats);
 
         /// Prepare engine for game play
         void prepareEngine();
