@@ -296,6 +296,8 @@ namespace SceneUtil
             // Try compressed formats first, they're more likely to be used
 
             // Generic
+#ifndef __EMSCRIPTEN__
+            // Desktop-only legacy compressed formats not available in GLES 3.0
             case GL_COMPRESSED_ALPHA_ARB:
                 return GL_ALPHA;
             case GL_COMPRESSED_INTENSITY_ARB:
@@ -304,6 +306,7 @@ namespace SceneUtil
                 return GL_LUMINANCE_ALPHA;
             case GL_COMPRESSED_LUMINANCE_ARB:
                 return GL_LUMINANCE;
+#endif
             case GL_COMPRESSED_RGB_ARB:
                 return GL_RGB;
             case GL_COMPRESSED_RGBA_ARB:
@@ -385,7 +388,8 @@ namespace SceneUtil
             case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_12x12_KHR:
                 return GL_RGBA;
 
-            // Plug in some holes computePixelFormat has, you never know when these could come in handy
+#ifndef __EMSCRIPTEN__
+            // Desktop-only sized legacy formats not available in GLES 3.0
             case GL_INTENSITY4:
             case GL_INTENSITY8:
             case GL_INTENSITY12:
@@ -405,6 +409,7 @@ namespace SceneUtil
             case GL_LUMINANCE12_ALPHA12:
             case GL_LUMINANCE16_ALPHA16:
                 return GL_LUMINANCE_ALPHA;
+#endif
         }
 
         return osg::Image::computePixelFormat(format);

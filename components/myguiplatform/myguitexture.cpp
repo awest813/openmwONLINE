@@ -43,11 +43,19 @@ namespace MyGUIPlatform
         switch (format.getValue())
         {
             case MyGUI::PixelFormat::L8:
+#ifdef __EMSCRIPTEN__
+                glfmt = GL_RED;
+#else
                 glfmt = GL_LUMINANCE;
+#endif
                 numelems = 1;
                 break;
             case MyGUI::PixelFormat::L8A8:
+#ifdef __EMSCRIPTEN__
+                glfmt = GL_RG;
+#else
                 glfmt = GL_LUMINANCE_ALPHA;
+#endif
                 numelems = 2;
                 break;
             case MyGUI::PixelFormat::R8G8B8:

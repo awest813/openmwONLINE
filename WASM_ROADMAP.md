@@ -204,6 +204,14 @@ Desktop OpenGL APIs that don't exist in WebGL 2.0 / OpenGL ES 3.0 have been guar
 | `components/myguiplatform/myguirendermanager.cpp` | `GL_LIGHTING`, `GL_TEXTURE_2D` state modes | Guarded out (not valid state enums in GLES 3.0) |
 | `components/sceneutil/lightmanager.cpp` | `DisableLight`, `FFPLightStateAttribute`, `StateSetGeneratorFFP` classes using `glLight*` / `GL_LIGHT0..7` | Entire FFP lighting classes wrapped in `#ifndef __EMSCRIPTEN__`; `initFFP()` guarded; `setLightingMethod()` FFP case emits error log |
 | `components/stereo/multiview.cpp` | `glTextureView` (desktop GL 4.3+) | Guarded out with warning log; stereo/multiview not supported on WebGL2 |
+| `apps/openmw/mwrender/renderingmanager.cpp` | `GL_LIGHTING`, `GL_NORMALIZE` (FFP state modes) | Guarded with `#ifndef __EMSCRIPTEN__` |
+| `apps/openmw/mwrender/characterpreview.cpp` | `GL_LIGHTING`, `GL_NORMALIZE` (FFP state modes) | Guarded with `#ifndef __EMSCRIPTEN__` |
+| `apps/openmw/mwrender/globalmap.cpp` | `GL_ALPHA` image format | Replaced with `GL_RED` on Emscripten |
+| `components/esmterrain/storage.cpp` (x2) | `GL_ALPHA` blendmap image format | Replaced with `GL_RED` on Emscripten |
+| `components/myguiplatform/myguitexture.cpp` | `GL_LUMINANCE`, `GL_LUMINANCE_ALPHA` texture formats | Replaced with `GL_RED` / `GL_RG` on Emscripten |
+| `components/sceneutil/util.cpp` | `GL_COMPRESSED_ALPHA/INTENSITY/LUMINANCE_ARB`, `GL_INTENSITY*`, `GL_LUMINANCE*` sized format enums | Desktop-only cases guarded with `#ifndef __EMSCRIPTEN__` |
+| `components/sceneutil/depth.cpp` | `GL_DEPTH_COMPONENT32`, `GL_DEPTH_COMPONENT32F_NV`, `GL_DEPTH32F_STENCIL8_NV` | Desktop-only depth formats and NV extensions guarded out |
+| `components/fx/parseconstants.hpp` | `GL_DEPTH_COMPONENT32` FX constant | Guarded with `#ifndef __EMSCRIPTEN__` |
 
 ## Remaining Work
 - **Large asset streaming**: Current file picker loads all data into memory; consider chunked/lazy loading for large Morrowind installations.

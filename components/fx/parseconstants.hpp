@@ -63,7 +63,9 @@ namespace Fx
             { "rgba32f", GL_RGBA32F },
             { "depth_component16", GL_DEPTH_COMPONENT16 },
             { "depth_component24", GL_DEPTH_COMPONENT24 },
+#ifndef __EMSCRIPTEN__
             { "depth_component32", GL_DEPTH_COMPONENT32 },
+#endif
             { "depth_component32f", GL_DEPTH_COMPONENT32F },
         } };
 

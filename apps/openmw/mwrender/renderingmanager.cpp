@@ -537,8 +537,12 @@ namespace MWRender
         sceneRoot->addChild(source);
 
         sceneRoot->getOrCreateStateSet()->setMode(GL_CULL_FACE, osg::StateAttribute::ON);
+#ifndef __EMSCRIPTEN__
+        // GL_LIGHTING and GL_NORMALIZE are FFP state not available in WebGL2 / GLES 3.0.
+        // Shader-based lighting is used instead on Emscripten.
         sceneRoot->getOrCreateStateSet()->setMode(GL_LIGHTING, osg::StateAttribute::ON);
         sceneRoot->getOrCreateStateSet()->setMode(GL_NORMALIZE, osg::StateAttribute::ON);
+#endif
         osg::ref_ptr<osg::Material> defaultMat(new osg::Material);
         defaultMat->setColorMode(osg::Material::OFF);
         defaultMat->setAmbient(osg::Material::FRONT_AND_BACK, osg::Vec4f(1, 1, 1, 1));

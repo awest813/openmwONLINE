@@ -416,7 +416,11 @@ namespace ESMTerrain
             Terrain::LayerInfo info
                 = texId.isZeroOrUnset() ? land->getEsm4DefaultLayerInfo() : getLandTextureLayerInfo(texId);
             osg::ref_ptr<osg::Image> image(new osg::Image);
+#ifdef __EMSCRIPTEN__
+            image->allocateImage(blendmapSize, blendmapSize, 1, GL_RED, GL_UNSIGNED_BYTE);
+#else
             image->allocateImage(blendmapSize, blendmapSize, 1, GL_ALPHA, GL_UNSIGNED_BYTE);
+#endif
             std::memset(image->data(), 0, image->getTotalDataSize());
             textureIndicesMap.emplace(texId, blendmaps.size());
             blendmaps.push_back(std::move(image));
@@ -543,8 +547,13 @@ namespace ESMTerrain
                     if (layerIndex >= layerList.size())
                     {
                         osg::ref_ptr<osg::Image> image(new osg::Image);
+#ifdef __EMSCRIPTEN__
+                        image->allocateImage(static_cast<int>(blendmapImageSize), static_cast<int>(blendmapImageSize),
+                            1, GL_RED, GL_UNSIGNED_BYTE);
+#else
                         image->allocateImage(static_cast<int>(blendmapImageSize), static_cast<int>(blendmapImageSize),
                             1, GL_ALPHA, GL_UNSIGNED_BYTE);
+#endif
                         std::memset(image->data(), 0, image->getTotalDataSize());
                         blendmaps.push_back(std::move(image));
                         layerList.push_back(std::move(info));

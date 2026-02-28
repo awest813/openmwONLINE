@@ -36,6 +36,16 @@ namespace SceneUtil
 
     bool isDepthFormat(GLenum format)
     {
+#ifdef __EMSCRIPTEN__
+        // GLES 3.0 depth formats (no GL_DEPTH_COMPONENT32 or NV extensions)
+        constexpr std::array<GLenum, 5> formats = {
+            GL_DEPTH_COMPONENT32F,
+            GL_DEPTH_COMPONENT16,
+            GL_DEPTH_COMPONENT24,
+            GL_DEPTH32F_STENCIL8,
+            GL_DEPTH24_STENCIL8,
+        };
+#else
         constexpr std::array<GLenum, 8> formats = {
             GL_DEPTH_COMPONENT32F,
             GL_DEPTH_COMPONENT32F_NV,
@@ -46,17 +56,25 @@ namespace SceneUtil
             GL_DEPTH32F_STENCIL8_NV,
             GL_DEPTH24_STENCIL8,
         };
+#endif
 
         return std::find(formats.cbegin(), formats.cend(), format) != formats.cend();
     }
 
     bool isDepthStencilFormat(GLenum format)
     {
-        constexpr std::array<GLenum, 8> formats = {
+#ifdef __EMSCRIPTEN__
+        constexpr std::array<GLenum, 2> formats = {
+            GL_DEPTH32F_STENCIL8,
+            GL_DEPTH24_STENCIL8,
+        };
+#else
+        constexpr std::array<GLenum, 3> formats = {
             GL_DEPTH32F_STENCIL8,
             GL_DEPTH32F_STENCIL8_NV,
             GL_DEPTH24_STENCIL8,
         };
+#endif
 
         return std::find(formats.cbegin(), formats.cend(), format) != formats.cend();
     }
@@ -67,12 +85,16 @@ namespace SceneUtil
         {
             case GL_DEPTH_COMPONENT16:
             case GL_DEPTH_COMPONENT24:
+#ifndef __EMSCRIPTEN__
             case GL_DEPTH_COMPONENT32:
+#endif
                 sourceType = GL_UNSIGNED_INT;
                 sourceFormat = GL_DEPTH_COMPONENT;
                 break;
             case GL_DEPTH_COMPONENT32F:
+#ifndef __EMSCRIPTEN__
             case GL_DEPTH_COMPONENT32F_NV:
+#endif
                 sourceType = GL_FLOAT;
                 sourceFormat = GL_DEPTH_COMPONENT;
                 break;
@@ -102,9 +124,11 @@ namespace SceneUtil
             case GL_DEPTH32F_STENCIL8:
                 return GL_DEPTH_COMPONENT32F;
                 break;
+#ifndef __EMSCRIPTEN__
             case GL_DEPTH32F_STENCIL8_NV:
                 return GL_DEPTH_COMPONENT32F_NV;
                 break;
+#endif
             default:
                 return internalFormat;
                 break;
@@ -139,10 +163,12 @@ namespace SceneUtil
             {
                 requestedFormats.push_back(GL_DEPTH32F_STENCIL8);
             }
+#ifndef __EMSCRIPTEN__
             else if (osg::isGLExtensionSupported(contextID, "GL_NV_depth_buffer_float"))
             {
                 requestedFormats.push_back(GL_DEPTH32F_STENCIL8_NV);
             }
+#endif
             else
             {
                 Log(Debug::Warning) << errPreamble

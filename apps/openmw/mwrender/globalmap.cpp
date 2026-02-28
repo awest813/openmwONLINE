@@ -146,7 +146,12 @@ namespace MWRender
             image->allocateImage(mWidth, mHeight, 1, GL_RGB, GL_UNSIGNED_BYTE);
 
             osg::ref_ptr<osg::Image> alphaImage = new osg::Image;
+#ifdef __EMSCRIPTEN__
+            // GL_ALPHA is not a valid format in GLES 3.0 core; use GL_RED for single-channel data
+            alphaImage->allocateImage(mWidth, mHeight, 1, GL_RED, GL_UNSIGNED_BYTE);
+#else
             alphaImage->allocateImage(mWidth, mHeight, 1, GL_ALPHA, GL_UNSIGNED_BYTE);
+#endif
 
             for (int x = mMinX; x <= mMaxX; ++x)
             {
