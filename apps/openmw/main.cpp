@@ -181,10 +181,19 @@ namespace
 #endif
 
         emscripten_run_script(R"(
-            if (!FS.analyzePath('/persistent').exists)
-                FS.mkdir('/persistent');
-            if (!FS.analyzePath('/persistent/home').exists)
-                FS.mkdir('/persistent/home');
+            if (typeof FS === 'undefined' || typeof IDBFS === 'undefined') {
+                console.error('Emscripten FS/IDBFS APIs are unavailable; persistent storage disabled.');
+            } else {
+                if (!FS.analyzePath('/persistent').exists)
+                    FS.mkdir('/persistent');
+                if (!FS.analyzePath('/persistent/home').exists)
+                    FS.mkdir('/persistent/home');
+                if (!FS.analyzePath('/persistent/home/.config').exists)
+                    FS.mkdir('/persistent/home/.config');
+                if (!FS.analyzePath('/persistent/home/.local').exists)
+                    FS.mkdir('/persistent/home/.local');
+                if (!FS.analyzePath('/persistent/home/.local/share').exists)
+                    FS.mkdir('/persistent/home/.local/share');
             try {
                 FS.mount(IDBFS, {}, '/persistent');
             } catch (error) {
@@ -195,6 +204,7 @@ namespace
                 if (error)
                     console.error('Initial IDBFS sync failed', error);
             });
+            }
         )");
 
         setenv("HOME", "/persistent/home", 1);
