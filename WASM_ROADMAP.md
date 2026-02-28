@@ -151,20 +151,27 @@ OpenMW uses background threads for physics, resource loading, and paging.
 | shadows_fragment.glsl | Yes | |
 | lib/core/vertex.glsl | Yes | |
 | lib/core/fragment.glsl | Yes | |
-| objects.vert/frag | No | Complex: many texture maps, lighting, normal mapping |
-| terrain.vert/frag | No | Complex: multi-layer texturing, lighting |
-| groundcover.vert/frag | No | Complex: custom attributes, wind animation |
-| bs/default.vert/frag | No | Bethesda Softworks format shaders |
-| bs/nolighting.vert/frag | No | |
-| depthclipped.vert/frag | No | |
-| ripples_blobber.frag | No | |
-| ripples_simulate.frag | No | |
-| luminance/*.frag | No | |
+| objects.vert/frag | Yes | Full material system: diffuse, dark, detail, decal, emissive, normal, env, specular, bump, gloss maps |
+| terrain.vert/frag | Yes | Multi-layer terrain with blend maps and normal mapping |
+| groundcover.vert/frag | Yes | Wind animation, trampling, custom attributes |
+| bs/default.vert/frag | Yes | Per-pixel lighting, normal mapping, emissive maps |
+| bs/nolighting.vert/frag | Yes | Unlit rendering with falloff and soft particles |
+| depthclipped.vert/frag | Yes | |
+| ripples_blobber.frag | Yes | |
+| ripples_simulate.frag | Yes | |
+| luminance/*.frag | Yes | |
 | multiview_resolve.vert/frag | No | VR-only, not needed for WASM |
+
+## Phase 7 Porting Status
+- **Complete GLES shader coverage**: All compatibility shaders now have GLSL ES 3.00 (`#version 300 es`) equivalents in the `gles/` directory. Only `multiview_resolve` (VR-only) is excluded.
+- **Objects shader**: Full material system ported with 10 texture map types (diffuse, dark, detail, decal, emissive, normal, env, specular, bump, gloss), per-pixel and per-vertex lighting, particle occlusion, and soft particles.
+- **Terrain shader**: Multi-layer terrain with blend maps, normal mapping, and parallax ported.
+- **Groundcover shader**: Wind animation, player trampling, custom per-instance attributes (`aOffset`, `aRotation`) ported using `in` instead of `attribute`.
+- **BS shaders**: Both `bs/default` (per-pixel lit) and `bs/nolighting` (unlit with falloff) ported with full material support.
+- **Simple shaders**: `depthclipped`, `ripples_blobber`, `ripples_simulate`, `luminance/luminance`, `luminance/resolve` all ported.
 
 ## Remaining Work
 - **Dependency compilation**: OSG, Bullet, MyGUI, Boost (program_options, iostreams), FFmpeg, and standard Lua must be compiled to WASM with Emscripten.
-- **Remaining shader porting**: The `objects`, `terrain`, and `groundcover` shaders are the most complex remaining shaders. The `bs/*`, `depthclipped`, `ripples_*`, and `luminance/*` shaders are also needed but simpler.
 - **Large asset streaming**: Current file picker loads all data into Emscripten memory; consider chunked/lazy loading or OPFS (Origin Private File System) for large Morrowind installations.
 - **Audio decoder**: Verify FFmpeg/audio decoding works under Emscripten or provide Web Audio API fallback.
 - **Boost for WASM**: Boost.Program_Options and Boost.Iostreams need WASM compilation, or replace with header-only alternatives.
