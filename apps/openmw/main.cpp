@@ -170,6 +170,16 @@ namespace
 #ifdef __EMSCRIPTEN__
     void initializeWasmPersistentStorage()
     {
+#ifdef __EMSCRIPTEN_PTHREADS__
+        emscripten_run_script(R"(
+            if (typeof crossOriginIsolated !== 'undefined' && !crossOriginIsolated) {
+                console.warn('OpenMW WASM was built with pthread support, but this page is not cross-origin isolated. '
+                    + 'Set Cross-Origin-Opener-Policy: same-origin and '
+                    + 'Cross-Origin-Embedder-Policy: require-corp to enable Web Worker threads.');
+            }
+        )");
+#endif
+
         emscripten_run_script(R"(
             if (!FS.analyzePath('/persistent').exists)
                 FS.mkdir('/persistent');
