@@ -97,11 +97,21 @@ OpenMW uses background threads for physics, resource loading, and paging.
   - Exported C functions (`openmw_wasm_notify_data_ready`, `openmw_wasm_is_data_ready`, `openmw_wasm_get_data_path`).
 - **HTML shell template**: Custom `openmw_shell.html` with loading progress bar, "Select Morrowind Data Folder" button, console output overlay (toggle with tilde key), and responsive canvas layout.
 
+## Phase 2 Porting Status
+- **Config bootstrapping**: Auto-generates minimal `openmw.cfg` at startup under Emscripten, pointing data paths to `/gamedata/Data Files` and `/gamedata`, with `Morrowind.esm` and `Morrowind.bsa` references.
+- **Forced shader rendering**: Under Emscripten, `force shaders = true` and `force per pixel lighting = true` are applied at startup. If the lighting method is set to FFP (fixed-function pipeline), it's upgraded to `PerObjectUniform` since WebGL 2.0 lacks fixed-function GL calls.
+- **Fixed-function GL guards**: `glLightf`/`glLightfv` calls in `LightManager` are guarded with `#ifndef __EMSCRIPTEN__`. The fog fixed-function calls are already guarded by OSG's `OSG_GL_FIXED_FUNCTION_AVAILABLE`.
+- **GLES shader infrastructure**: `ShaderManager` now checks for a `gles/` shader prefix before falling back to `compatibility/` under Emscripten. A GLSL ES 3.00 compatibility header (`lib/gles/compat.glsl`) provides texture function mappings and `gl_FragColor` redirection.
+- **Pointer lock**: Emscripten-specific pointer lock handling uses `emscripten_request_pointerlock` / `emscripten_exit_pointerlock` instead of SDL's `SDL_SetRelativeMouseMode` and `SDL_SetWindowGrab`, which may not work correctly in browsers.
+- **Navmesh database**: Navmesh disk cache and database writes are disabled under Emscripten to avoid SQLite filesystem issues.
+- **Video playback**: Startup company/game logo videos are skipped under Emscripten since FFmpeg may not be compiled for WASM.
+- **Additional WASM performance defaults**: Navigator disk cache disabled, navmeshdb writes disabled.
+
 ## Remaining Work
-- **Dependency compilation**: OSG, Bullet, MyGUI, Boost, FFmpeg, and standard Lua must be compiled to WASM with Emscripten.
-- **GLSL ES 3.00 shaders**: All shaders must be verified/ported to GLSL ES 3.00 for WebGL 2.0 compatibility.
-- **Large asset streaming**: Current file picker loads all data into memory; consider chunked/lazy loading for large Morrowind installations.
-- **Config file bootstrapping**: Provide a minimal `openmw.cfg` for WASM builds pointing to `/gamedata` as the data directory.
-- **Audio decoder**: Verify FFmpeg/audio decoding works under Emscripten or provide fallback.
-- **Input handling**: Verify pointer lock, keyboard, and gamepad input through Emscripten SDL2.
+- **Dependency compilation**: OSG, Bullet, MyGUI, Boost (program_options, iostreams), FFmpeg, and standard Lua must be compiled to WASM with Emscripten.
+- **GLSL ES 3.00 shader porting**: The compatibility shaders use `#version 120` with `GL_ARB_uniform_buffer_object` and `GL_EXT_gpu_shader4` extensions not available in WebGL 2.0. A full `gles/` shader set needs to be created using `#version 300 es`.
+- **Large asset streaming**: Current file picker loads all data into Emscripten memory; consider chunked/lazy loading or OPFS (Origin Private File System) for large Morrowind installations.
+- **Audio decoder**: Verify FFmpeg/audio decoding works under Emscripten or provide Web Audio API fallback.
+- **SQLite for WASM**: If navmesh caching is desired, compile SQLite to WASM (sql.js) and integrate with Emscripten FS.
+- **Boost for WASM**: Boost.Program_Options and Boost.Iostreams need WASM compilation, or replace with header-only alternatives.
 - **Testing and profiling**: End-to-end testing in Chrome with actual Morrowind data, performance profiling and optimization.
