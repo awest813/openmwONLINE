@@ -206,9 +206,26 @@ namespace
             });
 
             const syncPersistentStorage = function() {
+                const state = (typeof globalThis !== 'undefined')
+                    ? (globalThis.__openmwPersistentSyncState = globalThis.__openmwPersistentSyncState || {})
+                    : {};
+
+                if (state.syncInProgress) {
+                    state.syncPending = true;
+                    return;
+                }
+
+                state.syncInProgress = true;
                 FS.syncfs(false, function(error) {
+                    state.syncInProgress = false;
+
                     if (error)
                         console.error('Background IDBFS sync failed', error);
+
+                    if (state.syncPending) {
+                        state.syncPending = false;
+                        syncPersistentStorage();
+                    }
                 });
             };
 
