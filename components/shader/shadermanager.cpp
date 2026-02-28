@@ -24,6 +24,289 @@
 
 namespace
 {
+    // Returns true if the character at `pos` is a word boundary (not alphanumeric or underscore)
+    bool isWordBoundary(const std::string& s, size_t pos)
+    {
+        if (pos >= s.size())
+            return true;
+        char c = s[pos];
+        return !(std::isalnum(static_cast<unsigned char>(c)) || c == '_');
+    }
+
+    // Replace a GLSL identifier with word-boundary awareness to avoid false matches.
+    // E.g., replacing "gl_ModelViewMatrix" won't match "gl_ModelViewProjectionMatrix".
+    void replaceGLSLIdentifier(std::string& source, const std::string& from, const std::string& to)
+    {
+        size_t pos = 0;
+        while ((pos = source.find(from, pos)) != std::string::npos)
+        {
+            if (pos > 0 && !isWordBoundary(source, pos - 1))
+            {
+                pos += from.size();
+                continue;
+            }
+            if (!isWordBoundary(source, pos + from.size()))
+            {
+                pos += from.size();
+                continue;
+            }
+            source.replace(pos, from.size(), to);
+            pos += to.size();
+        }
+    }
+
+    // Check if source contains a whole-word identifier
+    bool containsGLSLIdentifier(const std::string& source, const std::string& id)
+    {
+        size_t pos = 0;
+        while ((pos = source.find(id, pos)) != std::string::npos)
+        {
+            if ((pos == 0 || isWordBoundary(source, pos - 1)) && isWordBoundary(source, pos + id.size()))
+                return true;
+            pos += id.size();
+        }
+        return false;
+    }
+
+    // Simple replace all (for non-identifier patterns like "texture2D(" or "gl_FragData[0]")
+    void replaceAllSubstrings(std::string& source, const std::string& from, const std::string& to)
+    {
+        size_t pos = 0;
+        while ((pos = source.find(from, pos)) != std::string::npos)
+        {
+            source.replace(pos, from.size(), to);
+            pos += to.size();
+        }
+    }
+
+#ifdef __EMSCRIPTEN__
+    // Convert GLSL 1.20 (desktop compatibility) shader source to GLSL ES 3.00 (WebGL 2.0).
+    // This allows all existing compatibility/ shaders to run on Emscripten/WebGL without
+    // maintaining a separate set of shader files.
+    //
+    // OSG compiled with OPENGL_PROFILE=GLES3 provides built-in uniform emulation:
+    //   osg_ModelViewMatrix, osg_ProjectionMatrix, osg_NormalMatrix, osg_FrontMaterial, etc.
+    // and vertex attribute bindings:
+    //   osg_Vertex (loc 0), osg_Normal (loc 2), osg_Color (loc 3), osg_MultiTexCoordN (loc 8+N)
+    //
+    std::string convertToGLSLES300(const std::string& source, osg::Shader::Type type)
+    {
+        std::string result = source;
+        bool isVertex = (type == osg::Shader::VERTEX);
+        bool isFragment = (type == osg::Shader::FRAGMENT);
+
+        // --- 1. Replace #version line with ES 3.00 + precision qualifiers ---
+        {
+            size_t versionPos = result.find("#version ");
+            if (versionPos != std::string::npos)
+            {
+                size_t lineEnd = result.find('\n', versionPos);
+                if (lineEnd == std::string::npos)
+                    lineEnd = result.size();
+                result.replace(versionPos, lineEnd - versionPos,
+                    "#version 300 es\n"
+                    "precision highp float;\n"
+                    "precision highp int;\n"
+                    "precision highp sampler2D;\n"
+                    "precision highp sampler3D;\n"
+                    "precision highp samplerCube;\n"
+                    "precision highp sampler2DShadow;");
+            }
+        }
+
+        // --- 2. Remove/comment out desktop-only extension directives ---
+        // UBO and gpu_shader4 features are built-in to ES 3.0
+        replaceAllSubstrings(result,
+            "#extension GL_ARB_uniform_buffer_object : require",
+            "// GL_ARB_uniform_buffer_object (built-in in ES 3.0)");
+        replaceAllSubstrings(result,
+            "#extension GL_EXT_gpu_shader4: require",
+            "// GL_EXT_gpu_shader4 (built-in in ES 3.0)");
+        replaceAllSubstrings(result,
+            "#extension GL_EXT_gpu_shader4 : require",
+            "// GL_EXT_gpu_shader4 (built-in in ES 3.0)");
+        replaceAllSubstrings(result,
+            "#extension GL_EXT_texture_array : require",
+            "// GL_EXT_texture_array (built-in in ES 3.0)");
+
+        // --- 3. Replace varying/attribute keywords based on shader type ---
+        // Handle 'centroid varying' first to avoid partial replacement
+        if (isVertex)
+        {
+            replaceGLSLIdentifier(result, "centroid varying", "centroid out");
+            replaceGLSLIdentifier(result, "varying", "out");
+            replaceGLSLIdentifier(result, "attribute", "in");
+        }
+        else if (isFragment)
+        {
+            replaceGLSLIdentifier(result, "centroid varying", "centroid in");
+            replaceGLSLIdentifier(result, "varying", "in");
+        }
+
+        // --- 4. Replace deprecated texture lookup functions ---
+        replaceAllSubstrings(result, "texture2D(", "texture(");
+        replaceAllSubstrings(result, "texture3D(", "texture(");
+        replaceAllSubstrings(result, "textureCube(", "texture(");
+        replaceAllSubstrings(result, "shadow2DProj(", "textureProj(");
+        replaceAllSubstrings(result, "shadow2D(", "texture(");
+
+        // --- 5. Build declarations for gl_ built-in replacements ---
+        std::string declarations;
+
+        // Vertex attributes (only in vertex shaders)
+        if (isVertex)
+        {
+            if (containsGLSLIdentifier(result, "gl_Vertex"))
+            {
+                replaceGLSLIdentifier(result, "gl_Vertex", "osg_Vertex");
+                declarations += "in vec4 osg_Vertex;\n";
+            }
+            if (containsGLSLIdentifier(result, "gl_Normal"))
+            {
+                replaceGLSLIdentifier(result, "gl_Normal", "osg_Normal");
+                declarations += "in vec3 osg_Normal;\n";
+            }
+            if (containsGLSLIdentifier(result, "gl_Color"))
+            {
+                replaceGLSLIdentifier(result, "gl_Color", "osg_Color");
+                declarations += "in vec4 osg_Color;\n";
+            }
+            for (int i = 0; i < 8; ++i)
+            {
+                std::string glName = "gl_MultiTexCoord" + std::to_string(i);
+                if (containsGLSLIdentifier(result, glName))
+                {
+                    std::string osgName = "osg_MultiTexCoord" + std::to_string(i);
+                    replaceGLSLIdentifier(result, glName, osgName);
+                    declarations += "in vec4 " + osgName + ";\n";
+                }
+            }
+        }
+
+        // Built-in matrices → OSG uniform equivalents
+        if (containsGLSLIdentifier(result, "gl_ModelViewProjectionMatrix"))
+        {
+            replaceGLSLIdentifier(result, "gl_ModelViewProjectionMatrix", "osg_ModelViewProjectionMatrix");
+            declarations += "uniform mat4 osg_ModelViewProjectionMatrix;\n";
+        }
+        if (containsGLSLIdentifier(result, "gl_ModelViewMatrix"))
+        {
+            replaceGLSLIdentifier(result, "gl_ModelViewMatrix", "osg_ModelViewMatrix");
+            declarations += "uniform mat4 osg_ModelViewMatrix;\n";
+        }
+        if (containsGLSLIdentifier(result, "gl_ProjectionMatrix"))
+        {
+            replaceGLSLIdentifier(result, "gl_ProjectionMatrix", "osg_ProjectionMatrix");
+            declarations += "uniform mat4 osg_ProjectionMatrix;\n";
+        }
+        if (containsGLSLIdentifier(result, "gl_NormalMatrix"))
+        {
+            replaceGLSLIdentifier(result, "gl_NormalMatrix", "osg_NormalMatrix");
+            declarations += "uniform mat3 osg_NormalMatrix;\n";
+        }
+        if (containsGLSLIdentifier(result, "gl_TextureMatrix"))
+        {
+            replaceGLSLIdentifier(result, "gl_TextureMatrix", "osg_TextureMatrix");
+            declarations += "uniform mat4 osg_TextureMatrix[8];\n";
+        }
+
+        // Material struct → OSG uniform equivalent
+        if (containsGLSLIdentifier(result, "gl_FrontMaterial"))
+        {
+            replaceGLSLIdentifier(result, "gl_FrontMaterial", "osg_FrontMaterial");
+            declarations +=
+                "struct osg_MaterialParameters {\n"
+                "    vec4 ambient;\n"
+                "    vec4 diffuse;\n"
+                "    vec4 specular;\n"
+                "    vec4 emission;\n"
+                "    float shininess;\n"
+                "};\n"
+                "uniform osg_MaterialParameters osg_FrontMaterial;\n";
+        }
+
+        // Light model → OSG uniform equivalent (scene ambient)
+        if (containsGLSLIdentifier(result, "gl_LightModel"))
+        {
+            replaceGLSLIdentifier(result, "gl_LightModel", "osg_LightModel");
+            declarations +=
+                "struct osg_LightModelParameters {\n"
+                "    vec4 ambient;\n"
+                "};\n"
+                "uniform osg_LightModelParameters osg_LightModel;\n";
+        }
+
+        // --- 6. Fragment outputs ---
+        if (isFragment)
+        {
+            bool addedFragColor = false;
+            if (result.find("gl_FragData[0]") != std::string::npos)
+            {
+                replaceAllSubstrings(result, "gl_FragData[0]", "osg_FragColor");
+                declarations += "layout(location = 0) out vec4 osg_FragColor;\n";
+                addedFragColor = true;
+            }
+            if (result.find("gl_FragData[1]") != std::string::npos)
+            {
+                replaceAllSubstrings(result, "gl_FragData[1]", "osg_FragData1");
+                declarations += "layout(location = 1) out vec4 osg_FragData1;\n";
+            }
+            if (result.find("gl_FragColor") != std::string::npos)
+            {
+                replaceAllSubstrings(result, "gl_FragColor", "osg_FragColor");
+                if (!addedFragColor)
+                    declarations += "layout(location = 0) out vec4 osg_FragColor;\n";
+            }
+        }
+
+        // --- 7. Remove gl_ClipVertex assignments (not available in ES 3.0) ---
+        {
+            size_t pos = 0;
+            while ((pos = result.find("gl_ClipVertex", pos)) != std::string::npos)
+            {
+                size_t stmtStart = result.rfind('\n', pos);
+                stmtStart = (stmtStart == std::string::npos) ? 0 : stmtStart + 1;
+                size_t stmtEnd = result.find(';', pos);
+                if (stmtEnd != std::string::npos)
+                {
+                    stmtEnd++; // include the semicolon
+                    result.replace(stmtStart, stmtEnd - stmtStart,
+                        "// gl_ClipVertex removed (not available in ES 3.0)");
+                    pos = stmtStart + 52;
+                }
+                else
+                    break;
+            }
+        }
+
+        // --- 8. Insert declarations after the version/precision block ---
+        if (!declarations.empty())
+        {
+            // Find the end of the #version + precision block
+            size_t insertPos = 0;
+            size_t searchFrom = 0;
+            while (true)
+            {
+                size_t lineStart = result.find_first_not_of(" \t\n\r", searchFrom);
+                if (lineStart == std::string::npos)
+                    break;
+                if (result.compare(lineStart, 10, "precision ") == 0
+                    || result.compare(lineStart, 9, "#version ") == 0)
+                {
+                    size_t lineEnd = result.find('\n', lineStart);
+                    insertPos = (lineEnd != std::string::npos) ? lineEnd + 1 : result.size();
+                    searchFrom = insertPos;
+                }
+                else
+                    break;
+            }
+
+            result.insert(insertPos, "\n" + declarations + "\n");
+        }
+
+        return result;
+    }
+#endif // __EMSCRIPTEN__
     osg::Shader::Type getShaderType(const std::string& templateName)
     {
         std::string_view ext = Misc::getFileExtension(templateName);
@@ -279,6 +562,10 @@ namespace Shader
                         {
                             break;
                         }
+#ifdef __EMSCRIPTEN__
+                        shaderSource = convertToGLSLES300(
+                            shaderSource, getShaderType(templateName));
+#endif
                         shaderIt->second->setShaderSource(shaderSource);
                     }
                 }
@@ -553,7 +840,13 @@ namespace Shader
                 return nullptr;
             }
 
-            osg::ref_ptr<osg::Shader> shader(new osg::Shader(type ? *type : getShaderType(templateName)));
+            osg::Shader::Type shaderType = type ? *type : getShaderType(templateName);
+
+#ifdef __EMSCRIPTEN__
+            shaderSource = convertToGLSLES300(shaderSource, shaderType);
+#endif
+
+            osg::ref_ptr<osg::Shader> shader(new osg::Shader(shaderType));
             shader->setShaderSource(shaderSource);
             // Assign a unique prefix to allow the SharedStateManager to compare shaders efficiently.
             // Append shader source filename for debugging.
@@ -635,6 +928,9 @@ namespace Shader
                 // we would when creating the shader. If we put a nullptr in the shader map, we just lose the ability to
                 // put a working one in later.
                 continue;
+#ifdef __EMSCRIPTEN__
+            shaderSource = convertToGLSLES300(shaderSource, shader->getType());
+#endif
             shader->setShaderSource(shaderSource);
 
             getLinkedShaders(shader, linkedShaderNames, defines);

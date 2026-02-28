@@ -830,7 +830,18 @@ namespace SceneUtil
 
         setUpdateCallback(new LightManagerUpdateCallback);
 
-        if (settings.mLightingMethod == LightingMethod::FFP)
+#ifdef __EMSCRIPTEN__
+        // WebGL 2.0 / GLES 3.0 does not support gl_LightSource[] or fixed-function lighting.
+        // Force PerObjectUniform as a fallback that works without UBO support detection.
+        LightingMethod effectiveMethod = (settings.mLightingMethod == LightingMethod::FFP)
+                                             ? LightingMethod::PerObjectUniform
+                                             : settings.mLightingMethod;
+        if (effectiveMethod != settings.mLightingMethod)
+            Log(Debug::Info) << "Emscripten: Overriding FFP lighting method with shader compatibility mode";
+#else
+        LightingMethod effectiveMethod = settings.mLightingMethod;
+#endif
+        if (effectiveMethod == LightingMethod::FFP)
         {
             initFFP(ffpMaxLights);
         }
@@ -838,7 +849,7 @@ namespace SceneUtil
         {
             static bool hasLoggedWarnings = false;
 
-            if (settings.mLightingMethod == LightingMethod::SingleUBO && !hasLoggedWarnings)
+            if (effectiveMethod == LightingMethod::SingleUBO && !hasLoggedWarnings)
             {
                 if (!supportsUBO)
                     Log(Debug::Warning) << "GL_ARB_uniform_buffer_object not supported: switching to shader "
@@ -849,7 +860,7 @@ namespace SceneUtil
                 hasLoggedWarnings = true;
             }
 
-            if (!supportsUBO || !supportsGPU4 || settings.mLightingMethod == LightingMethod::PerObjectUniform)
+            if (!supportsUBO || !supportsGPU4 || effectiveMethod == LightingMethod::PerObjectUniform)
                 initPerObjectUniform(settings.mMaxLights);
             else
                 initSingleUBO(settings.mMaxLights);

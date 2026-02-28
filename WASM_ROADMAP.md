@@ -141,10 +141,60 @@ Build infrastructure for cross-compiling all major OpenMW dependencies to WebAss
 - ICU ExternalProject now supports Emscripten cross-compilation alongside Android.
 - Boost `find_package` falls back from CONFIG to MODULE mode for cross-compiled builds.
 
+## CMake Build Blocker Fixes
+
+Concrete issues that would prevent the WASM build from configuring and linking have been addressed:
+
+- **OpenGL linking**: `${OPENGL_gl_LIBRARY}` replaced with `OpenGL::GL` imported target in `components/CMakeLists.txt`, compatible with the Emscripten dummy target.
+- **OpenAL linking**: `${OPENAL_LIBRARY}` (empty for Emscripten) replaced with `-lopenal` link option that maps to Emscripten's Web Audio wrapper.
+- **Platform-specific library guards**: `find_package(Threads)`, `${CMAKE_THREAD_LIBS_INIT}` linking, and `CheckLuaCustomAllocator.cmake` (uses `try_run()`, fails during cross-compile) guarded with `NOT OPENMW_IS_EMSCRIPTEN`.
+- **WholeArchive.cmake**: Added `CMAKE_CXX_COMPILER_ID "Emscripten"` to the Clang/GNU branch (wasm-ld supports `--whole-archive`).
+- **Executable target**: Emscripten path in `apps/openmw/CMakeLists.txt` produces `.html`+`.js`+`.wasm` outputs via `add_executable` with `.html` suffix.
+- **WASM openmw.cfg**: Bootstrap config (`files/wasm/openmw.cfg`) pointing data paths to Emscripten virtual filesystem locations (`/gamedata`, `/persistent/home`).
+
+## GLSL ES 3.00 Shader Compatibility
+
+An automatic GLSL 120 → GLSL ES 300 source-level translator has been added to `ShaderManager` (`components/shader/shadermanager.cpp`), activated at compile time for Emscripten builds (`#ifdef __EMSCRIPTEN__`). This avoids duplicating the 35+ compatibility shader files.
+
+### Conversions performed by `convertToGLSLES300()`:
+
+| GLSL 1.20 (Desktop) | GLSL ES 3.00 (WebGL 2.0) | Notes |
+|---|---|---|
+| `#version 120` | `#version 300 es` + precision qualifiers | `highp float/int/sampler` |
+| `attribute` | `in` | Vertex shader only |
+| `varying` | `out` / `in` | Vertex → `out`, Fragment → `in` |
+| `centroid varying` | `centroid out` / `centroid in` | Same rule |
+| `texture2D()` | `texture()` | Also `texture3D`, `textureCube`, `shadow2D` |
+| `gl_Vertex` | `osg_Vertex` | + `in vec4` declaration |
+| `gl_Normal` | `osg_Normal` | + `in vec3` declaration |
+| `gl_Color` | `osg_Color` | + `in vec4` declaration |
+| `gl_MultiTexCoordN` | `osg_MultiTexCoordN` | + `in vec4` declarations |
+| `gl_ModelViewMatrix` | `osg_ModelViewMatrix` | + `uniform mat4` declaration |
+| `gl_ModelViewProjectionMatrix` | `osg_ModelViewProjectionMatrix` | + `uniform mat4` declaration |
+| `gl_ProjectionMatrix` | `osg_ProjectionMatrix` | + `uniform mat4` declaration |
+| `gl_NormalMatrix` | `osg_NormalMatrix` | + `uniform mat3` declaration |
+| `gl_TextureMatrix[n]` | `osg_TextureMatrix[n]` | + `uniform mat4[8]` declaration |
+| `gl_FrontMaterial` | `osg_FrontMaterial` | + struct + `uniform` declaration |
+| `gl_LightModel` | `osg_LightModel` | + struct + `uniform` declaration |
+| `gl_FragData[0]` / `gl_FragData[1]` | `osg_FragColor` / `osg_FragData1` | + `layout(location=N) out vec4` |
+| `gl_FragColor` | `osg_FragColor` | + `layout(location=0) out vec4` |
+| `gl_ClipVertex = ...;` | Removed (comment) | Not available in ES 3.0 |
+| `#extension GL_ARB_*` | Commented out | Features built-in to ES 3.0 |
+
+### Additional lighting changes:
+
+- **FFP lighting override**: `LightManager` (`components/sceneutil/lightmanager.cpp`) forces `PerObjectUniform` mode on Emscripten when the user selects FFP (`legacy`) mode, since `gl_LightSource[]` is not available in GLES 3.0.
+- The `@getLight` define resolves to `LightBuffer` (custom uniform array) instead of `gl_LightSource` in non-FFP modes.
+
+### How it works:
+
+1. The converter runs in `ShaderManager::getShader()` after `createSourceFromTemplate()` completes, operating on the fully-resolved shader source (includes expanded, `@defines` substituted).
+2. Linked shaders (e.g., `lib/core/vertex.glsl`) are also converted since they pass through `getShader()` independently.
+3. Declarations for replaced built-in identifiers are only added when the identifier is actually used in the source, keeping the output minimal.
+4. Word-boundary-aware identifier matching prevents false replacements (e.g., `gl_ModelViewMatrix` won't match inside `gl_ModelViewProjectionMatrix`).
+
 ## Remaining Work
-- **GLSL ES 3.00 shaders**: All shaders must be verified/ported to GLSL ES 3.00 for WebGL 2.0 compatibility.
 - **Large asset streaming**: Current file picker loads all data into memory; consider chunked/lazy loading for large Morrowind installations.
-- **Config file bootstrapping**: Provide a minimal `openmw.cfg` for WASM builds pointing to `/gamedata` as the data directory.
 - **Audio decoder**: Verify FFmpeg/audio decoding works under Emscripten or provide fallback.
 - **Input handling**: Verify pointer lock, keyboard, and gamepad input through Emscripten SDL2.
 - **Testing and profiling**: End-to-end testing in Chrome with actual Morrowind data, performance profiling and optimization.
