@@ -14,6 +14,10 @@
 
 #include <boost/program_options/variables_map.hpp>
 
+#ifdef __EMSCRIPTEN__
+#    include <emscripten.h>
+#endif
+
 #if defined(_WIN32)
 #include <components/misc/windows.hpp>
 // makes __argc and __argv available on windows
@@ -163,6 +167,32 @@ bool parseOptions(int argc, char** argv, OMW::Engine& engine, Files::Configurati
 
 namespace
 {
+#ifdef __EMSCRIPTEN__
+    void initializeWasmPersistentStorage()
+    {
+        emscripten_run_script(R"(
+            if (!FS.analyzePath('/persistent').exists)
+                FS.mkdir('/persistent');
+            if (!FS.analyzePath('/persistent/home').exists)
+                FS.mkdir('/persistent/home');
+            try {
+                FS.mount(IDBFS, {}, '/persistent');
+            } catch (error) {
+                if (!error.message || !error.message.includes('already mounted'))
+                    console.error('Failed to mount IDBFS at /persistent', error);
+            }
+            FS.syncfs(true, function(error) {
+                if (error)
+                    console.error('Initial IDBFS sync failed', error);
+            });
+        )");
+
+        setenv("HOME", "/persistent/home", 1);
+        setenv("XDG_CONFIG_HOME", "/persistent/home/.config", 1);
+        setenv("XDG_DATA_HOME", "/persistent/home/.local/share", 1);
+    }
+#endif
+
     class OSGLogHandler : public osg::NotifyHandler
     {
         void notify(osg::NotifySeverity severity, const char* msg) override
@@ -212,6 +242,10 @@ namespace
 int runApplication(int argc, char* argv[])
 {
     Platform::init();
+
+#ifdef __EMSCRIPTEN__
+    initializeWasmPersistentStorage();
+#endif
 
 #ifdef __APPLE__
     setenv("OSG_GL_TEXTURE_STORAGE", "OFF", 0);
