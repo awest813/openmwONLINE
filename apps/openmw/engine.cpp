@@ -53,6 +53,10 @@
 #include <components/sceneutil/depth.hpp>
 #include <components/sceneutil/screencapture.hpp>
 #include <components/sceneutil/unrefqueue.hpp>
+
+#ifdef __EMSCRIPTEN__
+#include <components/sceneutil/glesmaterial.hpp>
+#endif
 #include <components/sceneutil/util.hpp>
 
 #include <components/settings/shadermanager.hpp>
@@ -838,6 +842,11 @@ void OMW::Engine::prepareEngine()
     osg::ref_ptr<osg::Group> rootNode(new osg::Group);
     mViewer->setSceneData(rootNode);
 
+#ifdef __EMSCRIPTEN__
+    SceneUtil::addGLESMaterialUniforms(rootNode->getOrCreateStateSet());
+    SceneUtil::addGLESFogUniforms(rootNode->getOrCreateStateSet());
+#endif
+
     createWindow();
 
     mVFS = std::make_unique<VFS::Manager>();
@@ -1087,6 +1096,12 @@ void OMW::Engine::go()
     // Setup viewer
     mViewer = new osgViewer::Viewer;
     mViewer->setReleaseContextAtEndOfFrameHint(false);
+
+#ifdef __EMSCRIPTEN__
+    osg::DisplaySettings::instance()->setGLContextVersion("3.0 ES");
+    osg::DisplaySettings::instance()->setGLContextProfileMask(0x4);
+    osg::DisplaySettings::instance()->setShaderHint(osg::DisplaySettings::SHADER_GL3);
+#endif
 
     // Do not try to outsmart the OS thread scheduler (see bug #4785).
     mViewer->setUseConfigureAffinity(false);
