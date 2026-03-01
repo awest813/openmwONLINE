@@ -67,10 +67,6 @@ if(OPENMW_EXPERIMENTAL_WASM)
     set(MYGUI_STATIC ON CACHE BOOL "" FORCE)
     set(RECASTNAVIGATION_STATIC ON CACHE BOOL "" FORCE)
 
-    option(OPENMW_EXPERIMENTAL_WASM_PTHREADS
-        "Enable Emscripten pthread/Web Worker support for the experimental WebAssembly build."
-        ON)
-
     if(OPENMW_EXPERIMENTAL_WASM_PTHREADS)
         add_compile_options("-pthread")
         add_link_options("-pthread" "-sPTHREAD_POOL_SIZE=navigator.hardwareConcurrency")

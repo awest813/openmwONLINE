@@ -510,10 +510,14 @@ uniform mat4 omw_TextureMatrix7;
             replaceAllSimple(source, from, to);
         }
 
-        // --- 12. Remove gl_ClipVertex (no ES3 equivalent) ---
+        // --- 12. Replace gl_FragColor → omw_FragData0 (unavailable in ES 3.00) ---
+        if (isFragment)
+            replaceAllWholeWord(source, "gl_FragColor", "omw_FragData0");
+
+        // --- 13. Remove gl_ClipVertex (no ES3 equivalent) ---
         removeClipVertexLines(source);
 
-        // --- 13. Replace texture lookup functions ---
+        // --- 14. Replace texture lookup functions ---
         // GLSL 300 es uses texture() instead of texture2D(), textureCube(), etc.
         replaceAllWholeWord(source, "texture2D", "texture");
         replaceAllWholeWord(source, "texture3D", "texture");

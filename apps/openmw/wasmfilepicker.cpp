@@ -3,7 +3,6 @@
 #include "wasmfilepicker.hpp"
 
 #include <algorithm>
-#include <sstream>
 
 #include <emscripten.h>
 
@@ -61,9 +60,17 @@ namespace OMW::WasmFilePicker
         sUploadedByteCount = 0;
 
         std::string mountStr = dataMount.string();
+        std::string escapedMount;
+        for (char c : mountStr)
+        {
+            if (c == '\\' || c == '\'')
+                escapedMount += '\\';
+            escapedMount += c;
+        }
+
         std::string initScript = R"(
             (function() {
-                var mountPath = )" + std::string("'") + mountStr + std::string("'") + R"(;
+                var mountPath = ')" + escapedMount + R"(';
 
                 if (!FS.analyzePath(mountPath).exists)
                     FS.mkdir(mountPath);

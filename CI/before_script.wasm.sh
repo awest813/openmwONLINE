@@ -112,10 +112,6 @@ echo "=== Configuring OpenMW for WebAssembly ==="
 mkdir -p "$BUILD_DIR"
 cd "$BUILD_DIR"
 
-# hack to work around: FFmpeg version is too old, 3.2 is required
-# (version detection doesn't work for cross-compilation)
-sed -i 's/"NOT FFVER_OK"/"FALSE"/' "${ROOT_DIR}/CMakeLists.txt" 2>/dev/null || true
-
 emcmake cmake \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_PREFIX_PATH="$WASM_DEPS_DIR" \
