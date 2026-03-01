@@ -15,7 +15,7 @@ namespace Misc
     }
 }
 
-#elif defined(__linux__) && !defined(__EMSCRIPTEN__)
+#elif defined(__linux__)
 
 #include <pthread.h>
 #include <sched.h>

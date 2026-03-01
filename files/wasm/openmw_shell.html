@@ -108,7 +108,7 @@
   <div id="loading-overlay">
     <h1>OpenMW</h1>
     <p>Morrowind in the Browser</p>
-    <div id="progress-container">
+    <div id="progress-container" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
       <div id="progress-bar"></div>
     </div>
     <div id="status">Initializing engine...</div>
@@ -122,7 +122,7 @@
       </p>
       <div id="upload-progress">
         <div id="upload-stats"></div>
-        <div id="upload-bar-container">
+        <div id="upload-bar-container" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
           <div id="upload-bar"></div>
         </div>
         <div id="upload-detail"></div>
@@ -149,7 +149,9 @@
     }
 
     function setProgress(pct) {
-      progressBar.style.width = Math.min(100, Math.max(0, pct)) + '%';
+      var clamped = Math.min(100, Math.max(0, pct));
+      progressBar.style.width = clamped + '%';
+      progressBar.parentElement.setAttribute('aria-valuenow', Math.round(clamped));
     }
 
     function showCanvas() {
@@ -158,6 +160,8 @@
       document.getElementById('canvas').focus();
     }
 
+    var MAX_CONSOLE_LINES = 500;
+
     function logToConsole(msg, level) {
       var line = document.createElement('div');
       line.textContent = msg;
@@ -165,6 +169,8 @@
       else if (level === 'warn') line.className = 'log-warn';
       else if (level === 'info') line.className = 'log-info';
       consoleOutput.appendChild(line);
+      while (consoleOutput.childElementCount > MAX_CONSOLE_LINES)
+        consoleOutput.removeChild(consoleOutput.firstChild);
       consoleOutput.scrollTop = consoleOutput.scrollHeight;
     }
 
@@ -212,6 +218,7 @@
         globalThis.__openmwOnUploadProgress = function(files, totalFiles, bytes, totalBytes) {
           var pct = totalBytes > 0 ? (bytes / totalBytes) * 100 : 0;
           uploadBar.style.width = pct.toFixed(1) + '%';
+          uploadBar.parentElement.setAttribute('aria-valuenow', Math.round(pct));
           uploadStats.textContent = files + ' / ' + totalFiles + ' files';
           uploadDetail.textContent = formatBytes(bytes) + ' / ' + formatBytes(totalBytes) + ' (' + pct.toFixed(0) + '%)';
         };
@@ -246,7 +253,7 @@
         if (text) {
           var match = text.match(/([^(]+)\((\d+(\.\d+)?)\/(\d+)\)/);
           if (match) {
-            var pct = (parseInt(match[2]) / parseInt(match[4])) * 100;
+            var pct = (parseFloat(match[2]) / parseFloat(match[4])) * 100;
             setProgress(pct);
             setStatus(match[1].trim());
           } else {

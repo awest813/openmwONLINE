@@ -69,8 +69,8 @@ echo "Using Emscripten: $EMCC_VERSION"
 echo ""
 
 # Common flags passed to every C/C++ compilation
-COMMON_CFLAGS="-O2 -fPIC"
-COMMON_CXXFLAGS="-O2 -fPIC"
+COMMON_CFLAGS="-O2"
+COMMON_CXXFLAGS="-O2"
 
 # ──────────────────────────────────────────────────────────────────────────
 # 1. Lua 5.4

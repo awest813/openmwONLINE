@@ -30,7 +30,6 @@ extern "C" __declspec(dllexport) DWORD AmdPowerXpressRequestHighPerformance = 0x
 #include <cerrno>
 #include <filesystem>
 #include <fstream>
-#include <limits>
 #include <sstream>
 #include <string>
 
@@ -255,9 +254,6 @@ namespace
             return sMaxIntervalMs;
         }
 
-        if (parsedValue > std::numeric_limits<int>::max())
-            return sDefaultIntervalMs;
-
         return static_cast<int>(parsedValue);
     }
 
@@ -351,73 +347,75 @@ namespace
                     FS.mkdir(localRoot);
                 if (!FS.analyzePath(dataRoot).exists)
                     FS.mkdir(dataRoot);
-            try {
-                FS.mount(IDBFS, {}, persistentRoot);
-            } catch (error) {
-                if (!error.message || !error.message.includes('already mounted'))
-                    console.error('Failed to mount IDBFS at', persistentRoot, error);
-            }
-            FS.syncfs(true, function(error) {
-                if (error)
-                    console.error('Initial IDBFS sync failed', error);
-            });
 
-            const syncPersistentStorage = function() {
-                const state = (typeof globalThis !== 'undefined')
-                    ? (globalThis.__openmwPersistentSyncState = globalThis.__openmwPersistentSyncState || {})
-                    : {};
-
-                if (state.syncInProgress) {
-                    state.syncPending = true;
-                    return;
+                try {
+                    FS.mount(IDBFS, {}, persistentRoot);
+                } catch (error) {
+                    if (!error.message || !error.message.includes('already mounted'))
+                        console.error('Failed to mount IDBFS at', persistentRoot, error);
                 }
 
-                state.syncInProgress = true;
-                FS.syncfs(false, function(error) {
-                    state.syncInProgress = false;
-
+                FS.syncfs(true, function(error) {
                     if (error)
-                        console.error('Background IDBFS sync failed', error);
+                        console.error('Initial IDBFS sync failed', error);
+                });
 
-                    if (state.syncPending) {
-                        state.syncPending = false;
-                        syncPersistentStorage();
+                var syncPersistentStorage = function() {
+                    var state = (typeof globalThis !== 'undefined')
+                        ? (globalThis.__openmwPersistentSyncState = globalThis.__openmwPersistentSyncState || {})
+                        : {};
+
+                    if (state.syncInProgress) {
+                        state.syncPending = true;
+                        return;
                     }
-                });
-            };
 
-            const schedulePeriodicPersistentSync = function() {
-                const state = (typeof globalThis !== 'undefined')
-                    ? (globalThis.__openmwPersistentSyncState = globalThis.__openmwPersistentSyncState || {})
-                    : {};
+                    state.syncInProgress = true;
+                    FS.syncfs(false, function(error) {
+                        state.syncInProgress = false;
 
-                if (state.periodicSyncTimer)
-                    return;
+                        if (error)
+                            console.error('Background IDBFS sync failed', error);
 
-                const periodicSyncIntervalMs = __OPENMW_SYNC_INTERVAL_MS__;
-                if (periodicSyncIntervalMs <= 0)
-                    return;
+                        if (state.syncPending) {
+                            state.syncPending = false;
+                            syncPersistentStorage();
+                        }
+                    });
+                };
 
-                state.periodicSyncTimer = setInterval(function() {
-                    syncPersistentStorage();
-                }, periodicSyncIntervalMs);
-            };
+                var schedulePeriodicPersistentSync = function() {
+                    var state = (typeof globalThis !== 'undefined')
+                        ? (globalThis.__openmwPersistentSyncState = globalThis.__openmwPersistentSyncState || {})
+                        : {};
 
-            if (typeof globalThis !== 'undefined')
-                globalThis.__openmwSyncPersistentStorage = syncPersistentStorage;
+                    if (state.periodicSyncTimer)
+                        return;
 
-            if (typeof window !== 'undefined' && !window.__openmwPersistentSyncRegistered) {
-                window.addEventListener('visibilitychange', function() {
-                    if (document.visibilityState === 'hidden')
+                    var periodicSyncIntervalMs = __OPENMW_SYNC_INTERVAL_MS__;
+                    if (periodicSyncIntervalMs <= 0)
+                        return;
+
+                    state.periodicSyncTimer = setInterval(function() {
                         syncPersistentStorage();
-                });
-                window.addEventListener('pagehide', syncPersistentStorage);
-                window.addEventListener('beforeunload', syncPersistentStorage);
-                window.addEventListener('online', syncPersistentStorage);
-                window.__openmwPersistentSyncRegistered = true;
-            }
+                    }, periodicSyncIntervalMs);
+                };
 
-            schedulePeriodicPersistentSync();
+                if (typeof globalThis !== 'undefined')
+                    globalThis.__openmwSyncPersistentStorage = syncPersistentStorage;
+
+                if (typeof window !== 'undefined' && !window.__openmwPersistentSyncRegistered) {
+                    window.addEventListener('visibilitychange', function() {
+                        if (document.visibilityState === 'hidden')
+                            syncPersistentStorage();
+                    });
+                    window.addEventListener('pagehide', syncPersistentStorage);
+                    window.addEventListener('beforeunload', syncPersistentStorage);
+                    window.addEventListener('online', syncPersistentStorage);
+                    window.__openmwPersistentSyncRegistered = true;
+                }
+
+                schedulePeriodicPersistentSync();
             }
         )";
 
