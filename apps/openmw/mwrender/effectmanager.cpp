@@ -6,6 +6,9 @@
 #include <components/resource/scenemanager.hpp>
 
 #include <components/sceneutil/controller.hpp>
+#ifdef __EMSCRIPTEN__
+#include <components/sceneutil/gles3uniforms.hpp>
+#endif
 
 #include "animation.hpp"
 #include "util.hpp"
@@ -66,6 +69,9 @@ namespace MWRender
             // Morrowind has a white ambient light attached to the root VFX node of the scenegraph
             node->getOrCreateStateSet()->setAttributeAndModes(
                 getVFXLightModelInstance(), osg::StateAttribute::ON | osg::StateAttribute::OVERRIDE);
+#ifdef __EMSCRIPTEN__
+            SceneUtil::GLES3Uniforms::applyLightModel(node->getOrCreateStateSet(), osg::Vec4f(1, 1, 1, 1));
+#endif
         }
 
         mResourceSystem->getSceneManager()->setUpNormalsRTForStateSet(node->getOrCreateStateSet(), false);

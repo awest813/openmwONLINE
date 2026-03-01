@@ -319,7 +319,9 @@ namespace Resource
         , mStatNames(generateAllStatNames())
     {
         osg::ref_ptr<osg::StateSet> stateset = mSwitch->getOrCreateStateSet();
+#ifndef __EMSCRIPTEN__
         stateset->setMode(GL_LIGHTING, osg::StateAttribute::OFF);
+#endif
         stateset->setMode(GL_BLEND, osg::StateAttribute::ON);
         stateset->setMode(GL_DEPTH_TEST, osg::StateAttribute::OFF);
 #ifdef OSG_GL1_AVAILABLE

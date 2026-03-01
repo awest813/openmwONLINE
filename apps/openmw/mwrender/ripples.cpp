@@ -318,7 +318,9 @@ namespace MWRender
         : osg::Camera()
         , mRipples(new RipplesSurface(resourceSystem))
     {
+#ifndef __EMSCRIPTEN__
         getOrCreateStateSet()->setMode(GL_LIGHTING, osg::StateAttribute::OFF);
+#endif
         getOrCreateStateSet()->setMode(GL_DEPTH_TEST, osg::StateAttribute::OFF);
         setRenderOrder(osg::Camera::PRE_RENDER);
         setReferenceFrame(osg::Camera::ABSOLUTE_RF);

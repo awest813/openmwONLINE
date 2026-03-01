@@ -365,7 +365,9 @@ namespace MWRender
             osg::StateSet* stateset = geom->getOrCreateStateSet();
             stateset->setAttribute(depth);
             stateset->setTextureAttributeAndModes(0, texture, osg::StateAttribute::ON);
+#ifndef __EMSCRIPTEN__
             stateset->setMode(GL_LIGHTING, osg::StateAttribute::OFF);
+#endif
             stateset->setMode(GL_DEPTH_TEST, osg::StateAttribute::OFF);
 
             if (mAlphaTexture)

@@ -12,6 +12,9 @@
 #include <osgDB/ReadFile>
 
 #include <components/debug/debuglog.hpp>
+#ifdef __EMSCRIPTEN__
+#include <components/sceneutil/gles3uniforms.hpp>
+#endif
 #include <components/esm3/fogstate.hpp>
 #include <components/esm3/loadcell.hpp>
 #include <components/files/memorystream.hpp>
@@ -751,6 +754,9 @@ namespace MWRender
         osg::ref_ptr<osg::LightModel> lightmodel = new osg::LightModel;
         lightmodel->setAmbientIntensity(osg::Vec4(0.3f, 0.3f, 0.3f, 1.f));
         stateset->setAttributeAndModes(lightmodel, osg::StateAttribute::ON | osg::StateAttribute::OVERRIDE);
+#ifdef __EMSCRIPTEN__
+        SceneUtil::GLES3Uniforms::applyLightModel(stateset, osg::Vec4f(0.3f, 0.3f, 0.3f, 1.f));
+#endif
 
         osg::ref_ptr<osg::Light> light = new osg::Light;
         light->setPosition(osg::Vec4(-0.3f, -0.3f, 0.7f, 0.f));

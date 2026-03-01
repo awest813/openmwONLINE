@@ -207,6 +207,12 @@ uniform mat4 osg_ProjectionMatrix;
 uniform mat4 osg_ModelViewProjectionMatrix;
 uniform mat3 osg_NormalMatrix;
 
+// Custom light model ambient (gl_LightModel unavailable in GLES3)
+struct OMW_LightModelParameters {
+    vec4 ambient;
+};
+uniform OMW_LightModelParameters omw_LightModel;
+
 // Custom uniforms replacing gl_TextureMatrix (fixed-function state)
 uniform mat4 omw_TextureMatrix0;
 uniform mat4 omw_TextureMatrix1;
@@ -266,6 +272,12 @@ struct OMW_FogParameters {
     float scale; // 1.0 / (end - start)
 };
 uniform OMW_FogParameters omw_Fog;
+
+// Custom light model ambient (gl_LightModel unavailable in GLES3)
+struct OMW_LightModelParameters {
+    vec4 ambient;
+};
+uniform OMW_LightModelParameters omw_LightModel;
 
 // Custom uniforms replacing gl_TextureMatrix (fragment shaders may also reference these)
 uniform mat4 omw_TextureMatrix0;
@@ -480,7 +492,9 @@ uniform mat4 omw_TextureMatrix7;
         replaceAllWholeWord(source, "gl_MultiTexCoord7", "osg_MultiTexCoord7");
 
         // --- 7. Replace deprecated matrix builtins ---
+        // Order matters: replace longer names first to avoid partial matches
         replaceAllWholeWord(source, "gl_ModelViewProjectionMatrix", "osg_ModelViewProjectionMatrix");
+        replaceAllWholeWord(source, "gl_ModelViewMatrixInverse", "inverse(osg_ModelViewMatrix)");
         replaceAllWholeWord(source, "gl_ModelViewMatrix", "osg_ModelViewMatrix");
         replaceAllWholeWord(source, "gl_ProjectionMatrix", "osg_ProjectionMatrix");
         replaceAllWholeWord(source, "gl_NormalMatrix", "osg_NormalMatrix");
@@ -502,6 +516,10 @@ uniform mat4 omw_TextureMatrix7;
         replaceAllSimple(source, "gl_Fog.", "omw_Fog.");
         replaceAllWholeWord(source, "gl_Fog", "omw_Fog");
 
+        // --- 10b. Replace gl_LightModel.field → omw_LightModel.field ---
+        replaceAllSimple(source, "gl_LightModel.", "omw_LightModel.");
+        replaceAllWholeWord(source, "gl_LightModel", "omw_LightModel");
+
         // --- 11. Replace gl_FragData[N] → omw_FragDataN ---
         for (int i = 0; i < 4; ++i)
         {
@@ -519,10 +537,45 @@ uniform mat4 omw_TextureMatrix7;
 
         // --- 14. Replace texture lookup functions ---
         // GLSL 300 es uses texture() instead of texture2D(), textureCube(), etc.
+        replaceAllWholeWord(source, "texture2DArray", "texture");
         replaceAllWholeWord(source, "texture2D", "texture");
         replaceAllWholeWord(source, "texture3D", "texture");
         replaceAllWholeWord(source, "textureCube", "texture");
         replaceAllWholeWord(source, "shadow2DProj", "textureProj");
+        replaceAllWholeWord(source, "textureSize2D", "textureSize");
+
+        // --- 15. Remove additional desktop-only extension directives ---
+        {
+            const std::string extraExtensions[] = {
+                "GL_EXT_texture_array",
+                "GL_OVR_multiview",
+            };
+            for (const auto& ext : extraExtensions)
+            {
+                size_t pos = 0;
+                while ((pos = source.find(ext, pos)) != std::string::npos)
+                {
+                    size_t lineStart = source.rfind('\n', pos);
+                    lineStart = (lineStart == std::string::npos) ? 0 : lineStart + 1;
+                    size_t lineEnd = source.find('\n', pos);
+                    if (lineEnd == std::string::npos)
+                        lineEnd = source.size();
+                    else
+                        lineEnd += 1;
+
+                    std::string line = source.substr(lineStart, lineEnd - lineStart);
+                    if (line.find("#extension") != std::string::npos)
+                    {
+                        source.replace(lineStart, lineEnd - lineStart, "");
+                        pos = lineStart;
+                    }
+                    else
+                    {
+                        pos += ext.size();
+                    }
+                }
+            }
+        }
     }
 #endif // __EMSCRIPTEN__
 }
