@@ -2673,6 +2673,9 @@ namespace NifOsg
 
                             texMat->setMatrix(mat);
                             stateset->setTextureAttributeAndModes(texUnit, texMat, osg::StateAttribute::ON);
+#ifdef __EMSCRIPTEN__
+                            SceneUtil::GLES3Uniforms::applyTextureMatrix(stateset, texUnit, texMat.get());
+#endif
                         }
                     }
                     bool useFalloff = texprop->useFalloff();

@@ -28,6 +28,7 @@
 #include <components/resource/scenemanager.hpp>
 
 #include <components/sceneutil/depth.hpp>
+#include <components/sceneutil/gles3uniforms.hpp>
 #include <components/sceneutil/texturetype.hpp>
 
 #include <components/fallback/fallback.hpp>
@@ -594,9 +595,15 @@ namespace MWRender
 
         osg::Material* mat = static_cast<osg::Material*>(stateset->getAttribute(osg::StateAttribute::MATERIAL));
         mat->setEmission(osg::Material::FRONT_AND_BACK, mEmissionColor);
+#ifdef __EMSCRIPTEN__
+        SceneUtil::GLES3Uniforms::applyMaterial(stateset, mat);
+#endif
 
         osg::TexMat* texMat = static_cast<osg::TexMat*>(stateset->getTextureAttribute(0, osg::StateAttribute::TEXMAT));
         texMat->setMatrix(mTexMat);
+#ifdef __EMSCRIPTEN__
+        SceneUtil::GLES3Uniforms::applyTextureMatrix(stateset, 0, texMat);
+#endif
 
         if (mForceShaders)
         {

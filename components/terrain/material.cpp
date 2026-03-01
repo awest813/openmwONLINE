@@ -10,6 +10,7 @@
 
 #include <components/resource/scenemanager.hpp>
 #include <components/sceneutil/depth.hpp>
+#include <components/sceneutil/gles3uniforms.hpp>
 #include <components/sceneutil/util.hpp>
 #include <components/shader/shadermanager.hpp>
 #include <components/stereo/stereomanager.hpp>
@@ -258,8 +259,13 @@ namespace Terrain
                 stateset->setTextureAttributeAndModes(0, it->mDiffuseMap);
 
                 if (layerTileSize != 1.f)
+                {
                     stateset->setTextureAttributeAndModes(
                         0, LayerTexMat::value(layerTileSize), osg::StateAttribute::ON);
+#ifdef __EMSCRIPTEN__
+                    SceneUtil::GLES3Uniforms::applyTextureMatrix(stateset, 0, LayerTexMat::value(layerTileSize).get());
+#endif
+                }
 
                 stateset->addUniform(UniformCollection::value().mDiffuseMap);
 
@@ -269,7 +275,13 @@ namespace Terrain
 
                     stateset->setTextureAttributeAndModes(1, blendmap.get());
                     if (!esm4terrain)
+                    {
                         stateset->setTextureAttributeAndModes(1, BlendmapTexMat::value(blendmapScale));
+#ifdef __EMSCRIPTEN__
+                        SceneUtil::GLES3Uniforms::applyTextureMatrix(
+                            stateset, 1, BlendmapTexMat::value(blendmapScale).get());
+#endif
+                    }
                     stateset->addUniform(UniformCollection::value().mBlendMap);
                 }
 
@@ -316,8 +328,13 @@ namespace Terrain
                 stateset->setTextureAttributeAndModes(0, tex.get());
 
                 if (layerTileSize != 1.f)
+                {
                     stateset->setTextureAttributeAndModes(
                         0, LayerTexMat::value(layerTileSize), osg::StateAttribute::ON);
+#ifdef __EMSCRIPTEN__
+                    SceneUtil::GLES3Uniforms::applyTextureMatrix(stateset, 0, LayerTexMat::value(layerTileSize).get());
+#endif
+                }
 
                 stateset->setTextureAttributeAndModes(0, DiscardAlphaCombine::value(), osg::StateAttribute::ON);
 
@@ -330,7 +347,13 @@ namespace Terrain
 
                     // This is to map corner vertices directly to the center of a blendmap texel.
                     if (!esm4terrain)
+                    {
                         stateset->setTextureAttributeAndModes(1, BlendmapTexMat::value(blendmapScale));
+#ifdef __EMSCRIPTEN__
+                        SceneUtil::GLES3Uniforms::applyTextureMatrix(
+                            stateset, 1, BlendmapTexMat::value(blendmapScale).get());
+#endif
+                    }
                     stateset->setTextureAttributeAndModes(1, TexEnvCombine::value(), osg::StateAttribute::ON);
                 }
             }

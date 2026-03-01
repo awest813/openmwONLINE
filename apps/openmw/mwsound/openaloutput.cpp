@@ -329,23 +329,30 @@ namespace MWSound
 
         std::atomic<bool> mQuitNow;
         std::mutex mMutex;
+#if !defined(__EMSCRIPTEN__) || defined(__EMSCRIPTEN_PTHREADS__)
         std::condition_variable mCondVar;
         std::thread mThread;
+#endif
 
         StreamThread()
             : mQuitNow(false)
+#if !defined(__EMSCRIPTEN__) || defined(__EMSCRIPTEN_PTHREADS__)
             , mThread([this] { run(); })
+#endif
         {
         }
         ~StreamThread()
         {
+#if !defined(__EMSCRIPTEN__) || defined(__EMSCRIPTEN_PTHREADS__)
             mQuitNow = true;
             mMutex.lock();
             mMutex.unlock();
             mCondVar.notify_all();
             mThread.join();
+#endif
         }
 
+#if !defined(__EMSCRIPTEN__) || defined(__EMSCRIPTEN_PTHREADS__)
         // thread entry point
         void run()
         {
@@ -364,6 +371,22 @@ namespace MWSound
                 mCondVar.wait_for(lock, std::chrono::milliseconds(50));
             }
         }
+#endif
+
+        /// Process all active streams on the calling thread.
+        /// Used in single-threaded WASM builds where the background thread is unavailable.
+        void processAll()
+        {
+            std::lock_guard<std::mutex> lock(mMutex);
+            auto iter = mStreams.begin();
+            while (iter != mStreams.end())
+            {
+                if ((*iter)->process() == false)
+                    iter = mStreams.erase(iter);
+                else
+                    ++iter;
+            }
+        }
 
         void add(OpenAL_SoundStream* stream)
         {
@@ -371,7 +394,9 @@ namespace MWSound
             if (std::find(mStreams.begin(), mStreams.end(), stream) == mStreams.end())
             {
                 mStreams.push_back(stream);
+#if !defined(__EMSCRIPTEN__) || defined(__EMSCRIPTEN_PTHREADS__)
                 mCondVar.notify_all();
+#endif
             }
         }
 
@@ -393,6 +418,10 @@ namespace MWSound
         StreamThread& operator=(const StreamThread& rhs) = delete;
     };
 
+// DefaultDeviceThread monitors for default audio device changes and switches
+// accordingly. This requires threading and alcReopenDeviceSOFT, neither of
+// which are available in single-threaded WASM builds.
+#if !defined(__EMSCRIPTEN__) || defined(__EMSCRIPTEN_PTHREADS__)
     class OpenALOutput::DefaultDeviceThread
     {
     public:
@@ -450,6 +479,7 @@ namespace MWSound
             mThread.join();
         }
     };
+#endif
 
     OpenAL_SoundStream::OpenAL_SoundStream(ALuint src, DecoderPtr decoder)
         : mSource(src)
@@ -681,6 +711,7 @@ namespace MWSound
 
     void OpenALOutput::onDisconnect()
     {
+#if !defined(__EMSCRIPTEN__) || defined(__EMSCRIPTEN_PTHREADS__)
         if (!mInitialized || !alcReopenDeviceSOFT)
             return;
         const std::lock_guard<std::mutex> lock(mReopenMutex);
@@ -700,6 +731,9 @@ namespace MWSound
             if (mDefaultDeviceThread)
                 mDefaultDeviceThread->mCurrentName = getDeviceName(mDevice);
         }
+#else
+        Log(Debug::Warning) << "Audio device disconnected (no reopen support in single-threaded WASM)";
+#endif
     }
 
     bool OpenALOutput::init(const std::string& devname, const std::string& hrtfname, HrtfMode hrtfmode)
@@ -791,6 +825,7 @@ namespace MWSound
                          << "  Version: " << alGetString(AL_VERSION) << "\n"
                          << "  Extensions: " << alGetString(AL_EXTENSIONS);
 
+#if !defined(__EMSCRIPTEN__) || defined(__EMSCRIPTEN_PTHREADS__)
         if (alIsExtensionPresent("AL_SOFT_events"))
         {
             getALFunc(alEventControlSOFT, "alEventControlSOFT");
@@ -814,6 +849,9 @@ namespace MWSound
             else
                 Log(Debug::Warning) << "Cannot switch audio devices if the default changes";
         }
+#else
+        Log(Debug::Info) << "WASM: Skipping audio device event callbacks and reopen support";
+#endif
 
         if (!ALC.SOFT_HRTF)
             Log(Debug::Warning) << "HRTF status unavailable";
@@ -974,7 +1012,9 @@ namespace MWSound
     void OpenALOutput::deinit()
     {
         mStreamThread->removeAll();
+#if !defined(__EMSCRIPTEN__) || defined(__EMSCRIPTEN_PTHREADS__)
         mDefaultDeviceThread.reset();
+#endif
 
         for (ALuint source : mFreeSources)
             alDeleteSources(1, &source);
@@ -1458,6 +1498,11 @@ namespace MWSound
 
     void OpenALOutput::finishUpdate()
     {
+#if defined(__EMSCRIPTEN__) && !defined(__EMSCRIPTEN_PTHREADS__)
+        // In single-threaded WASM builds there is no background StreamThread,
+        // so pump stream buffers on the main thread each frame.
+        mStreamThread->processAll();
+#endif
         alcProcessContext(alcGetCurrentContext());
     }
 

@@ -348,7 +348,13 @@ namespace SDLUtil
     void InputWrapper::updateMouseSettings()
     {
         mGrabPointer = mWantGrab && mMouseInWindow && mWindowHasFocus;
+#ifdef __EMSCRIPTEN__
+        // SDL_SetWindowGrab is a no-op in Emscripten; pointer confinement
+        // is handled implicitly by the Pointer Lock API when relative mouse
+        // mode is enabled.
+#else
         SDL_SetWindowGrab(mSDLWindow, mGrabPointer && mAllowGrab ? SDL_TRUE : SDL_FALSE);
+#endif
 
         SDL_ShowCursor(mWantMouseVisible || !mWindowHasFocus);
 
@@ -364,7 +370,15 @@ namespace SDLUtil
         // relative positioning natively
         // also use wrapping if no-grab was specified in options (SDL_SetRelativeMouseMode
         // appears to eat the mouse cursor when pausing in a debugger)
+#ifdef __EMSCRIPTEN__
+        // In Emscripten, SDL_SetRelativeMouseMode maps to the browser Pointer Lock API.
+        // This requires a prior user gesture (click/keypress); if called too early
+        // the browser will reject it silently. We always attempt it here since SDL2's
+        // Emscripten port internally queues the request until a valid user gesture.
+        bool success = SDL_SetRelativeMouseMode(relative ? SDL_TRUE : SDL_FALSE) == 0;
+#else
         bool success = mAllowGrab && SDL_SetRelativeMouseMode(relative ? SDL_TRUE : SDL_FALSE) == 0;
+#endif
         if (relative && !success)
             mWrapPointer = true;
 

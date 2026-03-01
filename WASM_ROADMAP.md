@@ -185,12 +185,60 @@ WASM builds now auto-generate a minimal `openmw.cfg` at first run (when no confi
 
 The bootstrap runs after IDBFS sync but before `ConfigurationManager` loads configuration, ensuring the config file is available on the virtual filesystem. On subsequent sessions, the existing config (persisted via IDBFS) is preserved.
 
+## Per-Object Texture Matrix Uniform Binding
+
+The `omw_TextureMatrixN` uniforms are now populated per-object wherever `osg::TexMat` state attributes are set, not just at the root level. Integration points:
+
+- **NIF loader** (`components/nifosg/nifloader.cpp`): When `BSEffectShaderProperty` sets a UV-transformed `osg::TexMat`, the corresponding `omw_TextureMatrixN` uniform is now also applied to the state set.
+- **UV animation controller** (`components/nifosg/controller.cpp`): `UVController::apply()` now calls `applyTextureMatrix()` for each affected texture unit after updating the texture matrix, keeping GPU uniforms in sync with animated UV transforms each frame.
+- **Terrain materials** (`components/terrain/material.cpp`): Both shader and non-shader terrain passes now call `applyTextureMatrix()` when setting `LayerTexMat` (unit 0) and `BlendmapTexMat` (unit 1).
+- **Sky/cloud animation** (`apps/openmw/mwrender/skyutil.cpp`): `CloudUpdater::apply()` now updates the `omw_TextureMatrix0` uniform when animating cloud texture scrolling.
+
+All calls are guarded with `#ifdef __EMSCRIPTEN__` so desktop builds are unaffected.
+
+## Material Controller Uniform Updates
+
+NIF material animation controllers now synchronize GLES3 uniforms on each frame:
+
+- **`AlphaController::apply()`** (`components/nifosg/controller.cpp`): After modifying the material's diffuse alpha via `osg::Material`, now also calls `GLES3Uniforms::applyMaterial()` to update the `omw_FrontMaterial.*` uniforms.
+- **`MaterialColorController::apply()`** (`components/nifosg/controller.cpp`): After modifying any material color channel (ambient, diffuse, specular, or emissive), now also calls `GLES3Uniforms::applyMaterial()` to keep GPU uniforms current.
+- **`CloudUpdater::apply()`** (`apps/openmw/mwrender/skyutil.cpp`): Cloud emission color changes now also update the material uniforms.
+
+This ensures that animated material properties (e.g. glowing objects, fading effects) render correctly in WebGL 2.0 builds.
+
+## Smart Asset Loading
+
+The WASM file picker (`apps/openmw/wasmfilepicker.cpp`) now uses a prioritized two-phase loading strategy:
+
+1. **Phase 1 — Directory scan**: The directory structure is scanned first to categorize files as "essential" (`.esm`, `.esp`, `.bsa`, `.omwaddon`, `.omwgame`, `.omwscripts`, `openmw.cfg`) or "deferred" (textures, meshes, sounds, etc.).
+2. **Phase 2 — Essential files first**: All essential game files are uploaded to the Emscripten virtual filesystem before anything else. A `openmw_wasm_notify_essential_ready()` callback fires when these are loaded.
+3. **Phase 3 — Batched background loading**: Remaining assets are uploaded in batches of 50, yielding to the browser event loop between batches via `setTimeout(0)`. This prevents the UI from freezing during large data uploads.
+
+New C++ API additions:
+- `areEssentialFilesReady()` — returns true once ESM/ESP/BSA files are loaded.
+- `getTotalFileCount()` / `getUploadedFileCount()` — progress tracking for UI feedback.
+
+## Audio System WASM Guards
+
+The OpenAL audio output (`apps/openmw/mwsound/openaloutput.cpp`) is now compatible with single-threaded WASM builds:
+
+- **`StreamThread`**: The background audio streaming thread is conditionally compiled. In single-threaded WASM builds (`__EMSCRIPTEN__` defined but `__EMSCRIPTEN_PTHREADS__` not), the thread is not created. Instead, a new `processAll()` method pumps stream buffers on the main thread.
+- **`finishUpdate()`**: In single-threaded WASM builds, `mStreamThread->processAll()` is called each frame to keep audio streams fed.
+- **`DefaultDeviceThread`**: The audio device monitoring thread is entirely excluded from single-threaded WASM builds (the browser manages audio device routing).
+- **Event callbacks and device reopen**: `AL_SOFT_events`, `ALC_SOFT_reopen_device`, and related extension loading are skipped in single-threaded WASM builds (these extensions are unavailable in Emscripten's OpenAL).
+- **`onDisconnect()`**: Guarded to log a warning instead of attempting device reopen in single-threaded WASM.
+
+The `openaloutput.hpp` header conditionally compiles the `DefaultDeviceThread` member.
+
+## Input System WASM Guards
+
+- **Pointer lock** (`components/sdlutil/sdlinputwrapper.cpp`):
+  - `SDL_SetWindowGrab()` is skipped in Emscripten builds (the Pointer Lock API handles confinement).
+  - `SDL_SetRelativeMouseMode()` is called without the `mAllowGrab` check in Emscripten, since Emscripten's SDL2 port queues the Pointer Lock request until a valid user gesture occurs.
+- **Controller bindings** (`apps/openmw/mwinput/controllermanager.cpp`): Loading controller mapping files from disk is skipped in WASM builds. The browser's Gamepad API provides built-in standard mappings.
+
 ## Remaining Work
 - **GLSL ES 3.00 shader testing**: The automatic transformation covers all major patterns but needs end-to-end testing with actual shader compilation in WebGL 2.0 to catch edge cases.
-- **Texture matrix uniform binding**: The `omw_TextureMatrixN` uniforms need to be populated from `osg::TexMat` state attributes per-object (currently only default identity matrices are provided at the root).
-- **Material controller uniform updates**: NIF material animation controllers (`AlphaController`, `MaterialColorController`) update `osg::Material` but need to also update the corresponding `omw_FrontMaterial` uniforms on each frame.
-- **Large asset streaming**: Current file picker loads all data into memory; consider chunked/lazy loading for large Morrowind installations.
-- **Audio decoder**: Verify FFmpeg/audio decoding works under Emscripten or provide fallback.
-- **Input handling**: Verify pointer lock, keyboard, and gamepad input through Emscripten SDL2.
+- **Audio decoder verification**: Verify FFmpeg audio decoding (Bink, Vorbis, MP3) works correctly under Emscripten with the cross-compiled libraries.
 - **Testing and profiling**: End-to-end testing in Chrome with actual Morrowind data, performance profiling and optimization.
 - **End-to-end WASM build validation**: Run `CI/before_script.wasm.sh` on a CI runner with Emscripten to verify all dependencies compile and link.

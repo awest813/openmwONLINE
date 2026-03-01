@@ -34,6 +34,11 @@ namespace MWInput
         , mJoystickLastUsed(false)
         , mGamepadMousePressed(false)
     {
+#ifdef __EMSCRIPTEN__
+        // In WASM builds, controller binding files may not exist on the virtual filesystem.
+        // Skip loading them; the browser Gamepad API provides built-in mappings.
+        Log(Debug::Info) << "WASM: Skipping controller binding file loading (browser provides mappings)";
+#else
         if (!controllerBindingsFile.empty())
         {
             const int result
@@ -51,6 +56,7 @@ namespace MWInput
                 Log(Debug::Error) << "Failed to add game controller mappings from user file \""
                                   << userControllerBindingsFile << "\": " << SDL_GetError();
         }
+#endif
 
         // Open all presently connected sticks
         const int numSticks = SDL_NumJoysticks();
