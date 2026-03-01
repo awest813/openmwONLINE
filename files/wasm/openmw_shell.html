@@ -102,6 +102,20 @@
     .log-error { color: #ff6b6b; }
     .log-warn { color: #ffd93d; }
     .log-info { color: #6bcb77; }
+    #click-to-play {
+      position: fixed; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(0,0,0,0.6);
+      z-index: 60; cursor: pointer;
+    }
+    #click-to-play.hidden { display: none; }
+    #click-to-play span {
+      font-size: 1.5rem; color: #c8a86e;
+      padding: 20px 40px;
+      border: 2px solid #c8a86e;
+      border-radius: 12px;
+      background: rgba(26,26,46,0.9);
+    }
   </style>
 </head>
 <body>
@@ -132,6 +146,9 @@
 
   <div id="canvas-container">
     <canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
+    <div id="click-to-play" class="hidden">
+      <span>Click to Play</span>
+    </div>
   </div>
 
   <div id="console-output"></div>
@@ -154,11 +171,21 @@
       progressBar.parentElement.setAttribute('aria-valuenow', Math.round(clamped));
     }
 
+    var clickToPlay = document.getElementById('click-to-play');
+
     function showCanvas() {
       loadingOverlay.classList.add('hidden');
       canvasContainer.classList.add('visible');
-      document.getElementById('canvas').focus();
+      clickToPlay.classList.remove('hidden');
     }
+
+    clickToPlay.addEventListener('click', function() {
+      clickToPlay.classList.add('hidden');
+      var c = document.getElementById('canvas');
+      c.focus();
+      c.requestPointerLock = c.requestPointerLock || c.mozRequestPointerLock;
+      if (c.requestPointerLock) c.requestPointerLock();
+    });
 
     var MAX_CONSOLE_LINES = 500;
 
