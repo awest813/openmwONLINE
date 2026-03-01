@@ -185,11 +185,46 @@ WASM builds now auto-generate a minimal `openmw.cfg` at first run (when no confi
 
 The bootstrap runs after IDBFS sync but before `ConfigurationManager` loads configuration, ensuring the config file is available on the virtual filesystem. On subsequent sessions, the existing config (persisted via IDBFS) is preserved.
 
+## Material Controller Uniform Sync
+
+NIF material animation controllers now mirror `osg::Material` changes to `omw_FrontMaterial` uniforms on every frame under Emscripten builds:
+
+- **AlphaController** (`components/nifosg/controller.cpp`): After updating `osg::Material::setDiffuse()` alpha, calls `GLES3Uniforms::applyMaterial()` to sync the uniform struct.
+- **MaterialColorController** (`components/nifosg/controller.cpp`): After updating ambient/diffuse/specular/emissive via `osg::Material`, calls `GLES3Uniforms::applyMaterial()` to sync.
+- **Sky updaters** (`apps/openmw/mwrender/skyutil.cpp`): `SunUpdater`, `AtmosphereUpdater`, `CloudUpdater`, `SunFlashCallback`, and `SunGlareCallback` all mirror material changes as uniforms.
+
+## Per-Object Texture Matrix Uniform Binding
+
+The `omw_TextureMatrixN` uniforms are now populated from `osg::TexMat` state attributes at every point where texture matrices are set:
+
+- **UVController** (`components/nifosg/controller.cpp`): After setting animated UV TexMat, calls `applyTextureMatrix()` for each texture unit.
+- **Terrain materials** (`components/terrain/material.cpp`): Layer tile TexMat and blendmap TexMat are mirrored as uniforms on both shader and non-shader paths.
+- **NIF loader** (`components/nifosg/nifloader.cpp`): Static TexMat for NiTextureEffect UV transforms is mirrored.
+- **Sky cloud updater** (`apps/openmw/mwrender/skyutil.cpp`): Cloud scrolling TexMat is mirrored as uniform.
+
+## PostProcessor WebGL 2.0 Compatibility
+
+The post-processor (`apps/openmw/mwrender/postprocessor.cpp`) now has Emscripten guards:
+
+- **`glDisablei`**: Nullified (like Android) since WebGL 2.0 lacks indexed blend state.
+- **UBO**: Disabled under Emscripten; WebGL 2.0 UBO support differs from GLSL 330 assumptions.
+- **GL header**: Uses `<GLES3/gl3.h>` instead of `<SDL_opengl_glext.h>`; `GL_DEPTH_STENCIL_EXT` aliased to `GL_DEPTH_STENCIL`.
+- **`GL_LIGHTING`**: Fixed-function lighting mode skipped (unavailable in GLES3).
+
+## File Picker Improvements
+
+The browser data upload (`apps/openmw/wasmfilepicker.cpp`, `files/wasm/openmw_shell.html`) now provides:
+
+- **Two-phase upload**: Directory is first scanned to enumerate all files and compute total size, then files are uploaded with progress tracking.
+- **Chunked file reading**: Large files (>8 MB) are read in chunks using `File.slice()` and streamed to the Emscripten FS via `FS.write()`, reducing peak memory usage.
+- **Progress callbacks**: JavaScript hooks `__openmwOnUploadPhase` and `__openmwOnUploadProgress` report scanning/uploading phases and per-file/byte progress.
+- **C++ progress tracking**: `openmw_wasm_report_upload_progress()` exported function updates file/byte counters accessible via `getUploadedFileCount()`/`getUploadedByteCount()`.
+- **UI progress bar**: HTML shell shows a dedicated upload progress bar with file count, byte count, and percentage during data loading.
+- **Graceful cancellation**: `AbortError` from the directory picker is caught and handled without error messaging.
+- **Periodic yield**: `setTimeout(0)` yield every 50 files prevents the browser from becoming unresponsive during large uploads.
+
 ## Remaining Work
 - **GLSL ES 3.00 shader testing**: The automatic transformation covers all major patterns but needs end-to-end testing with actual shader compilation in WebGL 2.0 to catch edge cases.
-- **Texture matrix uniform binding**: The `omw_TextureMatrixN` uniforms need to be populated from `osg::TexMat` state attributes per-object (currently only default identity matrices are provided at the root).
-- **Material controller uniform updates**: NIF material animation controllers (`AlphaController`, `MaterialColorController`) update `osg::Material` but need to also update the corresponding `omw_FrontMaterial` uniforms on each frame.
-- **Large asset streaming**: Current file picker loads all data into memory; consider chunked/lazy loading for large Morrowind installations.
 - **Audio decoder**: Verify FFmpeg/audio decoding works under Emscripten or provide fallback.
 - **Input handling**: Verify pointer lock, keyboard, and gamepad input through Emscripten SDL2.
 - **Testing and profiling**: End-to-end testing in Chrome with actual Morrowind data, performance profiling and optimization.

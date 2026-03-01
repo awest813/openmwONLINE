@@ -34,6 +34,10 @@
 
 #include <components/sceneutil/statesetupdater.hpp>
 
+#ifdef __EMSCRIPTEN__
+#include <components/sceneutil/gles3uniforms.hpp>
+#endif
+
 #include "../mwbase/environment.hpp"
 
 #include "renderbin.hpp"
@@ -124,6 +128,9 @@ namespace MWRender
             osg::Material* mat = static_cast<osg::Material*>(stateset->getAttribute(osg::StateAttribute::MATERIAL));
             mat->setDiffuse(osg::Material::FRONT_AND_BACK, osg::Vec4f(0, 0, 0, mColor.a()));
             mat->setEmission(osg::Material::FRONT_AND_BACK, osg::Vec4f(mColor.r(), mColor.g(), mColor.b(), 1));
+#ifdef __EMSCRIPTEN__
+            SceneUtil::GLES3Uniforms::applyMaterial(stateset, mat);
+#endif
         }
     };
 
@@ -188,6 +195,9 @@ namespace MWRender
                     mat->setDiffuse(osg::Material::FRONT_AND_BACK, osg::Vec4f(0, 0, 0, fade * mGlareView));
                     stateset = new osg::StateSet;
                     stateset->setAttributeAndModes(mat, osg::StateAttribute::ON | osg::StateAttribute::OVERRIDE);
+#ifdef __EMSCRIPTEN__
+                    SceneUtil::GLES3Uniforms::applyMaterial(stateset, mat);
+#endif
                 }
                 else if (visibleRatio < 1.f)
                 {
@@ -283,6 +293,9 @@ namespace MWRender
                 mat->setEmission(osg::Material::FRONT_AND_BACK, mColor);
 
                 stateset->setAttributeAndModes(mat);
+#ifdef __EMSCRIPTEN__
+                SceneUtil::GLES3Uniforms::applyMaterial(stateset, mat);
+#endif
 
                 cv->pushStateSet(stateset);
                 traverse(node, cv);
@@ -477,6 +490,9 @@ namespace MWRender
     {
         osg::Material* mat = static_cast<osg::Material*>(stateset->getAttribute(osg::StateAttribute::MATERIAL));
         mat->setEmission(osg::Material::FRONT_AND_BACK, mEmissionColor);
+#ifdef __EMSCRIPTEN__
+        SceneUtil::GLES3Uniforms::applyMaterial(stateset, mat);
+#endif
     }
 
     AtmosphereNightUpdater::AtmosphereNightUpdater(Resource::ImageManager* imageManager, bool forceShaders)
@@ -594,9 +610,15 @@ namespace MWRender
 
         osg::Material* mat = static_cast<osg::Material*>(stateset->getAttribute(osg::StateAttribute::MATERIAL));
         mat->setEmission(osg::Material::FRONT_AND_BACK, mEmissionColor);
+#ifdef __EMSCRIPTEN__
+        SceneUtil::GLES3Uniforms::applyMaterial(stateset, mat);
+#endif
 
         osg::TexMat* texMat = static_cast<osg::TexMat*>(stateset->getTextureAttribute(0, osg::StateAttribute::TEXMAT));
         texMat->setMatrix(mTexMat);
+#ifdef __EMSCRIPTEN__
+        SceneUtil::GLES3Uniforms::applyTextureMatrix(stateset, 0, texMat);
+#endif
 
         if (mForceShaders)
         {

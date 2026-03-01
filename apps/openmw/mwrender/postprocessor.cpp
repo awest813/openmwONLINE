@@ -1,6 +1,13 @@
 #include "postprocessor.hpp"
 
+#ifdef __EMSCRIPTEN__
+#include <GLES3/gl3.h>
+#ifndef GL_DEPTH_STENCIL_EXT
+#define GL_DEPTH_STENCIL_EXT GL_DEPTH_STENCIL
+#endif
+#else
 #include <SDL_opengl_glext.h>
+#endif
 #include <algorithm>
 #include <chrono>
 #include <thread>
@@ -141,7 +148,9 @@ namespace MWRender
         mHUDCamera->setAllowEventFocus(false);
         mHUDCamera->setViewport(0, 0, mWidth, mHeight);
         mHUDCamera->setNodeMask(Mask_RenderToTexture);
+#ifndef __EMSCRIPTEN__
         mHUDCamera->getOrCreateStateSet()->setMode(GL_LIGHTING, osg::StateAttribute::OFF);
+#endif
         mHUDCamera->getOrCreateStateSet()->setMode(GL_DEPTH_TEST, osg::StateAttribute::OFF);
         mHUDCamera->addChild(mCanvases[0]);
         mHUDCamera->addChild(mCanvases[1]);
@@ -196,7 +205,7 @@ namespace MWRender
         if (!ext->glDisablei && ext->glDisableIndexedEXT)
             ext->glDisablei = ext->glDisableIndexedEXT;
 
-#ifdef ANDROID
+#if defined(ANDROID) || defined(__EMSCRIPTEN__)
         ext->glDisablei = nullptr;
 #endif
 
@@ -206,7 +215,11 @@ namespace MWRender
             Log(Debug::Error) << "'glDisablei' unsupported, pass normals will not be available to shaders.";
 
         mGLSLVersion = static_cast<int>(ext->glslLanguageVersion * 100);
+#ifdef __EMSCRIPTEN__
+        mUBO = false;
+#else
         mUBO = ext->isUniformBufferObjectSupported && mGLSLVersion >= 330;
+#endif
         mStateUpdater = new Fx::StateUpdater(mUBO);
 
         addChild(mHUDCamera);

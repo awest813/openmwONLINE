@@ -56,6 +56,29 @@
       margin-top: 0.8rem; color: #888;
       font-size: 0.85rem; max-width: 500px;
     }
+    #upload-progress {
+      display: none; margin-top: 1.2rem;
+      text-align: center;
+    }
+    #upload-progress.visible { display: block; }
+    #upload-stats {
+      color: #c8a86e; font-size: 0.95rem;
+      margin-bottom: 0.5rem;
+    }
+    #upload-bar-container {
+      width: 400px; max-width: 80vw;
+      background: #2a2a3e; border-radius: 8px;
+      overflow: hidden; margin: 0 auto;
+    }
+    #upload-bar {
+      height: 6px; width: 0%;
+      background: linear-gradient(90deg, #6bcb77, #4caf50);
+      transition: width 0.15s;
+    }
+    #upload-detail {
+      color: #666; font-size: 0.8rem;
+      margin-top: 0.4rem;
+    }
     #canvas-container {
       width: 100vw; height: 100vh;
       display: none;
@@ -97,6 +120,13 @@
         Select the "Data Files" folder from your Morrowind installation.
         This typically contains files like Morrowind.esm, Morrowind.bsa, etc.
       </p>
+      <div id="upload-progress">
+        <div id="upload-stats"></div>
+        <div id="upload-bar-container">
+          <div id="upload-bar"></div>
+        </div>
+        <div id="upload-detail"></div>
+      </div>
     </div>
   </div>
 
@@ -149,18 +179,51 @@
       }
     });
 
+    var uploadProgress = document.getElementById('upload-progress');
+    var uploadStats = document.getElementById('upload-stats');
+    var uploadBar = document.getElementById('upload-bar');
+    var uploadDetail = document.getElementById('upload-detail');
+
+    function formatBytes(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+      if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+      return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+    }
+
     async function pickDataDirectory() {
       if (typeof globalThis.__openmwPickDataDirectory === 'function') {
         var btn = document.getElementById('pick-data-btn');
         btn.disabled = true;
         btn.textContent = 'Uploading files...';
         setStatus('Loading game data...');
+
+        globalThis.__openmwOnUploadPhase = function(phase) {
+          if (phase === 'scanning') {
+            setStatus('Scanning directory...');
+            uploadProgress.classList.add('visible');
+            uploadStats.textContent = 'Counting files...';
+            uploadBar.style.width = '0%';
+          } else if (phase === 'uploading') {
+            setStatus('Uploading game data...');
+          }
+        };
+
+        globalThis.__openmwOnUploadProgress = function(files, totalFiles, bytes, totalBytes) {
+          var pct = totalBytes > 0 ? (bytes / totalBytes) * 100 : 0;
+          uploadBar.style.width = pct.toFixed(1) + '%';
+          uploadStats.textContent = files + ' / ' + totalFiles + ' files';
+          uploadDetail.textContent = formatBytes(bytes) + ' / ' + formatBytes(totalBytes) + ' (' + pct.toFixed(0) + '%)';
+        };
+
         try {
           await globalThis.__openmwPickDataDirectory();
           setStatus('Game data loaded successfully!');
+          uploadProgress.classList.remove('visible');
           dataPickerSection.style.display = 'none';
         } catch (e) {
           setStatus('Failed to load game data: ' + e.message);
+          uploadProgress.classList.remove('visible');
           btn.disabled = false;
           btn.textContent = 'Select Morrowind Data Folder';
         }
