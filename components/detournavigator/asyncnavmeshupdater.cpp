@@ -281,8 +281,10 @@ namespace DetourNavigator
         , mNavMeshTilesCache(settings.mMaxNavMeshTilesCacheSize)
         , mDbWorker(makeDbWorker(*this, std::move(db), mSettings))
     {
+#if !defined(__EMSCRIPTEN__) || defined(__EMSCRIPTEN_PTHREADS__)
         for (std::size_t i = 0; i < mSettings.get().mAsyncNavMeshUpdaterThreads; ++i)
             mThreads.emplace_back([&] { process(); });
+#endif
     }
 
     AsyncNavMeshUpdater::~AsyncNavMeshUpdater()
@@ -864,7 +866,9 @@ namespace DetourNavigator
         , mWriteToDb(writeToDb)
         , mNextTileId(mDb->getMaxTileId() + 1)
         , mNextShapeId(mDb->getMaxShapeId() + 1)
+#if !defined(__EMSCRIPTEN__) || defined(__EMSCRIPTEN_PTHREADS__)
         , mThread([this] { run(); })
+#endif
     {
     }
 

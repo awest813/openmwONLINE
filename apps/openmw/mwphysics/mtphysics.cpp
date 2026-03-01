@@ -317,12 +317,16 @@ namespace MWPhysics
 
         LockingPolicy detectLockingPolicy()
         {
+#if defined(__EMSCRIPTEN__) && !defined(__EMSCRIPTEN_PTHREADS__)
+            return LockingPolicy::NoLocks;
+#else
             if (Settings::physics().mAsyncNumThreads < 1)
                 return LockingPolicy::NoLocks;
             if (getMaxBulletSupportedThreads() > 1)
                 return LockingPolicy::AllowSharedLocks;
             Log(Debug::Warning) << "Bullet was not compiled with multithreading support, 1 async thread will be used";
             return LockingPolicy::ExclusiveLocksOnly;
+#endif
         }
 
         unsigned getNumThreads(LockingPolicy lockingPolicy)

@@ -14,8 +14,10 @@ namespace MWLua
     Worker::Worker(LuaManager& manager)
         : mManager(manager)
     {
+#if !defined(__EMSCRIPTEN__) || defined(__EMSCRIPTEN_PTHREADS__)
         if (Settings::lua().mLuaNumThreads > 0)
             mThread = std::thread([this] { run(); });
+#endif
     }
 
     Worker::~Worker()
