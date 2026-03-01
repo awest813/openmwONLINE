@@ -411,6 +411,9 @@ namespace MWRender
     public:
         void drawImplementation(osg::RenderInfo& renderInfo, const osg::Drawable* drawable) const override
         {
+#ifdef __EMSCRIPTEN__
+            drawable->drawImplementation(renderInfo);
+#else
             static bool supported = osg::isGLExtensionOrVersionSupported(
                 renderInfo.getState()->getContextID(), "GL_ARB_depth_clamp", 3.3f);
             if (!supported)
@@ -425,6 +428,7 @@ namespace MWRender
 
             // restore default
             glDisable(GL_DEPTH_CLAMP);
+#endif
         }
     };
 
