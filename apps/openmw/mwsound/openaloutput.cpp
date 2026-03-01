@@ -327,6 +327,7 @@ namespace MWSound
     {
         std::vector<OpenAL_SoundStream*> mStreams;
 
+#if !defined(__EMSCRIPTEN__) || defined(__EMSCRIPTEN_PTHREADS__)
         std::atomic<bool> mQuitNow;
         std::mutex mMutex;
         std::condition_variable mCondVar;
@@ -346,7 +347,6 @@ namespace MWSound
             mThread.join();
         }
 
-        // thread entry point
         void run()
         {
             std::unique_lock<std::mutex> lock(mMutex);
@@ -389,10 +389,57 @@ namespace MWSound
             mStreams.clear();
         }
 
+        void processAll()
+        {
+            std::lock_guard<std::mutex> lock(mMutex);
+            auto iter = mStreams.begin();
+            while (iter != mStreams.end())
+            {
+                if ((*iter)->process() == false)
+                    iter = mStreams.erase(iter);
+                else
+                    ++iter;
+            }
+        }
+#else
+        std::mutex mMutex;
+
+        StreamThread() = default;
+        ~StreamThread() = default;
+
+        void add(OpenAL_SoundStream* stream)
+        {
+            if (std::find(mStreams.begin(), mStreams.end(), stream) == mStreams.end())
+                mStreams.push_back(stream);
+        }
+
+        void remove(OpenAL_SoundStream* stream)
+        {
+            auto iter = std::find(mStreams.begin(), mStreams.end(), stream);
+            if (iter != mStreams.end())
+                mStreams.erase(iter);
+        }
+
+        void removeAll() { mStreams.clear(); }
+
+        void processAll()
+        {
+            auto iter = mStreams.begin();
+            while (iter != mStreams.end())
+            {
+                if ((*iter)->process() == false)
+                    iter = mStreams.erase(iter);
+                else
+                    ++iter;
+            }
+        }
+#endif
+
         StreamThread(const StreamThread& rhs) = delete;
         StreamThread& operator=(const StreamThread& rhs) = delete;
     };
 
+#ifndef __EMSCRIPTEN__
     class OpenALOutput::DefaultDeviceThread
     {
     public:
@@ -450,6 +497,7 @@ namespace MWSound
             mThread.join();
         }
     };
+#endif
 
     OpenAL_SoundStream::OpenAL_SoundStream(ALuint src, DecoderPtr decoder)
         : mSource(src)
@@ -681,6 +729,9 @@ namespace MWSound
 
     void OpenALOutput::onDisconnect()
     {
+#ifdef __EMSCRIPTEN__
+        return;
+#else
         if (!mInitialized || !alcReopenDeviceSOFT)
             return;
         const std::lock_guard<std::mutex> lock(mReopenMutex);
@@ -700,6 +751,7 @@ namespace MWSound
             if (mDefaultDeviceThread)
                 mDefaultDeviceThread->mCurrentName = getDeviceName(mDevice);
         }
+#endif
     }
 
     bool OpenALOutput::init(const std::string& devname, const std::string& hrtfname, HrtfMode hrtfmode)
@@ -733,8 +785,13 @@ namespace MWSound
         Log(Debug::Info) << "  ALC Version: " << major << "." << minor << "\n"
                          << "  ALC Extensions: " << alcGetString(mDevice, ALC_EXTENSIONS);
 
+#ifdef __EMSCRIPTEN__
+        ALC.EXT_EFX = false;
+        ALC.SOFT_HRTF = false;
+#else
         ALC.EXT_EFX = alcIsExtensionPresent(mDevice, "ALC_EXT_EFX");
         ALC.SOFT_HRTF = alcIsExtensionPresent(mDevice, "ALC_SOFT_HRTF");
+#endif
 
         mContextAttributes.clear();
         mContextAttributes.reserve(15);
@@ -791,6 +848,7 @@ namespace MWSound
                          << "  Version: " << alGetString(AL_VERSION) << "\n"
                          << "  Extensions: " << alGetString(AL_EXTENSIONS);
 
+#ifndef __EMSCRIPTEN__
         if (alIsExtensionPresent("AL_SOFT_events"))
         {
             getALFunc(alEventControlSOFT, "alEventControlSOFT");
@@ -808,12 +866,12 @@ namespace MWSound
             Log(Debug::Warning) << "Cannot detect audio device changes";
         if (mDeviceName.empty() && !name.empty())
         {
-            // If we opened the default device, switch devices if a new default is selected
             if (alcReopenDeviceSOFT)
                 mDefaultDeviceThread = std::make_unique<DefaultDeviceThread>(*this, name);
             else
                 Log(Debug::Warning) << "Cannot switch audio devices if the default changes";
         }
+#endif
 
         if (!ALC.SOFT_HRTF)
             Log(Debug::Warning) << "HRTF status unavailable";
@@ -974,7 +1032,9 @@ namespace MWSound
     void OpenALOutput::deinit()
     {
         mStreamThread->removeAll();
+#ifndef __EMSCRIPTEN__
         mDefaultDeviceThread.reset();
+#endif
 
         for (ALuint source : mFreeSources)
             alDeleteSources(1, &source);
@@ -1459,6 +1519,9 @@ namespace MWSound
     void OpenALOutput::finishUpdate()
     {
         alcProcessContext(alcGetCurrentContext());
+#if defined(__EMSCRIPTEN__) && !defined(__EMSCRIPTEN_PTHREADS__)
+        mStreamThread->processAll();
+#endif
     }
 
     void OpenALOutput::updateListener(
