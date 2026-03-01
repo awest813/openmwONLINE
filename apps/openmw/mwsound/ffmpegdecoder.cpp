@@ -281,6 +281,13 @@ namespace MWSound
 
         AVCodecContextPtr codecCtxPtr(std::exchange(codecCtx, nullptr));
 
+#ifdef __EMSCRIPTEN__
+        // Disable FFmpeg internal codec threading: WebAssembly without pthreads
+        // cannot spawn worker threads inside avcodec_open2.
+        codecCtxPtr->thread_count = 1;
+        codecCtxPtr->thread_type = 0;
+#endif
+
         if (avcodec_open2(codecCtxPtr.get(), codec, nullptr) < 0)
             throw std::runtime_error(std::string("Failed to open audio codec ") + codec->long_name);
 
