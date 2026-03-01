@@ -66,10 +66,10 @@ namespace MWGui
             "ImageBox", 0, 0, 1, 1, MyGUI::Align::Stretch, "MainMenuBackground");
         mVideo->setVFS(vfs);
 
-        mVideo->playVideo("video\\menu_background.bik");
 #if defined(__EMSCRIPTEN__) && !defined(__EMSCRIPTEN_PTHREADS__)
-        Log(Debug::Info) << "Menu background video thread disabled (no pthread support)";
+        Log(Debug::Info) << "Menu background video disabled (no pthread support)";
 #else
+        mVideo->playVideo("video\\menu_background.bik");
         mThread = std::thread([this] { run(); });
 #endif
     }

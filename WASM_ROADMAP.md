@@ -308,7 +308,47 @@ All `setMode(GL_LIGHTING, ...)` and `setMode(GL_NORMALIZE, ...)` calls across th
 
 The `WorkThread` class (`components/sceneutil/workqueue.cpp`) now guards `std::thread` construction and join with `#if !defined(__EMSCRIPTEN__) || defined(__EMSCRIPTEN_PTHREADS__)` to prevent thread creation on Emscripten non-pthread builds.
 
+## FFmpeg Codec Threading Guards
+
+FFmpeg's `avcodec_open2` can internally spawn worker threads for slice-parallel
+decoding. Under Emscripten (with or without pthreads) this is undesirable because
+those threads would either fail silently or exhaust the Web Worker budget.  Two
+locations now explicitly disable internal codec threading for Emscripten builds by
+setting `thread_count = 1` and `thread_type = 0` before calling `avcodec_open2`:
+
+- **`apps/openmw/mwsound/ffmpegdecoder.cpp`**: Audio codec context for in-game
+  music and ambient sound decoding.
+- **`extern/osg-ffmpeg-videoplayer/videostate.cpp`**: Both the audio and video
+  codec contexts inside the `stream_open` method used by the cutscene player.
+
+## Video Player Non-Pthread Guards
+
+The cutscene / menu-background video player (`osg-ffmpeg-videoplayer`) uses two
+internal threads — `ParseThread` (packet demux) and `VideoThread` (frame decode).
+In Emscripten builds without pthreads (`!__EMSCRIPTEN_PTHREADS__`):
+
+- `VideoState::init()` now skips spawning `ParseThread` and `VideoThread` and
+  immediately sets `mVideoEnded = true`, so that callers polling `update()` exit
+  cleanly without blocking.
+- `mainmenu.cpp` (`MenuVideo` constructor) now also skips the `mVideo->playVideo()`
+  call itself for non-pthread builds (in addition to the previously guarded
+  `mThread` creation), so no attempt is made to open the Bink file at all.  The
+  menu background falls back to a solid black fill.
+- Cutscene playback via `WindowManager::playVideo` also benefits: because
+  `VideoState::update()` immediately returns `false` (video ended), the blocking
+  cutscene loop exits on the first iteration and the game continues normally.
+
+## Luminance Calculator WebGL 2.0 Compatibility
+
+The HDR auto-exposure luminance calculator (`apps/openmw/mwrender/luminancecalculator.cpp`)
+uses `GL_R16F` as the internal format for its render target textures.  In WebGL 2.0
+this requires the `EXT_color_buffer_float` extension which is not universally
+available.  Under Emscripten builds the internal format is now remapped to `GL_R8`
+at compile time via a `LUMINANCE_INTERNAL_FORMAT` constant.  This reduces numerical
+precision of the auto-exposure ramp but avoids a hard dependency on a non-core
+extension.  HDR is only active when a post-processing technique requests it (the
+base game does not), so this path is not exercised in typical play.
+
 ## Remaining Work
-- **Audio decoder**: Verify FFmpeg/audio decoding works under Emscripten or provide fallback.
 - **Testing and profiling**: End-to-end testing in Chrome with actual Morrowind data, performance profiling and optimization.
 - **End-to-end WASM build validation**: Run the `Emscripten_WASM` CI job to verify all dependencies compile and link.

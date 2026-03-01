@@ -6,6 +6,18 @@
 
 #include "pingpongcanvas.hpp"
 
+#ifdef __EMSCRIPTEN__
+// WebGL 2.0 requires EXT_color_buffer_float for GL_R16F render targets, which
+// is not universally available.  Fall back to GL_R8 (sufficient for the
+// luminance / auto-exposure feature and avoids the extension dependency).
+#ifndef GL_R16F
+#define GL_R16F 0x822D
+#endif
+static constexpr GLenum LUMINANCE_INTERNAL_FORMAT = GL_R8;
+#else
+static constexpr GLenum LUMINANCE_INTERNAL_FORMAT = GL_R16F;
+#endif
+
 namespace MWRender
 {
     LuminanceCalculator::LuminanceCalculator(Shader::ShaderManager& shaderManager)
@@ -24,7 +36,7 @@ namespace MWRender
         for (auto& buffer : mBuffers)
         {
             buffer.mipmappedSceneLuminanceTex = new osg::Texture2D;
-            buffer.mipmappedSceneLuminanceTex->setInternalFormat(GL_R16F);
+            buffer.mipmappedSceneLuminanceTex->setInternalFormat(LUMINANCE_INTERNAL_FORMAT);
             buffer.mipmappedSceneLuminanceTex->setSourceFormat(GL_RED);
             buffer.mipmappedSceneLuminanceTex->setWrap(osg::Texture::WRAP_S, osg::Texture::CLAMP_TO_EDGE);
             buffer.mipmappedSceneLuminanceTex->setWrap(osg::Texture::WRAP_T, osg::Texture::CLAMP_TO_EDGE);
@@ -34,7 +46,7 @@ namespace MWRender
             buffer.mipmappedSceneLuminanceTex->setTextureSize(mWidth, mHeight);
 
             buffer.luminanceTex = new osg::Texture2D;
-            buffer.luminanceTex->setInternalFormat(GL_R16F);
+            buffer.luminanceTex->setInternalFormat(LUMINANCE_INTERNAL_FORMAT);
             buffer.luminanceTex->setSourceFormat(GL_RED);
             buffer.luminanceTex->setWrap(osg::Texture::WRAP_S, osg::Texture::CLAMP_TO_EDGE);
             buffer.luminanceTex->setWrap(osg::Texture::WRAP_T, osg::Texture::CLAMP_TO_EDGE);

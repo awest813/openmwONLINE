@@ -681,6 +681,13 @@ int VideoState::stream_open(int stream_index, AVFormatContext *pFormatCtx)
         av_codec_set_pkt_timebase(this->audio_ctx, pFormatCtx->streams[stream_index]->time_base);
 #endif
 
+#ifdef __EMSCRIPTEN__
+        // Disable FFmpeg internal threading — WASM without pthreads cannot
+        // spawn additional worker threads inside avcodec_open2.
+        this->audio_ctx->thread_count = 1;
+        this->audio_ctx->thread_type = 0;
+#endif
+
         if (avcodec_open2(this->audio_ctx, codec, nullptr) < 0)
         {
             fprintf(stderr, "Unsupported codec!\n");
@@ -718,13 +725,22 @@ int VideoState::stream_open(int stream_index, AVFormatContext *pFormatCtx)
         av_codec_set_pkt_timebase(this->video_ctx, pFormatCtx->streams[stream_index]->time_base);
 #endif
 
+#ifdef __EMSCRIPTEN__
+        // Disable FFmpeg internal threading — WASM without pthreads cannot
+        // spawn additional worker threads inside avcodec_open2.
+        this->video_ctx->thread_count = 1;
+        this->video_ctx->thread_type = 0;
+#endif
+
         if (avcodec_open2(this->video_ctx, codec, nullptr) < 0)
         {
             fprintf(stderr, "Unsupported codec!\n");
             return -1;
         }
 
+#if !defined(__EMSCRIPTEN__) || defined(__EMSCRIPTEN_PTHREADS__)
         this->video_thread = std::make_unique<VideoThread>(this);
+#endif
         break;
 
     default:
@@ -811,7 +827,14 @@ void VideoState::init(std::unique_ptr<std::istream>&& inputstream, const std::st
     }
 
 
+#if !defined(__EMSCRIPTEN__) || defined(__EMSCRIPTEN_PTHREADS__)
     this->parse_thread = std::make_unique<ParseThread>(this);
+#else
+    // Without pthread support under Emscripten we cannot run the threaded
+    // decode loop.  Mark the video as immediately ended so that callers
+    // that poll update() exit cleanly without blocking.
+    this->mVideoEnded = true;
+#endif
 }
 
 void VideoState::deinit()
