@@ -6,6 +6,9 @@
 #include <osg/Camera>
 #include <osg/Fog>
 #include <osg/LightModel>
+#ifdef __EMSCRIPTEN__
+#include <components/sceneutil/gles3uniforms.hpp>
+#endif
 #include <osg/LightSource>
 #include <osg/Material>
 #include <osg/PositionAttitudeTransform>
@@ -237,8 +240,10 @@ namespace MWRender
         lightManager->setStartLight(1);
         osg::ref_ptr<osg::StateSet> stateset = lightManager->getOrCreateStateSet();
         stateset->setDefine("FORCE_OPAQUE", "1", osg::StateAttribute::ON);
+#ifndef __EMSCRIPTEN__
         stateset->setMode(GL_LIGHTING, osg::StateAttribute::ON);
         stateset->setMode(GL_NORMALIZE, osg::StateAttribute::ON);
+#endif
         stateset->setMode(GL_CULL_FACE, osg::StateAttribute::ON);
         osg::ref_ptr<osg::Material> defaultMat(new osg::Material);
         defaultMat->setColorMode(osg::Material::OFF);
@@ -285,6 +290,9 @@ namespace MWRender
         osg::ref_ptr<osg::LightModel> lightmodel = new osg::LightModel;
         lightmodel->setAmbientIntensity(osg::Vec4(0.0, 0.0, 0.0, 1.0));
         stateset->setAttributeAndModes(lightmodel, osg::StateAttribute::ON);
+#ifdef __EMSCRIPTEN__
+        SceneUtil::GLES3Uniforms::applyLightModel(stateset, osg::Vec4f(0.0f, 0.0f, 0.0f, 1.0f));
+#endif
 
         osg::ref_ptr<osg::Light> light = new osg::Light;
         float diffuseR = Fallback::Map::getFloat("Inventory_DirectionalDiffuseR");
@@ -306,6 +314,9 @@ namespace MWRender
             // When using shaders, we now skip the ambient sun calculation as this is the only place it's used.
             // Using the scene ambient will give identical results.
             lightmodel->setAmbientIntensity(ambientRGBA);
+#ifdef __EMSCRIPTEN__
+            SceneUtil::GLES3Uniforms::applyLightModel(stateset, ambientRGBA);
+#endif
             light->setAmbient(osg::Vec4(0, 0, 0, 1));
         }
         else

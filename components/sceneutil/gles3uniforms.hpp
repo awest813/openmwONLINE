@@ -12,13 +12,12 @@ namespace SceneUtil
 {
     /// Utilities for providing fixed-function state as uniforms in GLES3/WebGL 2.0 builds.
     /// When OSG is built with GLES3 profile (OSG_GL_FIXED_FUNCTION_AVAILABLE=OFF),
-    /// gl_FrontMaterial, gl_Fog, and gl_TextureMatrix are unavailable. These functions
-    /// mirror the corresponding osg::StateAttribute values as custom uniforms that the
-    /// transformed GLSL ES 3.00 shaders expect.
+    /// gl_FrontMaterial, gl_Fog, gl_TextureMatrix, and gl_LightModel are unavailable.
+    /// These functions mirror the corresponding osg::StateAttribute values as custom
+    /// uniforms that the transformed GLSL ES 3.00 shaders expect.
     namespace GLES3Uniforms
     {
         /// Apply material properties from an osg::Material as omw_FrontMaterial.* uniforms.
-        /// Should be called whenever a Material state attribute changes.
         void applyMaterial(osg::StateSet* stateset, const osg::Material* material);
 
         /// Apply default material uniforms (white diffuse, no emission, no specular).
@@ -36,7 +35,13 @@ namespace SceneUtil
         /// Apply identity texture matrices for all units.
         void applyDefaultTextureMatrices(osg::StateSet* stateset);
 
-        /// Apply all default uniforms (material, fog, texture matrices) to a root state set.
+        /// Apply light model ambient color as omw_LightModel.ambient uniform.
+        void applyLightModel(osg::StateSet* stateset, const osg::Vec4f& ambient);
+
+        /// Apply default light model (small ambient).
+        void applyDefaultLightModel(osg::StateSet* stateset);
+
+        /// Apply all default uniforms (material, fog, texture matrices, light model) to a root state set.
         void applyAllDefaults(osg::StateSet* stateset);
     }
 }

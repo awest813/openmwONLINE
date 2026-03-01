@@ -322,7 +322,9 @@ namespace MWRender
 
             mStateSet = new osg::StateSet;
             mStateSet->setAttributeAndModes(new osg::ColorMask(false, false, false, false), osg::StateAttribute::ON);
+#ifndef __EMSCRIPTEN__
             mStateSet->setMode(GL_LIGHTING, osg::StateAttribute::OFF | osg::StateAttribute::OVERRIDE);
+#endif
         }
 
         void drawImplementation(

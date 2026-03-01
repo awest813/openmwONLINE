@@ -86,6 +86,22 @@ namespace SceneUtil
             }
         }
 
+        void applyLightModel(osg::StateSet* stateset, const osg::Vec4f& ambient)
+        {
+            if (!stateset)
+                return;
+
+            stateset->addUniform(new osg::Uniform("omw_LightModel.ambient", ambient));
+        }
+
+        void applyDefaultLightModel(osg::StateSet* stateset)
+        {
+            if (!stateset)
+                return;
+
+            applyLightModel(stateset, osg::Vec4f(0.2f, 0.2f, 0.2f, 1.0f));
+        }
+
         void applyAllDefaults(osg::StateSet* stateset)
         {
             if (!stateset)
@@ -94,6 +110,7 @@ namespace SceneUtil
             applyDefaultMaterial(stateset);
             applyDefaultFog(stateset);
             applyDefaultTextureMatrices(stateset);
+            applyDefaultLightModel(stateset);
         }
     }
 }

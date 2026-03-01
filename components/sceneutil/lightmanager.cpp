@@ -290,6 +290,7 @@ namespace SceneUtil
         }
     }
 
+#ifndef __EMSCRIPTEN__
     class DisableLight : public osg::StateAttribute
     {
     public:
@@ -419,6 +420,7 @@ namespace SceneUtil
         size_t mIndex;
         std::vector<osg::ref_ptr<osg::Light>> mLights;
     };
+#endif // !__EMSCRIPTEN__
 
     struct StateSetGenerator
     {
@@ -433,6 +435,7 @@ namespace SceneUtil
         osg::Matrix mViewMatrix;
     };
 
+#ifndef __EMSCRIPTEN__
     struct StateSetGeneratorFFP : StateSetGenerator
     {
         osg::ref_ptr<osg::StateSet> generate(const LightManager::LightList& lightList, size_t frameNum) override
@@ -444,9 +447,6 @@ namespace SceneUtil
             for (size_t i = 0; i < lightList.size(); ++i)
                 lights.emplace_back(lightList[i]->mLightSource->getLight(frameNum));
 
-            // the first light state attribute handles the actual state setting for all lights
-            // it's best to batch these up so that we don't need to touch the modelView matrix more than necessary
-            // don't use setAttributeAndModes, that does not support light indices!
             stateset->setAttribute(
                 new FFPLightStateAttribute(mLightManager->getStartLight(), std::move(lights)), osg::StateAttribute::ON);
 
@@ -454,8 +454,6 @@ namespace SceneUtil
                 stateset->setMode(
                     GL_LIGHT0 + mLightManager->getStartLight() + static_cast<int>(i), osg::StateAttribute::ON);
 
-            // need to push some dummy attributes to ensure proper state tracking
-            // lights need to reset to their default when the StateSet is popped
             for (size_t i = 1; i < lightList.size(); ++i)
                 stateset->setAttribute(
                     mLightManager->getDummies()[i + mLightManager->getStartLight()].get(), osg::StateAttribute::ON);
@@ -463,6 +461,7 @@ namespace SceneUtil
             return stateset;
         }
     };
+#endif // !__EMSCRIPTEN__
 
     struct StateSetGeneratorSingleUBO : StateSetGenerator
     {
@@ -824,18 +823,33 @@ namespace SceneUtil
         bool supportsUBO = exts && exts->isUniformBufferObjectSupported;
         bool supportsGPU4 = exts && exts->isGpuShader4Supported;
 
+#ifdef __EMSCRIPTEN__
+        mSupported[static_cast<int>(LightingMethod::FFP)] = false;
+#else
         mSupported[static_cast<int>(LightingMethod::FFP)] = true;
+#endif
         mSupported[static_cast<int>(LightingMethod::PerObjectUniform)] = true;
         mSupported[static_cast<int>(LightingMethod::SingleUBO)] = supportsUBO && supportsGPU4;
 
         setUpdateCallback(new LightManagerUpdateCallback);
 
+#ifdef __EMSCRIPTEN__
+        if (false)
+        {
+        }
+        else
+        {
+            if (settings.mLightingMethod == LightingMethod::FFP)
+                Log(Debug::Warning) << "Fixed-function lighting unavailable on Emscripten/WebGL; "
+                                       "using per-object uniform lighting";
+#else
         if (settings.mLightingMethod == LightingMethod::FFP)
         {
             initFFP(ffpMaxLights);
         }
         else
         {
+#endif
             static bool hasLoggedWarnings = false;
 
             if (settings.mLightingMethod == LightingMethod::SingleUBO && !hasLoggedWarnings)
@@ -952,6 +966,7 @@ namespace SceneUtil
             mPointLightFadeStart = mPointLightFadeEnd * lightFadeStart;
     }
 
+#ifndef __EMSCRIPTEN__
     void LightManager::initFFP(int targetLights)
     {
         setLightingMethod(LightingMethod::FFP);
@@ -960,6 +975,7 @@ namespace SceneUtil
         for (int i = 0; i < getMaxLights(); ++i)
             mDummies.push_back(new FFPLightStateAttribute(i, std::vector<osg::ref_ptr<osg::Light>>()));
     }
+#endif
 
     void LightManager::initPerObjectUniform(int targetLights)
     {
@@ -983,9 +999,14 @@ namespace SceneUtil
         mLightingMethod = method;
         switch (method)
         {
+#ifndef __EMSCRIPTEN__
             case LightingMethod::FFP:
                 mStateSetGenerator = std::make_unique<StateSetGeneratorFFP>();
                 break;
+#else
+            case LightingMethod::FFP:
+                break;
+#endif
             case LightingMethod::SingleUBO:
                 mStateSetGenerator = std::make_unique<StateSetGeneratorSingleUBO>();
                 break;
@@ -1013,14 +1034,13 @@ namespace SceneUtil
         if (!usingFFP())
             return;
 
-        // Set default light state to zero
-        // This is necessary because shaders don't respect glDisable(GL_LIGHTX) so in addition to disabling
-        // we'll have to set a light state that has no visible effect
+#ifndef __EMSCRIPTEN__
         for (int i = start; i < getMaxLights(); ++i)
         {
             osg::ref_ptr<DisableLight> defaultLight(new DisableLight(i));
             getOrCreateStateSet()->setAttributeAndModes(defaultLight, osg::StateAttribute::OFF);
         }
+#endif
     }
 
     int LightManager::getStartLight() const

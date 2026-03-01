@@ -149,16 +149,18 @@ The shader manager (`components/shader/shadermanager.cpp`) now includes an autom
 - **Variable qualifiers**: `varying` → `out` (vertex) / `in` (fragment); `centroid varying` → `centroid out` / `centroid in`; `attribute` → `in`.
 - **Vertex attribute builtins**: `gl_Vertex` → `osg_Vertex`, `gl_Normal` → `osg_Normal`, `gl_Color` → `osg_Color`, `gl_MultiTexCoord0-7` → `osg_MultiTexCoord0-7`.
 - **Matrix builtins**: `gl_ModelViewMatrix` → `osg_ModelViewMatrix`, `gl_ProjectionMatrix` → `osg_ProjectionMatrix`, `gl_ModelViewProjectionMatrix` → `osg_ModelViewProjectionMatrix`, `gl_NormalMatrix` → `osg_NormalMatrix`.
+- **Inverse model-view matrix**: `gl_ModelViewMatrixInverse` → `inverse(osg_ModelViewMatrix)` (GLSL ES 3.00 `inverse()` built-in, no extra uniform needed).
 - **Texture matrices**: `gl_TextureMatrix[N]` → `omw_TextureMatrixN` (custom uniforms, N=0..7).
 - **Material properties**: `gl_FrontMaterial.*` → `omw_FrontMaterial.*` (custom uniform struct).
 - **Fog properties**: `gl_Fog.*` → `omw_Fog.*` (custom uniform struct).
+- **Light model properties**: `gl_LightModel.*` → `omw_LightModel.*` (custom uniform struct with ambient color).
 - **Fragment outputs**: `gl_FragData[N]` → `omw_FragDataN` (declared as `layout(location=N) out vec4`).
 - **Clip vertex**: `gl_ClipVertex` assignments removed (unavailable in WebGL 2.0).
-- **Texture lookup functions**: `texture2D` → `texture`, `texture3D` → `texture`, `textureCube` → `texture`, `shadow2DProj` → `textureProj`.
-- **Desktop-only extensions**: `GL_ARB_uniform_buffer_object` and `GL_EXT_gpu_shader4` extension directives removed.
+- **Texture lookup functions**: `texture2D` → `texture`, `texture2DArray` → `texture`, `texture3D` → `texture`, `textureCube` → `texture`, `shadow2DProj` → `textureProj`, `textureSize2D` → `textureSize`.
+- **Desktop-only extensions**: `GL_ARB_uniform_buffer_object`, `GL_EXT_gpu_shader4`, `GL_EXT_texture_array`, and `GL_OVR_multiview` extension directives removed.
 - **OSG pragmas**: `#pragma import_defines(...)` removed.
 
-GLES3 preambles are prepended to vertex and fragment shaders declaring OSG vertex attributes, matrix uniforms, and custom struct uniforms for material/fog/texture matrix state.
+GLES3 preambles are prepended to vertex and fragment shaders declaring OSG vertex attributes, matrix uniforms, and custom struct uniforms for material/fog/texture matrix/light model state.
 
 ### GLES3 Fixed-Function Uniform Providers
 
@@ -167,12 +169,14 @@ A new utility (`components/sceneutil/gles3uniforms.hpp/cpp`) provides C++ functi
 - **`applyMaterial()`**: Extracts `osg::Material` properties (emission, ambient, diffuse, specular, shininess) and sets them as `omw_FrontMaterial.*` uniforms.
 - **`applyFog()`**: Sets `omw_Fog.*` uniforms (color, start, end, scale) from fog parameters.
 - **`applyTextureMatrix()`**: Sets `omw_TextureMatrixN` uniforms from `osg::TexMat` state.
+- **`applyLightModel()`**: Sets `omw_LightModel.ambient` uniform from `osg::LightModel` ambient intensity.
 - **`applyAllDefaults()`**: Applies default values for all above to a root state set.
 
 Integration points:
-- Root scene node: Default material/fog/texture matrix uniforms applied at initialization.
+- Root scene node: Default material/fog/texture matrix/light model uniforms applied at initialization.
 - NIF loader: Per-object material uniforms mirrored when `osg::Material` is set.
-- Fog state updater: Fog uniforms updated each frame alongside `osg::Fog` state attribute.
+- Fog state updater: Fog and light model ambient uniforms updated each frame alongside `osg::Fog` and `osg::LightModel` state attributes.
+- Local map / character preview / VFX nodes: Light model ambient mirrored when `osg::LightModel` is set.
 
 ## Config File Bootstrapping
 
@@ -274,8 +278,37 @@ A GitLab CI job (`Emscripten_WASM`) has been added to `.gitlab-ci.yml`:
 
 The `EXPORTED_FUNCTIONS` list in `CMakeLists.txt` now includes `_openmw_wasm_report_upload_progress` alongside `_main`, `_openmw_wasm_notify_data_ready`, `_openmw_wasm_is_data_ready`, and `_openmw_wasm_get_data_path`.
 
+## Fixed-Function Lighting Disabled
+
+Fixed-function pipeline (FFP) lighting is disabled for Emscripten builds in `components/sceneutil/lightmanager.cpp`:
+
+- **`LightingMethod::FFP`** is marked unsupported (`mSupported[FFP] = false`) when `__EMSCRIPTEN__` is defined.
+- If FFP lighting is requested, a warning is logged and the engine falls back to `PerObjectUniform` lighting which uses shader-based lighting compatible with GLES3/WebGL 2.0.
+- The `DisableLight`, `FFPLightStateAttribute`, and `StateSetGeneratorFFP` classes (which use `glLightfv`/`glLightf` fixed-function calls) are excluded from Emscripten builds with `#ifndef __EMSCRIPTEN__` guards.
+- The `initFFP()` method is excluded from Emscripten builds.
+
+## Fixed-Function GL Mode Guards
+
+All `setMode(GL_LIGHTING, ...)` and `setMode(GL_NORMALIZE, ...)` calls across the rendering code have been guarded with `#ifndef __EMSCRIPTEN__`. These fixed-function OpenGL modes are unavailable in GLES3/WebGL 2.0 and their constants may not be defined in GLES3 headers. Affected files:
+
+- `apps/openmw/mwrender/renderingmanager.cpp`
+- `apps/openmw/mwrender/characterpreview.cpp`
+- `apps/openmw/mwrender/recastmesh.cpp`
+- `apps/openmw/mwrender/ripples.cpp`
+- `apps/openmw/mwrender/navmesh.cpp`
+- `apps/openmw/mwrender/npcanimation.cpp`
+- `apps/openmw/mwrender/globalmap.cpp`
+- `components/terrain/compositemaprenderer.cpp`
+- `components/sceneutil/pathgridutil.cpp`
+- `components/resource/stats.cpp`
+
+(Previously guarded: `apps/openmw/mwrender/postprocessor.cpp`, `components/myguiplatform/myguirendermanager.cpp`)
+
+## WorkThread Emscripten Guards
+
+The `WorkThread` class (`components/sceneutil/workqueue.cpp`) now guards `std::thread` construction and join with `#if !defined(__EMSCRIPTEN__) || defined(__EMSCRIPTEN_PTHREADS__)` to prevent thread creation on Emscripten non-pthread builds.
+
 ## Remaining Work
-- **GLSL ES 3.00 shader testing**: The automatic transformation covers all major patterns but needs end-to-end testing with actual shader compilation in WebGL 2.0 to catch edge cases.
 - **Audio decoder**: Verify FFmpeg/audio decoding works under Emscripten or provide fallback.
 - **Testing and profiling**: End-to-end testing in Chrome with actual Morrowind data, performance profiling and optimization.
 - **End-to-end WASM build validation**: Run the `Emscripten_WASM` CI job to verify all dependencies compile and link.

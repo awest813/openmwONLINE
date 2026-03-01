@@ -247,8 +247,8 @@ namespace MWRender
             fog->setStart(mFogStart);
             fog->setEnd(mFogEnd);
 #ifdef __EMSCRIPTEN__
-            // Mirror fog parameters as uniforms for GLES3/WebGL 2.0 (no fixed-function fog)
             SceneUtil::GLES3Uniforms::applyFog(stateset, mFogColor, mFogStart, mFogEnd);
+            SceneUtil::GLES3Uniforms::applyLightModel(stateset, mAmbientColor);
 #endif
         }
 
@@ -552,8 +552,10 @@ namespace MWRender
         sceneRoot->addChild(source);
 
         sceneRoot->getOrCreateStateSet()->setMode(GL_CULL_FACE, osg::StateAttribute::ON);
+#ifndef __EMSCRIPTEN__
         sceneRoot->getOrCreateStateSet()->setMode(GL_LIGHTING, osg::StateAttribute::ON);
         sceneRoot->getOrCreateStateSet()->setMode(GL_NORMALIZE, osg::StateAttribute::ON);
+#endif
         osg::ref_ptr<osg::Material> defaultMat(new osg::Material);
         defaultMat->setColorMode(osg::Material::OFF);
         defaultMat->setAmbient(osg::Material::FRONT_AND_BACK, osg::Vec4f(1, 1, 1, 1));

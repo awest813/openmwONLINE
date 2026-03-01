@@ -280,7 +280,9 @@ namespace SceneUtil
         std::shared_ptr<PPLightBuffer> getPPLightsBuffer() { return mPPLightBuffer; }
 
     private:
+#ifndef __EMSCRIPTEN__
         void initFFP(int targetLights);
+#endif
         void initPerObjectUniform(int targetLights);
         void initSingleUBO(int targetLights);
 

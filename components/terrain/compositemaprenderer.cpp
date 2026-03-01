@@ -18,7 +18,9 @@ namespace Terrain
 
         mFBO = new osg::FrameBufferObject;
 
+#ifndef __EMSCRIPTEN__
         getOrCreateStateSet()->setMode(GL_LIGHTING, osg::StateAttribute::OFF);
+#endif
     }
 
     CompositeMapRenderer::~CompositeMapRenderer() = default;

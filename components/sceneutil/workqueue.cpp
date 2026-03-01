@@ -114,13 +114,17 @@ namespace SceneUtil
     WorkThread::WorkThread(WorkQueue& workQueue)
         : mWorkQueue(&workQueue)
         , mActive(false)
+#if !defined(__EMSCRIPTEN__) || defined(__EMSCRIPTEN_PTHREADS__)
         , mThread([this] { run(); })
+#endif
     {
     }
 
     WorkThread::~WorkThread()
     {
+#if !defined(__EMSCRIPTEN__) || defined(__EMSCRIPTEN_PTHREADS__)
         mThread.join();
+#endif
     }
 
     void WorkThread::run()

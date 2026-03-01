@@ -22,7 +22,9 @@ namespace MWRender
         osg::ref_ptr<osg::StateSet> makeDebugDrawStateSet()
         {
             osg::ref_ptr<osg::StateSet> stateSet = new osg::StateSet;
+#ifndef __EMSCRIPTEN__
             stateSet->setMode(GL_LIGHTING, osg::StateAttribute::OFF);
+#endif
 
             return stateSet;
         }
