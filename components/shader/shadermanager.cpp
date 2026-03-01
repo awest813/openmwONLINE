@@ -181,6 +181,348 @@ namespace
     }
 }
 
+namespace
+{
+#ifdef __EMSCRIPTEN__
+    // Preamble prepended to vertex shaders for GLES3/WebGL 2.0 compatibility.
+    // Provides declarations for OSG GLES3 vertex attributes and matrix uniforms,
+    // plus custom uniforms replacing deprecated fixed-function state.
+    const char* const sGLES3VertexPreamble = R"(
+// OSG GLES3 vertex attributes
+in vec4 osg_Vertex;
+in vec3 osg_Normal;
+in vec4 osg_Color;
+in vec4 osg_MultiTexCoord0;
+in vec4 osg_MultiTexCoord1;
+in vec4 osg_MultiTexCoord2;
+in vec4 osg_MultiTexCoord3;
+in vec4 osg_MultiTexCoord4;
+in vec4 osg_MultiTexCoord5;
+in vec4 osg_MultiTexCoord6;
+in vec4 osg_MultiTexCoord7;
+
+// OSG GLES3 matrix uniforms
+uniform mat4 osg_ModelViewMatrix;
+uniform mat4 osg_ProjectionMatrix;
+uniform mat4 osg_ModelViewProjectionMatrix;
+uniform mat3 osg_NormalMatrix;
+
+// Custom uniforms replacing gl_TextureMatrix (fixed-function state)
+uniform mat4 omw_TextureMatrix0;
+uniform mat4 omw_TextureMatrix1;
+uniform mat4 omw_TextureMatrix2;
+uniform mat4 omw_TextureMatrix3;
+uniform mat4 omw_TextureMatrix4;
+uniform mat4 omw_TextureMatrix5;
+uniform mat4 omw_TextureMatrix6;
+uniform mat4 omw_TextureMatrix7;
+
+// Custom struct replacing gl_FrontMaterial (fixed-function state)
+struct OMW_MaterialParameters {
+    vec4 emission;
+    vec4 ambient;
+    vec4 diffuse;
+    vec4 specular;
+    float shininess;
+};
+uniform OMW_MaterialParameters omw_FrontMaterial;
+
+// Custom struct replacing gl_Fog (fixed-function state)
+struct OMW_FogParameters {
+    vec4 color;
+    float density;
+    float start;
+    float end;
+    float scale; // 1.0 / (end - start)
+};
+uniform OMW_FogParameters omw_Fog;
+
+)";
+
+    // Preamble prepended to fragment shaders for GLES3/WebGL 2.0 compatibility.
+    const char* const sGLES3FragmentPreamble = R"(
+// MRT output declarations replacing gl_FragData[]
+layout(location = 0) out vec4 omw_FragData0;
+layout(location = 1) out vec4 omw_FragData1;
+layout(location = 2) out vec4 omw_FragData2;
+layout(location = 3) out vec4 omw_FragData3;
+
+// Custom struct replacing gl_FrontMaterial (fixed-function state)
+struct OMW_MaterialParameters {
+    vec4 emission;
+    vec4 ambient;
+    vec4 diffuse;
+    vec4 specular;
+    float shininess;
+};
+uniform OMW_MaterialParameters omw_FrontMaterial;
+
+// Custom struct replacing gl_Fog (fixed-function state)
+struct OMW_FogParameters {
+    vec4 color;
+    float density;
+    float start;
+    float end;
+    float scale; // 1.0 / (end - start)
+};
+uniform OMW_FogParameters omw_Fog;
+
+// Custom uniforms replacing gl_TextureMatrix (fragment shaders may also reference these)
+uniform mat4 omw_TextureMatrix0;
+uniform mat4 omw_TextureMatrix1;
+uniform mat4 omw_TextureMatrix2;
+uniform mat4 omw_TextureMatrix3;
+uniform mat4 omw_TextureMatrix4;
+uniform mat4 omw_TextureMatrix5;
+uniform mat4 omw_TextureMatrix6;
+uniform mat4 omw_TextureMatrix7;
+
+)";
+
+    // Replace all occurrences of 'from' with 'to' in 'source', ensuring whole-word matching
+    // by checking boundaries (not alphanumeric or underscore) at both ends.
+    void replaceAllWholeWord(std::string& source, const std::string& from, const std::string& to)
+    {
+        if (from.empty())
+            return;
+        size_t pos = 0;
+        while ((pos = source.find(from, pos)) != std::string::npos)
+        {
+            // Check left boundary
+            if (pos > 0)
+            {
+                char prev = source[pos - 1];
+                if (std::isalnum(static_cast<unsigned char>(prev)) || prev == '_')
+                {
+                    pos += from.size();
+                    continue;
+                }
+            }
+            // Check right boundary
+            size_t endPos = pos + from.size();
+            if (endPos < source.size())
+            {
+                char next = source[endPos];
+                if (std::isalnum(static_cast<unsigned char>(next)) || next == '_')
+                {
+                    pos += from.size();
+                    continue;
+                }
+            }
+            source.replace(pos, from.size(), to);
+            pos += to.size();
+        }
+    }
+
+    void replaceAllSimple(std::string& source, const std::string& from, const std::string& to)
+    {
+        if (from.empty())
+            return;
+        size_t pos = 0;
+        while ((pos = source.find(from, pos)) != std::string::npos)
+        {
+            source.replace(pos, from.size(), to);
+            pos += to.size();
+        }
+    }
+
+    // Remove lines containing 'gl_ClipVertex' assignments (no ES equivalent)
+    void removeClipVertexLines(std::string& source)
+    {
+        size_t pos = 0;
+        while ((pos = source.find("gl_ClipVertex", pos)) != std::string::npos)
+        {
+            // Find the start of this line
+            size_t lineStart = source.rfind('\n', pos);
+            lineStart = (lineStart == std::string::npos) ? 0 : lineStart + 1;
+
+            // Find the end of this line
+            size_t lineEnd = source.find('\n', pos);
+            if (lineEnd == std::string::npos)
+                lineEnd = source.size();
+            else
+                lineEnd += 1; // include the newline
+
+            source.replace(lineStart, lineEnd - lineStart, "// gl_ClipVertex removed (unavailable in GLES3)\n");
+            pos = lineStart + 1;
+        }
+    }
+
+    // Transform shader source from GLSL 1.20 compatibility profile to GLSL ES 3.00
+    // for WebGL 2.0 compatibility under Emscripten.
+    void transformShaderToGLES3(std::string& source, osg::Shader::Type shaderType)
+    {
+        const bool isVertex = (shaderType == osg::Shader::VERTEX);
+        const bool isFragment = (shaderType == osg::Shader::FRAGMENT);
+
+        // --- 1. Replace version directive ---
+        // Handle #version 120, #version 330, #version 330 compatibility, etc.
+        {
+            size_t versionPos = source.find("#version");
+            if (versionPos != std::string::npos)
+            {
+                size_t lineEnd = source.find('\n', versionPos);
+                if (lineEnd == std::string::npos)
+                    lineEnd = source.size();
+
+                std::string replacement = "#version 300 es\n"
+                                          "precision highp float;\n"
+                                          "precision highp int;\n"
+                                          "precision highp sampler2D;\n"
+                                          "precision highp sampler2DShadow;\n"
+                                          "precision highp samplerCube;\n";
+
+                source.replace(versionPos, lineEnd - versionPos, replacement);
+            }
+        }
+
+        // --- 2. Remove desktop-only extension directives ---
+        {
+            const std::string extensions[] = {
+                "GL_ARB_uniform_buffer_object",
+                "GL_EXT_gpu_shader4",
+            };
+            for (const auto& ext : extensions)
+            {
+                size_t pos = 0;
+                while ((pos = source.find(ext, pos)) != std::string::npos)
+                {
+                    // Find the #extension line start
+                    size_t lineStart = source.rfind('\n', pos);
+                    lineStart = (lineStart == std::string::npos) ? 0 : lineStart + 1;
+                    size_t lineEnd = source.find('\n', pos);
+                    if (lineEnd == std::string::npos)
+                        lineEnd = source.size();
+                    else
+                        lineEnd += 1;
+
+                    // Only remove if this is an #extension directive
+                    std::string line = source.substr(lineStart, lineEnd - lineStart);
+                    if (line.find("#extension") != std::string::npos)
+                    {
+                        source.replace(lineStart, lineEnd - lineStart, "");
+                        pos = lineStart;
+                    }
+                    else
+                    {
+                        pos += ext.size();
+                    }
+                }
+            }
+        }
+
+        // --- 3. Remove #pragma import_defines(...) ---
+        {
+            size_t pos = 0;
+            while ((pos = source.find("#pragma import_defines", pos)) != std::string::npos)
+            {
+                size_t lineEnd = source.find('\n', pos);
+                if (lineEnd == std::string::npos)
+                    lineEnd = source.size();
+                else
+                    lineEnd += 1;
+                source.replace(pos, lineEnd - pos, "");
+            }
+        }
+
+        // --- 4. Insert GLES3 preamble after the version/precision block ---
+        // Find the end of the version block (after all precision statements)
+        {
+            size_t insertPos = 0;
+            size_t precPos = source.rfind("precision highp");
+            if (precPos != std::string::npos)
+            {
+                size_t lineEnd = source.find('\n', precPos);
+                insertPos = (lineEnd == std::string::npos) ? source.size() : lineEnd + 1;
+            }
+            else
+            {
+                // After #version line
+                size_t verPos = source.find("#version");
+                if (verPos != std::string::npos)
+                {
+                    size_t lineEnd = source.find('\n', verPos);
+                    insertPos = (lineEnd == std::string::npos) ? source.size() : lineEnd + 1;
+                }
+            }
+
+            if (isVertex)
+                source.insert(insertPos, sGLES3VertexPreamble);
+            else if (isFragment)
+                source.insert(insertPos, sGLES3FragmentPreamble);
+        }
+
+        // --- 5. Replace varying/attribute qualifiers ---
+        if (isVertex)
+        {
+            // centroid varying → centroid out (must come before plain varying replacement)
+            replaceAllSimple(source, "centroid varying", "centroid out");
+            replaceAllWholeWord(source, "varying", "out");
+            replaceAllWholeWord(source, "attribute", "in");
+        }
+        else if (isFragment)
+        {
+            replaceAllSimple(source, "centroid varying", "centroid in");
+            replaceAllWholeWord(source, "varying", "in");
+        }
+
+        // --- 6. Replace deprecated vertex attribute builtins ---
+        replaceAllWholeWord(source, "gl_Vertex", "osg_Vertex");
+        replaceAllWholeWord(source, "gl_Normal", "osg_Normal");
+        replaceAllWholeWord(source, "gl_Color", "osg_Color");
+        replaceAllWholeWord(source, "gl_MultiTexCoord0", "osg_MultiTexCoord0");
+        replaceAllWholeWord(source, "gl_MultiTexCoord1", "osg_MultiTexCoord1");
+        replaceAllWholeWord(source, "gl_MultiTexCoord2", "osg_MultiTexCoord2");
+        replaceAllWholeWord(source, "gl_MultiTexCoord3", "osg_MultiTexCoord3");
+        replaceAllWholeWord(source, "gl_MultiTexCoord4", "osg_MultiTexCoord4");
+        replaceAllWholeWord(source, "gl_MultiTexCoord5", "osg_MultiTexCoord5");
+        replaceAllWholeWord(source, "gl_MultiTexCoord6", "osg_MultiTexCoord6");
+        replaceAllWholeWord(source, "gl_MultiTexCoord7", "osg_MultiTexCoord7");
+
+        // --- 7. Replace deprecated matrix builtins ---
+        replaceAllWholeWord(source, "gl_ModelViewProjectionMatrix", "osg_ModelViewProjectionMatrix");
+        replaceAllWholeWord(source, "gl_ModelViewMatrix", "osg_ModelViewMatrix");
+        replaceAllWholeWord(source, "gl_ProjectionMatrix", "osg_ProjectionMatrix");
+        replaceAllWholeWord(source, "gl_NormalMatrix", "osg_NormalMatrix");
+
+        // --- 8. Replace gl_TextureMatrix[N] → omw_TextureMatrixN ---
+        for (int i = 0; i < 8; ++i)
+        {
+            std::string from = "gl_TextureMatrix[" + std::to_string(i) + "]";
+            std::string to = "omw_TextureMatrix" + std::to_string(i);
+            replaceAllSimple(source, from, to);
+        }
+
+        // --- 9. Replace gl_FrontMaterial.field → omw_FrontMaterial.field ---
+        replaceAllSimple(source, "gl_FrontMaterial.", "omw_FrontMaterial.");
+        // Also handle gl_FrontMaterial as a standalone reference (e.g. passed as argument)
+        replaceAllWholeWord(source, "gl_FrontMaterial", "omw_FrontMaterial");
+
+        // --- 10. Replace gl_Fog.field → omw_Fog.field ---
+        replaceAllSimple(source, "gl_Fog.", "omw_Fog.");
+        replaceAllWholeWord(source, "gl_Fog", "omw_Fog");
+
+        // --- 11. Replace gl_FragData[N] → omw_FragDataN ---
+        for (int i = 0; i < 4; ++i)
+        {
+            std::string from = "gl_FragData[" + std::to_string(i) + "]";
+            std::string to = "omw_FragData" + std::to_string(i);
+            replaceAllSimple(source, from, to);
+        }
+
+        // --- 12. Remove gl_ClipVertex (no ES3 equivalent) ---
+        removeClipVertexLines(source);
+
+        // --- 13. Replace texture lookup functions ---
+        // GLSL 300 es uses texture() instead of texture2D(), textureCube(), etc.
+        replaceAllWholeWord(source, "texture2D", "texture");
+        replaceAllWholeWord(source, "texture3D", "texture");
+        replaceAllWholeWord(source, "textureCube", "texture");
+        replaceAllWholeWord(source, "shadow2DProj", "textureProj");
+    }
+#endif // __EMSCRIPTEN__
+}
+
 namespace Shader
 {
     struct HotReloadManager
@@ -279,6 +621,9 @@ namespace Shader
                         {
                             break;
                         }
+#ifdef __EMSCRIPTEN__
+                        transformShaderToGLES3(shaderSource, shaderIt->second->getType());
+#endif
                         shaderIt->second->setShaderSource(shaderSource);
                     }
                 }
@@ -553,7 +898,14 @@ namespace Shader
                 return nullptr;
             }
 
-            osg::ref_ptr<osg::Shader> shader(new osg::Shader(type ? *type : getShaderType(templateName)));
+            osg::Shader::Type resolvedType = type ? *type : getShaderType(templateName);
+
+#ifdef __EMSCRIPTEN__
+            // Transform GLSL 1.20 compatibility profile shaders to GLSL ES 3.00 for WebGL 2.0
+            transformShaderToGLES3(shaderSource, resolvedType);
+#endif
+
+            osg::ref_ptr<osg::Shader> shader(new osg::Shader(resolvedType));
             shader->setShaderSource(shaderSource);
             // Assign a unique prefix to allow the SharedStateManager to compare shaders efficiently.
             // Append shader source filename for debugging.
@@ -635,6 +987,9 @@ namespace Shader
                 // we would when creating the shader. If we put a nullptr in the shader map, we just lose the ability to
                 // put a working one in later.
                 continue;
+#ifdef __EMSCRIPTEN__
+            transformShaderToGLES3(shaderSource, shader->getType());
+#endif
             shader->setShaderSource(shaderSource);
 
             getLinkedShaders(shader, linkedShaderNames, defines);

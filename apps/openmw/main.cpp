@@ -29,6 +29,7 @@ extern "C" __declspec(dllexport) DWORD AmdPowerXpressRequestHighPerformance = 0x
 
 #include <cerrno>
 #include <filesystem>
+#include <fstream>
 #include <limits>
 #include <sstream>
 #include <string>
@@ -260,6 +261,58 @@ namespace
         return static_cast<int>(parsedValue);
     }
 
+    void bootstrapWasmConfigFile()
+    {
+        // Ensure a minimal openmw.cfg exists so that the engine can find game data
+        // uploaded via the browser file picker at /gamedata.
+        const char* cfgHome = std::getenv("XDG_CONFIG_HOME");
+        const std::string configBase = (cfgHome && cfgHome[0] != '\0') ? cfgHome : "/persistent/home/.config";
+        const std::string cfgDir = configBase + "/openmw";
+        const std::string cfgFile = cfgDir + "/openmw.cfg";
+
+        // Only bootstrap if no config file exists yet (first run or fresh IDBFS)
+        if (std::filesystem::exists(cfgFile))
+        {
+            Log(Debug::Info) << "WASM: Found existing config at " << cfgFile;
+            return;
+        }
+
+        Log(Debug::Info) << "WASM: Bootstrapping default openmw.cfg at " << cfgFile;
+
+        std::filesystem::create_directories(cfgDir);
+
+        std::ofstream out(cfgFile);
+        if (!out.is_open())
+        {
+            Log(Debug::Error) << "WASM: Failed to create default openmw.cfg at " << cfgFile;
+            return;
+        }
+
+        out << "# Auto-generated default config for OpenMW WASM build\n"
+            << "# Game data is loaded from /gamedata via the browser file picker\n"
+            << "\n"
+            << "data=/gamedata\n"
+            << "\n"
+            << "# Morrowind base content\n"
+            << "content=Morrowind.esm\n"
+            << "\n"
+            << "# Base game archives\n"
+            << "fallback-archive=Morrowind.bsa\n"
+            << "\n"
+            << "# Tribunal expansion (ignored if not present)\n"
+            << "# content=Tribunal.esm\n"
+            << "# fallback-archive=Tribunal.bsa\n"
+            << "\n"
+            << "# Bloodmoon expansion (ignored if not present)\n"
+            << "# content=Bloodmoon.esm\n"
+            << "# fallback-archive=Bloodmoon.bsa\n"
+            << "\n"
+            << "encoding=win1252\n";
+
+        out.close();
+        Log(Debug::Info) << "WASM: Default openmw.cfg written successfully";
+    }
+
     void initializeWasmPersistentStorage()
     {
         const int periodicSyncIntervalMs = getWasmPersistentSyncIntervalMs();
@@ -441,6 +494,7 @@ int runApplication(int argc, char* argv[])
 
 #ifdef __EMSCRIPTEN__
     initializeWasmPersistentStorage();
+    bootstrapWasmConfigFile();
     OMW::WasmFilePicker::initialize("/gamedata");
     OMW::WasmFilePicker::registerBrowserCallbacks();
 #endif
