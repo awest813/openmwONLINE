@@ -66,7 +66,11 @@ namespace MWRender
         {
             osg::ref_ptr<osg::Texture2D> texture = new osg::Texture2D;
             texture->setSourceFormat(GL_RGBA);
+#ifdef __EMSCRIPTEN__
+            texture->setInternalFormat(GL_RGBA8);
+#else
             texture->setInternalFormat(GL_RGBA16F);
+#endif
             texture->setFilter(osg::Texture2D::MIN_FILTER, osg::Texture::LINEAR);
             texture->setFilter(osg::Texture2D::MAG_FILTER, osg::Texture::LINEAR);
             texture->setWrap(osg::Texture::WRAP_S, osg::Texture::CLAMP_TO_BORDER);

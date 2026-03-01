@@ -675,7 +675,9 @@ void OMW::Engine::createWindow()
             SDL_SetWindowSize(mWindow, width / (dw / w), height / (dh / h));
         }
 
+#ifndef __EMSCRIPTEN__
         setWindowIcon();
+#endif
 
         osg::ref_ptr<osg::GraphicsContext::Traits> traits = new osg::GraphicsContext::Traits;
         SDL_GetWindowPosition(mWindow, &traits->x, &traits->y);
@@ -854,7 +856,11 @@ void OMW::Engine::prepareEngine()
         static_cast<float>(Settings::general().mAnisotropy));
     mEnvironment.setResourceSystem(*mResourceSystem);
 
+#if defined(__EMSCRIPTEN__) && !defined(__EMSCRIPTEN_PTHREADS__)
+    mWorkQueue = new SceneUtil::WorkQueue(0);
+#else
     mWorkQueue = new SceneUtil::WorkQueue(Settings::cells().mPreloadNumThreads);
+#endif
     mUnrefQueue = std::make_unique<SceneUtil::UnrefQueue>();
 
     mScreenCaptureOperation = new SceneUtil::AsyncScreenCaptureOperation(mWorkQueue,

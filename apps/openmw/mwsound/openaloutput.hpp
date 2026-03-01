@@ -61,8 +61,10 @@ namespace MWSound
         std::vector<ALCint> mContextAttributes;
         std::mutex mReopenMutex;
 
+#ifndef __EMSCRIPTEN__
         class DefaultDeviceThread;
         std::unique_ptr<DefaultDeviceThread> mDefaultDeviceThread;
+#endif
 
         void initCommon2D(ALuint source, const osg::Vec3f& pos, ALfloat gain, ALfloat pitch, bool loop, bool useenv);
         void initCommon3D(ALuint source, const osg::Vec3f& pos, const osg::Vec3f& vel, ALfloat mindist, ALfloat maxdist,

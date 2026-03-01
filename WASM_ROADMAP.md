@@ -223,9 +223,59 @@ The browser data upload (`apps/openmw/wasmfilepicker.cpp`, `files/wasm/openmw_sh
 - **Graceful cancellation**: `AbortError` from the directory picker is caught and handled without error messaging.
 - **Periodic yield**: `setTimeout(0)` yield every 50 files prevents the browser from becoming unresponsive during large uploads.
 
+## WebGL 2.0 Rendering Compatibility
+
+Several desktop-only OpenGL features have been guarded or disabled for WebGL 2.0 compatibility:
+
+- **`GL_DEPTH_CLAMP`**: Guarded with `#ifndef __EMSCRIPTEN__` in water rendering (`apps/openmw/mwrender/water.cpp`). WebGL 2.0 does not support depth clamping; the water surface renders without it.
+- **`GL_RGBA16F` FBO attachments**: Ripple simulation textures (`apps/openmw/mwrender/ripples.cpp`) fall back to `GL_RGBA8` on Emscripten builds. WebGL 2.0 requires `EXT_color_buffer_float` for half-float render targets, which is not universally available.
+- **MyGUI fixed-function pipeline**: The MyGUI draw implementation (`components/myguiplatform/myguirendermanager.cpp`) has been ported from legacy fixed-function calls (`glVertexPointer`, `glColorPointer`, `glTexCoordPointer`, `glEnableClientState`) to modern generic vertex attributes (`glVertexAttribPointer`, `glEnableVertexAttribArray`) under `__EMSCRIPTEN__`. The GUI shader (`gui.vert`/`gui.frag`) is automatically transformed to GLES 3.00 by the existing shader transform pass.
+- **`GL_LIGHTING` / `GL_TEXTURE_2D` modes**: Guarded in MyGUI state setup; these fixed-function modes are unavailable in GLES3.
+- **`SDL_SetWindowIcon`**: Skipped on Emscripten (canvas windows don't have native icons).
+
+## Audio System Emscripten Guards
+
+The OpenAL output (`apps/openmw/mwsound/openaloutput.cpp`) has been adapted for Emscripten:
+
+- **EFX (Effects Extension)**: Disabled on Emscripten (`ALC.EXT_EFX = false`). Emscripten's OpenAL maps to the Web Audio API, which does not support OpenAL EFX extensions (reverb, filters, auxiliary effect slots).
+- **HRTF**: Disabled on Emscripten (`ALC.SOFT_HRTF = false`). Web Audio handles spatialization natively.
+- **`StreamThread`**: When building without pthreads (`__EMSCRIPTEN__` && `!__EMSCRIPTEN_PTHREADS__`), the background streaming thread is replaced with a synchronous `processAll()` method called from `finishUpdate()` on the main thread.
+- **`DefaultDeviceThread`**: Entirely excluded on Emscripten (`#ifndef __EMSCRIPTEN__`). Audio device routing is handled by the browser.
+- **Device reopen / event callbacks**: `alcReopenDeviceSOFT`, `alEventControlSOFT`, and `alEventCallbackSOFT` are skipped on Emscripten; disconnect detection and device switching are browser-managed.
+
+## Threading Guards for Non-Pthread Builds
+
+When building for Emscripten without pthreads (`__EMSCRIPTEN__` && `!__EMSCRIPTEN_PTHREADS__`), the following subsystems fall back to single-threaded operation:
+
+- **Physics** (`apps/openmw/mwphysics/mtphysics.cpp`): `detectLockingPolicy()` returns `NoLocks`, forcing single-threaded physics with 0 worker threads.
+- **Lua worker** (`apps/openmw/mwlua/worker.cpp`): Thread creation is guarded; updates run synchronously on the main thread.
+- **Work queue** (`apps/openmw/engine.cpp`): Created with 0 worker threads; preloading and screenshots run synchronously.
+- **NavMesh updater** (`components/detournavigator/asyncnavmeshupdater.cpp`): Thread creation for both `AsyncNavMeshUpdater` and `DbWorker` is guarded; no background threads are spawned.
+
+## Browser Input & Pointer Lock
+
+The HTML shell (`files/wasm/openmw_shell.html`) now includes a "Click to Play" overlay that appears when the canvas is shown. Browsers require a user gesture (click) before pointer lock can be engaged. The overlay:
+
+1. Appears after game data is loaded and the canvas becomes visible.
+2. On click, hides itself, focuses the canvas, and requests pointer lock.
+3. SDL2's Emscripten port then handles subsequent pointer lock requests automatically via `SDL_SetRelativeMouseMode`.
+
+## CI / WASM Build Job
+
+A GitLab CI job (`Emscripten_WASM`) has been added to `.gitlab-ci.yml`:
+
+- Runs on `ubuntu:24.04` with the Emscripten SDK.
+- Executes `CI/before_script.wasm.sh` to install Emscripten, build dependencies, and configure CMake.
+- Builds the WASM target and produces `openmw.html`, `openmw.js`, `openmw.wasm` artifacts.
+- Triggered on merge requests (when relevant files change), protected branch pushes, or manually.
+- Caches the Emscripten SDK and cross-compiled dependencies across runs.
+
+## Exported Functions
+
+The `EXPORTED_FUNCTIONS` list in `CMakeLists.txt` now includes `_openmw_wasm_report_upload_progress` alongside `_main`, `_openmw_wasm_notify_data_ready`, `_openmw_wasm_is_data_ready`, and `_openmw_wasm_get_data_path`.
+
 ## Remaining Work
 - **GLSL ES 3.00 shader testing**: The automatic transformation covers all major patterns but needs end-to-end testing with actual shader compilation in WebGL 2.0 to catch edge cases.
 - **Audio decoder**: Verify FFmpeg/audio decoding works under Emscripten or provide fallback.
-- **Input handling**: Verify pointer lock, keyboard, and gamepad input through Emscripten SDL2.
 - **Testing and profiling**: End-to-end testing in Chrome with actual Morrowind data, performance profiling and optimization.
-- **End-to-end WASM build validation**: Run `CI/before_script.wasm.sh` on a CI runner with Emscripten to verify all dependencies compile and link.
+- **End-to-end WASM build validation**: Run the `Emscripten_WASM` CI job to verify all dependencies compile and link.

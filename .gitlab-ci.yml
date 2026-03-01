@@ -1308,6 +1308,53 @@ Windows_MSBuild_CacheInit_RelWithDebInfo:
   script:
     - scripts/find_missing_merge_requests.py --project_id=$CI_PROJECT_ID --ignored_mrs_path=$CI_PROJECT_DIR/.resubmitted_merge_requests.txt
 
+Emscripten_WASM:
+  tags:
+    - saas-linux-medium-amd64
+  image: ubuntu:24.04
+  stage: build
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - CMakeLists.txt
+        - CI/before_script.wasm.sh
+        - CI/build_wasm_deps.sh
+        - apps/openmw/**/*
+        - components/**/*
+        - files/wasm/**/*
+        - extern/CMakeLists.txt
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_REF_PROTECTED == 'true'
+    - when: manual
+      allow_failure: true
+  cache:
+    key: Emscripten_WASM.v1
+    paths:
+      - apt-cache/
+      - emsdk/
+      - wasm-deps/
+  variables:
+    EMSDK_DIR: "$CI_PROJECT_DIR/emsdk"
+    WASM_DEPS_DIR: "$CI_PROJECT_DIR/wasm-deps"
+    BUILD_DIR: "$CI_PROJECT_DIR/build-wasm"
+  before_script:
+    - export DEBIAN_FRONTEND=noninteractive
+    - apt-get update && apt-get install -y --no-install-recommends
+        git cmake make python3 wget unzip xz-utils
+        build-essential autoconf automake libtool pkg-config
+    - CI/before_script.wasm.sh
+  script:
+    - source "$EMSDK_DIR/emsdk_env.sh"
+    - cd "$BUILD_DIR"
+    - emmake make -j$(nproc) 2>&1 | tail -100
+  artifacts:
+    paths:
+      - build-wasm/openmw.html
+      - build-wasm/openmw.js
+      - build-wasm/openmw.wasm
+      - build-wasm/openmw.data
+    expire_in: 1 week
+  timeout: 3h
+
 .flatpak:
     image: 'docker.io/bilelmoussaoui/flatpak-github-actions'
     stage: build
