@@ -5,6 +5,11 @@
 
 #include <osgViewer/Viewer>
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#include <emscripten/html5.h>
+#endif
+
 namespace SDLUtil
 {
 
@@ -33,9 +38,16 @@ namespace SDLUtil
         , mWindowHasFocus(true)
         , mMouseInWindow(true)
     {
+#ifdef __EMSCRIPTEN__
+        // In browsers, the window is always "focused" and "has mouse" from SDL's perspective.
+        // The browser manages actual focus/visibility through its own events.
+        mWindowHasFocus = true;
+        mMouseInWindow = true;
+#else
         Uint32 flags = SDL_GetWindowFlags(mSDLWindow);
         mWindowHasFocus = (flags & SDL_WINDOW_INPUT_FOCUS);
         mMouseInWindow = (flags & SDL_WINDOW_MOUSE_FOCUS);
+#endif
         _setWindowScale();
     }
 
@@ -318,10 +330,17 @@ namespace SDLUtil
     /// \brief Moves the mouse to the specified point within the viewport
     void InputWrapper::warpMouse(int x, int y)
     {
+#ifdef __EMSCRIPTEN__
+        // Mouse warping is not supported in browsers when Pointer Lock is active.
+        // The browser controls the cursor position - scripts cannot move it.
+        (void)x;
+        (void)y;
+#else
         SDL_WarpMouseInWindow(mSDLWindow, x, y);
         mWarpCompensate = true;
         mWarpX = static_cast<Uint16>(x);
         mWarpY = static_cast<Uint16>(y);
+#endif
     }
 
     /// \brief Locks the pointer to the window
@@ -348,6 +367,32 @@ namespace SDLUtil
     void InputWrapper::updateMouseSettings()
     {
         mGrabPointer = mWantGrab && mMouseInWindow && mWindowHasFocus;
+
+#ifdef __EMSCRIPTEN__
+        // In browsers, SDL_SetWindowGrab maps to the Pointer Lock API which requires
+        // a user gesture (click). Emscripten's SDL2 handles this transparently, but
+        // we need to be more careful about when we request/release pointer lock.
+        // Skip SDL_SetWindowGrab (it's a no-op or causes issues in Emscripten).
+        // Instead rely solely on SDL_SetRelativeMouseMode for pointer lock.
+
+        SDL_ShowCursor(mWantMouseVisible || !mWindowHasFocus);
+
+        bool relative = mWantRelative && mWindowHasFocus;
+        if (mMouseRelative == relative)
+            return;
+
+        mMouseRelative = relative;
+        // Never use manual pointer wrapping in browsers - it doesn't work with Pointer Lock
+        mWrapPointer = false;
+
+        // SDL_SetRelativeMouseMode in Emscripten maps to the Pointer Lock API.
+        // If not called from a user gesture context, the browser will deny it.
+        // Emscripten's SDL2 port queues the request and applies it on next click.
+        SDL_SetRelativeMouseMode(relative ? SDL_TRUE : SDL_FALSE);
+
+        SDL_PumpEvents();
+        SDL_FlushEvent(SDL_MOUSEMOTION);
+#else
         SDL_SetWindowGrab(mSDLWindow, mGrabPointer && mAllowGrab ? SDL_TRUE : SDL_FALSE);
 
         SDL_ShowCursor(mWantMouseVisible || !mWindowHasFocus);
@@ -371,6 +416,7 @@ namespace SDLUtil
         // now remove all mouse events using the old setting from the queue
         SDL_PumpEvents();
         SDL_FlushEvent(SDL_MOUSEMOTION);
+#endif
     }
 
     /// \brief Internal method for ignoring relative motions as a side effect

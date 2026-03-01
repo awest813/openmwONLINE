@@ -185,12 +185,33 @@ WASM builds now auto-generate a minimal `openmw.cfg` at first run (when no confi
 
 The bootstrap runs after IDBFS sync but before `ConfigurationManager` loads configuration, ensuring the config file is available on the virtual filesystem. On subsequent sessions, the existing config (persisted via IDBFS) is preserved.
 
+## Material & Texture Matrix Animation Uniform Mirroring
+
+All NIF animation controllers that dynamically modify `osg::Material` or `osg::TexMat` now also update the corresponding GLES3 uniforms on each frame:
+
+- **`AlphaController`**: After modifying material diffuse alpha, mirrors to `omw_FrontMaterial.*` uniforms.
+- **`MaterialColorController`**: After modifying material colors (diffuse/specular/emissive/ambient), mirrors to `omw_FrontMaterial.*` uniforms.
+- **`UVController`**: After modifying texture matrix for UV animation, mirrors to `omw_TextureMatrixN` uniforms for all affected texture units.
+- **`CloudUpdater`** (sky system): After updating cloud texture matrix and material emission, mirrors both to GLES3 uniforms.
+- **Character preview**: Material and fog uniforms mirrored for the character preview camera.
+
+The double-buffered `setDefaults()` methods also initialize GLES3 material uniforms for proper initial state.
+
+## WASM Input Handling Adaptations
+
+The SDL2 input wrapper (`components/sdlutil/sdlinputwrapper.cpp`) now has Emscripten-specific adaptations:
+
+- **Pointer Lock**: Uses `SDL_SetRelativeMouseMode` directly (which maps to the browser Pointer Lock API via Emscripten's SDL2 port). Skips `SDL_SetWindowGrab` which is meaningless in browsers.
+- **Mouse Warping**: Disabled entirely in WASM builds since the Pointer Lock API does not allow script-controlled cursor positioning.
+- **Manual Pointer Wrapping**: Always disabled (`mWrapPointer = false`) since the fallback manual wrapping doesn't work with the browser Pointer Lock.
+- **Window Focus**: Browser window is always treated as focused and mouse-in-window, since the browser manages actual focus/visibility.
+
+Keyboard and gamepad input work through Emscripten's SDL2 port without modification.
+
 ## Remaining Work
 - **GLSL ES 3.00 shader testing**: The automatic transformation covers all major patterns but needs end-to-end testing with actual shader compilation in WebGL 2.0 to catch edge cases.
-- **Texture matrix uniform binding**: The `omw_TextureMatrixN` uniforms need to be populated from `osg::TexMat` state attributes per-object (currently only default identity matrices are provided at the root).
-- **Material controller uniform updates**: NIF material animation controllers (`AlphaController`, `MaterialColorController`) update `osg::Material` but need to also update the corresponding `omw_FrontMaterial` uniforms on each frame.
+- **Terrain texture matrix**: Terrain shaders use `gl_MultiTexCoord0.xy` directly without `gl_TextureMatrix`, but OSG applies TexMat via fixed-function pipeline which is unavailable in GLES3. Terrain UV scaling needs to be moved to shader-level.
 - **Large asset streaming**: Current file picker loads all data into memory; consider chunked/lazy loading for large Morrowind installations.
 - **Audio decoder**: Verify FFmpeg/audio decoding works under Emscripten or provide fallback.
-- **Input handling**: Verify pointer lock, keyboard, and gamepad input through Emscripten SDL2.
 - **Testing and profiling**: End-to-end testing in Chrome with actual Morrowind data, performance profiling and optimization.
 - **End-to-end WASM build validation**: Run `CI/before_script.wasm.sh` on a CI runner with Emscripten to verify all dependencies compile and link.

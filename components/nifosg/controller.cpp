@@ -12,6 +12,10 @@
 #include <components/nif/data.hpp>
 #include <components/sceneutil/morphgeometry.hpp>
 
+#ifdef __EMSCRIPTEN__
+#include <components/sceneutil/gles3uniforms.hpp>
+#endif
+
 #include "matrixtransform.hpp"
 
 namespace NifOsg
@@ -336,6 +340,11 @@ namespace NifOsg
                 osg::TexMat* texMat = static_cast<osg::TexMat*>(
                     stateset->getTextureAttribute(*mTextureUnits.begin(), osg::StateAttribute::TEXMAT));
                 texMat->setMatrix(mat);
+#ifdef __EMSCRIPTEN__
+                // Mirror texture matrix to uniform for all affected units
+                for (unsigned int unit : mTextureUnits)
+                    SceneUtil::GLES3Uniforms::applyTextureMatrix(stateset, unit, texMat);
+#endif
             }
         }
     }
@@ -457,8 +466,11 @@ namespace NifOsg
 
     void AlphaController::setDefaults(osg::StateSet* stateset)
     {
-        stateset->setAttribute(
-            static_cast<osg::Material*>(mBaseMaterial->clone(osg::CopyOp::DEEP_COPY_ALL)), osg::StateAttribute::ON);
+        osg::Material* mat = static_cast<osg::Material*>(mBaseMaterial->clone(osg::CopyOp::DEEP_COPY_ALL));
+        stateset->setAttribute(mat, osg::StateAttribute::ON);
+#ifdef __EMSCRIPTEN__
+        SceneUtil::GLES3Uniforms::applyMaterial(stateset, mat);
+#endif
     }
 
     void AlphaController::apply(osg::StateSet* stateset, osg::NodeVisitor* nv)
@@ -470,6 +482,9 @@ namespace NifOsg
             osg::Vec4f diffuse = mat->getDiffuse(osg::Material::FRONT_AND_BACK);
             diffuse.a() = value;
             mat->setDiffuse(osg::Material::FRONT_AND_BACK, diffuse);
+#ifdef __EMSCRIPTEN__
+            SceneUtil::GLES3Uniforms::applyMaterial(stateset, mat);
+#endif
         }
     }
 
@@ -500,8 +515,11 @@ namespace NifOsg
 
     void MaterialColorController::setDefaults(osg::StateSet* stateset)
     {
-        stateset->setAttribute(
-            static_cast<osg::Material*>(mBaseMaterial->clone(osg::CopyOp::DEEP_COPY_ALL)), osg::StateAttribute::ON);
+        osg::Material* mat = static_cast<osg::Material*>(mBaseMaterial->clone(osg::CopyOp::DEEP_COPY_ALL));
+        stateset->setAttribute(mat, osg::StateAttribute::ON);
+#ifdef __EMSCRIPTEN__
+        SceneUtil::GLES3Uniforms::applyMaterial(stateset, mat);
+#endif
     }
 
     void MaterialColorController::apply(osg::StateSet* stateset, osg::NodeVisitor* nv)
@@ -542,6 +560,9 @@ namespace NifOsg
                     mat->setAmbient(osg::Material::FRONT_AND_BACK, ambient);
                 }
             }
+#ifdef __EMSCRIPTEN__
+            SceneUtil::GLES3Uniforms::applyMaterial(stateset, mat);
+#endif
         }
     }
 

@@ -34,6 +34,10 @@
 
 #include <components/sceneutil/statesetupdater.hpp>
 
+#ifdef __EMSCRIPTEN__
+#include <components/sceneutil/gles3uniforms.hpp>
+#endif
+
 #include "../mwbase/environment.hpp"
 
 #include "renderbin.hpp"
@@ -597,6 +601,11 @@ namespace MWRender
 
         osg::TexMat* texMat = static_cast<osg::TexMat*>(stateset->getTextureAttribute(0, osg::StateAttribute::TEXMAT));
         texMat->setMatrix(mTexMat);
+
+#ifdef __EMSCRIPTEN__
+        SceneUtil::GLES3Uniforms::applyMaterial(stateset, mat);
+        SceneUtil::GLES3Uniforms::applyTextureMatrix(stateset, 0, texMat);
+#endif
 
         if (mForceShaders)
         {

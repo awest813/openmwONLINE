@@ -27,6 +27,10 @@
 #include <components/settings/values.hpp>
 #include <components/stereo/multiview.hpp>
 
+#ifdef __EMSCRIPTEN__
+#include <components/sceneutil/gles3uniforms.hpp>
+#endif
+
 #include "../mwworld/class.hpp"
 #include "../mwworld/inventorystore.hpp"
 
@@ -255,6 +259,12 @@ namespace MWRender
         fog->setStart(10000000);
         fog->setEnd(10000000);
         stateset->setAttributeAndModes(fog, osg::StateAttribute::OFF | osg::StateAttribute::OVERRIDE);
+
+#ifdef __EMSCRIPTEN__
+        SceneUtil::GLES3Uniforms::applyMaterial(stateset, defaultMat);
+        SceneUtil::GLES3Uniforms::applyFog(
+            stateset, osg::Vec4f(0.f, 0.f, 0.f, 1.f), 10000000.f, 10000000.f);
+#endif
 
         // TODO: Clean up this mess of loose uniforms that shaders depend on.
         // turn off sky blending
