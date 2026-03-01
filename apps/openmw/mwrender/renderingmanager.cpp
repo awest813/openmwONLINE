@@ -44,6 +44,10 @@
 #include <components/sceneutil/workqueue.hpp>
 #include <components/sceneutil/writescene.hpp>
 
+#ifdef __EMSCRIPTEN__
+#include <components/sceneutil/gles3uniforms.hpp>
+#endif
+
 #include <components/misc/constants.hpp>
 
 #include <components/terrain/quadtreeworld.hpp>
@@ -242,6 +246,10 @@ namespace MWRender
             fog->setColor(mFogColor);
             fog->setStart(mFogStart);
             fog->setEnd(mFogEnd);
+#ifdef __EMSCRIPTEN__
+            // Mirror fog parameters as uniforms for GLES3/WebGL 2.0 (no fixed-function fog)
+            SceneUtil::GLES3Uniforms::applyFog(stateset, mFogColor, mFogStart, mFogEnd);
+#endif
         }
 
         void setAmbientColor(const osg::Vec4f& col) { mAmbientColor = col; }
@@ -462,6 +470,13 @@ namespace MWRender
 
         // It is unnecessary to stop/start the viewer as no frames are being rendered yet.
         mResourceSystem->getSceneManager()->getShaderManager().setGlobalDefines(globalDefines);
+
+#ifdef __EMSCRIPTEN__
+        // In GLES3/WebGL 2.0, fixed-function state (gl_FrontMaterial, gl_Fog, gl_TextureMatrix)
+        // is unavailable. Provide default uniform values on the root state set so that
+        // transformed shaders (GLSL ES 3.00) have valid fallback values.
+        SceneUtil::GLES3Uniforms::applyAllDefaults(sceneRoot->getOrCreateStateSet());
+#endif
 
         mNavMesh = std::make_unique<NavMesh>(mRootNode, mWorkQueue, Settings::navigator().mEnableNavMeshRender,
             Settings::navigator().mNavMeshRenderMode);

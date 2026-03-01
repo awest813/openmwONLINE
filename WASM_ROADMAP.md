@@ -141,10 +141,55 @@ Build infrastructure for cross-compiling all major OpenMW dependencies to WebAss
 - ICU ExternalProject now supports Emscripten cross-compilation alongside Android.
 - Boost `find_package` falls back from CONFIG to MODULE mode for cross-compiled builds.
 
+## GLSL ES 3.00 Shader Compatibility
+
+The shader manager (`components/shader/shadermanager.cpp`) now includes an automatic GLSL ES 3.00 source transformation pass for Emscripten builds. When `__EMSCRIPTEN__` is defined, `transformShaderToGLES3()` runs after template preprocessing and before shader compilation. The transformation handles:
+
+- **Version directives**: `#version 120` / `#version 330` → `#version 300 es` with `precision highp float/int/sampler2D/sampler2DShadow/samplerCube` qualifiers.
+- **Variable qualifiers**: `varying` → `out` (vertex) / `in` (fragment); `centroid varying` → `centroid out` / `centroid in`; `attribute` → `in`.
+- **Vertex attribute builtins**: `gl_Vertex` → `osg_Vertex`, `gl_Normal` → `osg_Normal`, `gl_Color` → `osg_Color`, `gl_MultiTexCoord0-7` → `osg_MultiTexCoord0-7`.
+- **Matrix builtins**: `gl_ModelViewMatrix` → `osg_ModelViewMatrix`, `gl_ProjectionMatrix` → `osg_ProjectionMatrix`, `gl_ModelViewProjectionMatrix` → `osg_ModelViewProjectionMatrix`, `gl_NormalMatrix` → `osg_NormalMatrix`.
+- **Texture matrices**: `gl_TextureMatrix[N]` → `omw_TextureMatrixN` (custom uniforms, N=0..7).
+- **Material properties**: `gl_FrontMaterial.*` → `omw_FrontMaterial.*` (custom uniform struct).
+- **Fog properties**: `gl_Fog.*` → `omw_Fog.*` (custom uniform struct).
+- **Fragment outputs**: `gl_FragData[N]` → `omw_FragDataN` (declared as `layout(location=N) out vec4`).
+- **Clip vertex**: `gl_ClipVertex` assignments removed (unavailable in WebGL 2.0).
+- **Texture lookup functions**: `texture2D` → `texture`, `texture3D` → `texture`, `textureCube` → `texture`, `shadow2DProj` → `textureProj`.
+- **Desktop-only extensions**: `GL_ARB_uniform_buffer_object` and `GL_EXT_gpu_shader4` extension directives removed.
+- **OSG pragmas**: `#pragma import_defines(...)` removed.
+
+GLES3 preambles are prepended to vertex and fragment shaders declaring OSG vertex attributes, matrix uniforms, and custom struct uniforms for material/fog/texture matrix state.
+
+### GLES3 Fixed-Function Uniform Providers
+
+A new utility (`components/sceneutil/gles3uniforms.hpp/cpp`) provides C++ functions to mirror fixed-function OpenGL state as uniforms for GLES3 builds:
+
+- **`applyMaterial()`**: Extracts `osg::Material` properties (emission, ambient, diffuse, specular, shininess) and sets them as `omw_FrontMaterial.*` uniforms.
+- **`applyFog()`**: Sets `omw_Fog.*` uniforms (color, start, end, scale) from fog parameters.
+- **`applyTextureMatrix()`**: Sets `omw_TextureMatrixN` uniforms from `osg::TexMat` state.
+- **`applyAllDefaults()`**: Applies default values for all above to a root state set.
+
+Integration points:
+- Root scene node: Default material/fog/texture matrix uniforms applied at initialization.
+- NIF loader: Per-object material uniforms mirrored when `osg::Material` is set.
+- Fog state updater: Fog uniforms updated each frame alongside `osg::Fog` state attribute.
+
+## Config File Bootstrapping
+
+WASM builds now auto-generate a minimal `openmw.cfg` at first run (when no config exists in the IDBFS-backed persistent storage). The generated config includes:
+- `data=/gamedata` pointing to the browser file picker upload directory.
+- `content=Morrowind.esm` for the base game.
+- `fallback-archive=Morrowind.bsa` for base game archives.
+- `encoding=win1252` for Western European text encoding.
+- Commented-out entries for Tribunal and Bloodmoon expansions.
+
+The bootstrap runs after IDBFS sync but before `ConfigurationManager` loads configuration, ensuring the config file is available on the virtual filesystem. On subsequent sessions, the existing config (persisted via IDBFS) is preserved.
+
 ## Remaining Work
-- **GLSL ES 3.00 shaders**: All shaders must be verified/ported to GLSL ES 3.00 for WebGL 2.0 compatibility.
+- **GLSL ES 3.00 shader testing**: The automatic transformation covers all major patterns but needs end-to-end testing with actual shader compilation in WebGL 2.0 to catch edge cases.
+- **Texture matrix uniform binding**: The `omw_TextureMatrixN` uniforms need to be populated from `osg::TexMat` state attributes per-object (currently only default identity matrices are provided at the root).
+- **Material controller uniform updates**: NIF material animation controllers (`AlphaController`, `MaterialColorController`) update `osg::Material` but need to also update the corresponding `omw_FrontMaterial` uniforms on each frame.
 - **Large asset streaming**: Current file picker loads all data into memory; consider chunked/lazy loading for large Morrowind installations.
-- **Config file bootstrapping**: Provide a minimal `openmw.cfg` for WASM builds pointing to `/gamedata` as the data directory.
 - **Audio decoder**: Verify FFmpeg/audio decoding works under Emscripten or provide fallback.
 - **Input handling**: Verify pointer lock, keyboard, and gamepad input through Emscripten SDL2.
 - **Testing and profiling**: End-to-end testing in Chrome with actual Morrowind data, performance profiling and optimization.

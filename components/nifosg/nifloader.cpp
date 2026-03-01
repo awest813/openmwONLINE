@@ -61,6 +61,10 @@
 #include <components/sceneutil/skeleton.hpp>
 #include <components/sceneutil/texturetype.hpp>
 
+#ifdef __EMSCRIPTEN__
+#include <components/sceneutil/gles3uniforms.hpp>
+#endif
+
 #include "fog.hpp"
 #include "matrixtransform.hpp"
 #include "particle.hpp"
@@ -2956,6 +2960,9 @@ namespace NifOsg
             {
                 mat = shareAttribute(mat);
                 node->getOrCreateStateSet()->setAttributeAndModes(mat, osg::StateAttribute::ON);
+#ifdef __EMSCRIPTEN__
+                SceneUtil::GLES3Uniforms::applyMaterial(node->getOrCreateStateSet(), mat.get());
+#endif
             }
 
             if (emissiveMult != 1.f)
