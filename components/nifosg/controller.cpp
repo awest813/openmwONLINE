@@ -12,6 +12,10 @@
 #include <components/nif/data.hpp>
 #include <components/sceneutil/morphgeometry.hpp>
 
+#ifdef __EMSCRIPTEN__
+#include <components/sceneutil/gles3uniforms.hpp>
+#endif
+
 #include "matrixtransform.hpp"
 
 namespace NifOsg
@@ -336,6 +340,10 @@ namespace NifOsg
                 osg::TexMat* texMat = static_cast<osg::TexMat*>(
                     stateset->getTextureAttribute(*mTextureUnits.begin(), osg::StateAttribute::TEXMAT));
                 texMat->setMatrix(mat);
+#ifdef __EMSCRIPTEN__
+                for (unsigned int unit : mTextureUnits)
+                    SceneUtil::GLES3Uniforms::applyTextureMatrix(stateset, unit, texMat);
+#endif
             }
         }
     }
@@ -470,6 +478,9 @@ namespace NifOsg
             osg::Vec4f diffuse = mat->getDiffuse(osg::Material::FRONT_AND_BACK);
             diffuse.a() = value;
             mat->setDiffuse(osg::Material::FRONT_AND_BACK, diffuse);
+#ifdef __EMSCRIPTEN__
+            SceneUtil::GLES3Uniforms::applyMaterial(stateset, mat);
+#endif
         }
     }
 
@@ -542,6 +553,9 @@ namespace NifOsg
                     mat->setAmbient(osg::Material::FRONT_AND_BACK, ambient);
                 }
             }
+#ifdef __EMSCRIPTEN__
+            SceneUtil::GLES3Uniforms::applyMaterial(stateset, mat);
+#endif
         }
     }
 
