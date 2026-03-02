@@ -43,7 +43,8 @@ installing any software.
 4. **Hosting & deployment** — Document (or automate) the required server headers
    (`COOP`/`COEP`) and produce a deployable artifact package.
 5. **Post-processor / HDR** — `GL_R8` luminance fallback reduces HDR precision;
-   evaluate whether `EXT_color_buffer_float` can be requested conditionally.
+   `GL_RGBA8` ripple texture fallback likewise reduces water ripple quality.
+   Evaluate whether `EXT_color_buffer_float` can be requested conditionally.
 6. **Mod/extension compatibility** — Verify common mods work through the browser
    file picker and IDBFS pipeline.
 
