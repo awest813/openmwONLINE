@@ -512,6 +512,7 @@
           if (success) {
             setStatus('Game data loaded successfully!');
             dataPickerSection.classList.remove('visible');
+            showCanvas();
           } else {
             setStatus('Ready - select your Morrowind data folder to begin');
             btn.disabled = false;
