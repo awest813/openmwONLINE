@@ -910,7 +910,7 @@ namespace MWSound
         }
         if (mFreeSources.empty())
         {
-            Log(Debug::Warning) << "Could not allocate any sound sourcess";
+            Log(Debug::Warning) << "Could not allocate any sound sources";
             alcMakeContextCurrent(nullptr);
             alcDestroyContext(mContext);
             mContext = nullptr;

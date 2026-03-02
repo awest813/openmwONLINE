@@ -46,8 +46,8 @@ const float SPEC_BRIGHTNESS = 1.5;                 // boosts the brightness of t
 const float BUMP_SUPPRESS_DEPTH = 300.0;           // at what water depth bumpmap will be suppressed for reflections and refractions (prevents artifacts at shores)
 const float REFR_FOG_DISTORT_DISTANCE = 3000.0;    // at what distance refraction fog will be calculated using real water depth instead of distorted depth (prevents splotchy shores)
 
-const vec2 WIND_DIR = vec2(0.5f, -0.8f);
-const float WIND_SPEED = 0.2f;
+const vec2 WIND_DIR = vec2(0.5, -0.8);
+const float WIND_SPEED = 0.2;
 
 const vec3 WATER_COLOR = vec3(0.090195, 0.115685, 0.12745);
 

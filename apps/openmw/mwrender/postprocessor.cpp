@@ -175,7 +175,7 @@ namespace MWRender
         distortionRenderBin->getStateSet()->setDefine("DISTORTION", "1", osg::StateAttribute::ON);
 
         // Give the renderbin access to the opaque depth sampler so it can write its occlusion
-        // Distorted geometry is drawn with ALWAYS depth function and depths writes disbled.
+        // Distorted geometry is drawn with ALWAYS depth function and depth writes disabled.
         const int unitSoftEffect
             = shaderManager.reserveGlobalTextureUnits(Shader::ShaderManager::Slot::OpaqueDepthTexture);
         distortionRenderBin->getStateSet()->addUniform(new osg::Uniform("opaqueDepthTex", unitSoftEffect));
@@ -183,7 +183,7 @@ namespace MWRender
         osgUtil::RenderBin::addRenderBinPrototype("Distortion", distortionRenderBin);
 
         auto defines = shaderManager.getGlobalDefines();
-        defines["distorionRTRatio"] = std::to_string(DistortionRatio);
+        defines["distortionRTRatio"] = std::to_string(DistortionRatio);
         shaderManager.setGlobalDefines(defines);
 
         createObjectsForFrame(0);
