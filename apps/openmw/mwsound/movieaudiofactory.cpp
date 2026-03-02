@@ -75,16 +75,11 @@ namespace MWSound
         {
             if (sampleFormat == AV_SAMPLE_FMT_U8P || sampleFormat == AV_SAMPLE_FMT_U8)
                 sampleFormat = AV_SAMPLE_FMT_U8;
-            // else if (sampleFormat == AV_SAMPLE_FMT_S16P || sampleFormat == AV_SAMPLE_FMT_S16)
-            //     sampleFormat = AV_SAMPLE_FMT_S16;
-            // FIXME: check for AL_EXT_FLOAT32 support
-            // else if (sampleFormat == AV_SAMPLE_FMT_FLTP || sampleFormat == AV_SAMPLE_FMT_FLT)
-            //     sampleFormat = AV_SAMPLE_FMT_S16;
             else
                 sampleFormat = AV_SAMPLE_FMT_S16;
 
             if (channelLayout == AV_CH_LAYOUT_5POINT1 || channelLayout == AV_CH_LAYOUT_7POINT1
-                || channelLayout == AV_CH_LAYOUT_QUAD) // FIXME: check for AL_EXT_MCFORMATS support
+                || channelLayout == AV_CH_LAYOUT_QUAD)
                 channelLayout = AV_CH_LAYOUT_STEREO;
             else if (channelLayout != AV_CH_LAYOUT_MONO && channelLayout != AV_CH_LAYOUT_STEREO)
                 channelLayout = AV_CH_LAYOUT_STEREO;

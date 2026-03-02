@@ -14,7 +14,9 @@ float linearizeDepth(float depth, float near, float far)
 float getLinearDepth(in float z, in float viewZ)
 {
 #if @reverseZ
-    // FIXME: Fixme, figure out how to calculate correct linear depth for reverse z
+    // With reverse-Z the clip-space z is non-linearly remapped, so derive
+    // linear depth directly from view-space z (negated because the camera
+    // looks along -Z in view space).
     return -viewZ;
 #else
     return z;

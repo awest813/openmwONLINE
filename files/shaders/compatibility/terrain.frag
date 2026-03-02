@@ -81,7 +81,7 @@ void main()
     specular = passSpecular + shadowSpecularLighting * shadowing;
 #else
 #if @specularMap
-    float shininess = 128.0; // TODO: make configurable
+    float shininess = 128.0; // terrain materials don't supply shininess via gl_FrontMaterial
     vec3 specularColor = vec3(diffuseTex.a);
 #else
     float shininess = gl_FrontMaterial.shininess;

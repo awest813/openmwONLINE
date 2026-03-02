@@ -276,7 +276,7 @@ namespace MWSound
 
 // This is not needed anymore above FFMpeg version 4.0
 #if LIBAVCODEC_VERSION_INT < 3805796
-        av_codec_set_pkt_timebase(avctx, (*stream)->time_base);
+        av_codec_set_pkt_timebase(codecCtx, (*stream)->time_base);
 #endif
 
         AVCodecContextPtr codecCtxPtr(std::exchange(codecCtx, nullptr));
@@ -297,9 +297,8 @@ namespace MWSound
 
         if (codecCtxPtr->sample_fmt == AV_SAMPLE_FMT_U8P)
             mOutputSampleFormat = AV_SAMPLE_FMT_U8;
-        // FIXME: Check for AL_EXT_FLOAT32 support
-        // else if (codecCtxPtr->sample_fmt == AV_SAMPLE_FMT_FLT || codecCtxPtr->sample_fmt == AV_SAMPLE_FMT_FLTP)
-        //     mOutputSampleFormat = AV_SAMPLE_FMT_S16;
+        // Float output could be preserved here when OpenAL has AL_EXT_FLOAT32,
+        // but the decoder layer has no access to OpenAL capability info.
         else
             mOutputSampleFormat = AV_SAMPLE_FMT_S16;
 
