@@ -673,15 +673,16 @@ namespace Shader
                         shaderSource = std::move(source);
 
                         std::vector<std::string> linkedShaderNames;
+                        std::string expandedSource = shaderSource;
                         if (!manager.createSourceFromTemplate(
-                                shaderSource, linkedShaderNames, templateName, shaderDefines))
+                                expandedSource, linkedShaderNames, templateName, shaderDefines))
                         {
                             break;
                         }
 #ifdef __EMSCRIPTEN__
-                        transformShaderToGLES3(shaderSource, shaderIt->second->getType());
+                        transformShaderToGLES3(expandedSource, shaderIt->second->getType());
 #endif
-                        shaderIt->second->setShaderSource(shaderSource);
+                        shaderIt->second->setShaderSource(expandedSource);
                     }
                 }
             }
