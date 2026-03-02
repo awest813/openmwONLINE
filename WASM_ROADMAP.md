@@ -224,7 +224,7 @@ The browser data upload (`apps/openmw/wasmfilepicker.cpp`, `files/wasm/openmw_sh
 - **Progress callbacks**: JavaScript hooks `__openmwOnUploadPhase` and `__openmwOnUploadProgress` report scanning/uploading phases and per-file/byte progress.
 - **C++ progress tracking**: `openmw_wasm_report_upload_progress()` exported function updates file/byte counters accessible via `getUploadedFileCount()`/`getUploadedByteCount()`.
 - **UI progress bar**: HTML shell shows a dedicated upload progress bar with file count, byte count, and percentage during data loading.
-- **Graceful cancellation**: `AbortError` from the directory picker is caught and handled without error messaging.
+- **Correct cancellation handling**: `__openmwPickDataDirectory()` returns `true` on success, `false` on user cancellation (`AbortError`), and re-throws on other errors. The HTML shell uses the return value to restore the button (allowing retry) on cancel, or display a proper error message — previously a cancelled picker incorrectly showed "Game data loaded successfully!"
 - **Periodic yield**: `setTimeout(0)` yield every 50 files prevents the browser from becoming unresponsive during large uploads.
 
 ## WebGL 2.0 Rendering Compatibility
@@ -283,9 +283,10 @@ The `EXPORTED_FUNCTIONS` list in `CMakeLists.txt` now includes `_openmw_wasm_rep
 Fixed-function pipeline (FFP) lighting is disabled for Emscripten builds in `components/sceneutil/lightmanager.cpp`:
 
 - **`LightingMethod::FFP`** is marked unsupported (`mSupported[FFP] = false`) when `__EMSCRIPTEN__` is defined.
-- If FFP lighting is requested, a warning is logged and the engine falls back to `PerObjectUniform` lighting which uses shader-based lighting compatible with GLES3/WebGL 2.0.
+- If FFP lighting is requested, a warning is logged and the engine unconditionally falls back to `PerObjectUniform` (or `SingleUBO` if supported) lighting, which uses shader-based lighting compatible with GLES3/WebGL 2.0.
 - The `DisableLight`, `FFPLightStateAttribute`, and `StateSetGeneratorFFP` classes (which use `glLightfv`/`glLightf` fixed-function calls) are excluded from Emscripten builds with `#ifndef __EMSCRIPTEN__` guards.
 - The `initFFP()` method is excluded from Emscripten builds.
+- Control flow in the constructor is structured to share the non-FFP initialization path between Emscripten and desktop builds cleanly.
 
 ## Fixed-Function GL Mode Guards
 
@@ -311,15 +312,18 @@ The `WorkThread` class (`components/sceneutil/workqueue.cpp`) now guards `std::t
 ## FFmpeg Codec Threading Guards
 
 FFmpeg's `avcodec_open2` can internally spawn worker threads for slice-parallel
-decoding. Under Emscripten (with or without pthreads) this is undesirable because
-those threads would either fail silently or exhaust the Web Worker budget.  Two
-locations now explicitly disable internal codec threading for Emscripten builds by
-setting `thread_count = 1` and `thread_type = 0` before calling `avcodec_open2`:
+decoding. In single-threaded Emscripten builds (without pthreads) this fails silently
+or exhausts the Web Worker budget.  Two locations now explicitly disable internal
+codec threading for single-threaded Emscripten builds (`defined(__EMSCRIPTEN__) &&
+!defined(__EMSCRIPTEN_PTHREADS__)`) by setting `thread_count = 1` and `thread_type = 0`
+before calling `avcodec_open2`:
 
 - **`apps/openmw/mwsound/ffmpegdecoder.cpp`**: Audio codec context for in-game
   music and ambient sound decoding.
 - **`extern/osg-ffmpeg-videoplayer/videostate.cpp`**: Both the audio and video
   codec contexts inside the `stream_open` method used by the cutscene player.
+
+When pthreads are enabled, FFmpeg uses its own worker threads normally.
 
 ## Video Player Non-Pthread Guards
 
@@ -348,6 +352,15 @@ at compile time via a `LUMINANCE_INTERNAL_FORMAT` constant.  This reduces numeri
 precision of the auto-exposure ramp but avoids a hard dependency on a non-core
 extension.  HDR is only active when a post-processing technique requests it (the
 base game does not), so this path is not exercised in typical play.
+
+## Debug & Polish (Completed)
+
+A focused debug and polish pass was performed before user testing:
+
+- **Duplicate forward declaration removed**: `engine.hpp` had a redundant second `class DateTimeManager;` forward declaration in the `MWWorld` namespace; removed.
+- **File picker cancel handling fixed**: `__openmwPickDataDirectory()` now returns `true` on success and `false` on user cancellation (`AbortError`). Previously, cancelling the directory picker caused the HTML shell to incorrectly display "Game data loaded successfully!" and hide the retry button. The shell now restores the button and status message on cancel, and re-throws on unexpected errors.
+- **FFmpeg threading guards tightened**: Both `ffmpegdecoder.cpp` and `videostate.cpp` now use `#if defined(__EMSCRIPTEN__) && !defined(__EMSCRIPTEN_PTHREADS__)` (instead of the broader `#ifdef __EMSCRIPTEN__`) to disable FFmpeg internal codec threading only when pthreads are unavailable. With pthreads enabled, FFmpeg can use its own worker threads normally.
+- **LightManager constructor cleaned up**: The `if (false) {}` placeholder used to create a matching brace structure with `#ifdef`/`#else` was replaced with a cleaner pattern — the FFP warning on Emscripten is now an independent `if` statement followed by the shared initialization block.
 
 ## Remaining Work
 - **Testing and profiling**: End-to-end testing in Chrome with actual Morrowind data, performance profiling and optimization.

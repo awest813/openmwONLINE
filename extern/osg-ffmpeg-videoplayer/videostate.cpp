@@ -681,8 +681,8 @@ int VideoState::stream_open(int stream_index, AVFormatContext *pFormatCtx)
         av_codec_set_pkt_timebase(this->audio_ctx, pFormatCtx->streams[stream_index]->time_base);
 #endif
 
-#ifdef __EMSCRIPTEN__
-        // Disable FFmpeg internal threading — WASM without pthreads cannot
+#if defined(__EMSCRIPTEN__) && !defined(__EMSCRIPTEN_PTHREADS__)
+        // Disable FFmpeg internal threading — single-threaded WASM cannot
         // spawn additional worker threads inside avcodec_open2.
         this->audio_ctx->thread_count = 1;
         this->audio_ctx->thread_type = 0;
@@ -725,8 +725,8 @@ int VideoState::stream_open(int stream_index, AVFormatContext *pFormatCtx)
         av_codec_set_pkt_timebase(this->video_ctx, pFormatCtx->streams[stream_index]->time_base);
 #endif
 
-#ifdef __EMSCRIPTEN__
-        // Disable FFmpeg internal threading — WASM without pthreads cannot
+#if defined(__EMSCRIPTEN__) && !defined(__EMSCRIPTEN_PTHREADS__)
+        // Disable FFmpeg internal threading — single-threaded WASM cannot
         // spawn additional worker threads inside avcodec_open2.
         this->video_ctx->thread_count = 1;
         this->video_ctx->thread_type = 0;

@@ -99,7 +99,6 @@ namespace MWWorld
 {
     class DateTimeManager;
     class World;
-    class DateTimeManager;
 }
 
 namespace MWScript
