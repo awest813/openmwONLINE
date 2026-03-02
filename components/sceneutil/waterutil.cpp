@@ -58,8 +58,20 @@ namespace SceneUtil
         normal->push_back(osg::Vec3f(0, 0, 1));
         waterGeom->setNormalArray(normal, osg::Array::BIND_OVERALL);
 
-        waterGeom->addPrimitiveSet(
-            new osg::DrawArrays(osg::PrimitiveSet::QUADS, 0, static_cast<GLsizei>(verts->size())));
+        const GLsizei numQuads = static_cast<GLsizei>(verts->size()) / 4;
+        osg::ref_ptr<osg::DrawElementsUShort> indices = new osg::DrawElementsUShort(osg::PrimitiveSet::TRIANGLES);
+        indices->reserve(numQuads * 6);
+        for (GLsizei i = 0; i < numQuads; ++i)
+        {
+            GLsizei base = i * 4;
+            indices->push_back(base);
+            indices->push_back(base + 1);
+            indices->push_back(base + 2);
+            indices->push_back(base);
+            indices->push_back(base + 2);
+            indices->push_back(base + 3);
+        }
+        waterGeom->addPrimitiveSet(indices);
         waterGeom->setComputeBoundingBoxCallback(new WaterBoundCallback);
         waterGeom->setCullingActive(false);
         return waterGeom;

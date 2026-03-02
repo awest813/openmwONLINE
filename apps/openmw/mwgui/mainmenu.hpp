@@ -3,7 +3,9 @@
 
 #include <memory>
 #include <optional>
+#if !defined(__EMSCRIPTEN__) || defined(__EMSCRIPTEN_PTHREADS__)
 #include <thread>
+#endif
 
 #include "savegamedialog.hpp"
 #include "windowbase.hpp"
@@ -27,7 +29,9 @@ namespace MWGui
     {
         MyGUI::ImageBox* mVideoBackground;
         VideoWidget* mVideo;
+#if !defined(__EMSCRIPTEN__) || defined(__EMSCRIPTEN_PTHREADS__)
         std::thread mThread;
+#endif
         bool mRunning;
 
         void run();

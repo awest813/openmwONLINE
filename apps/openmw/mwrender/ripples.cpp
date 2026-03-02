@@ -229,7 +229,11 @@ namespace MWRender
                 state.applyTextureAttribute(index, texture);
                 to = texture->getTextureObject(contextID);
             }
+#ifdef __EMSCRIPTEN__
+            ext.glBindImageTexture(index, to->id(), 0, GL_FALSE, 0, access, GL_RGBA8);
+#else
             ext.glBindImageTexture(index, to->id(), 0, GL_FALSE, 0, access, GL_RGBA16F);
+#endif
         };
 
         // PASS: Blot in all ripple spawners

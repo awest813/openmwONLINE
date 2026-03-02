@@ -10,9 +10,6 @@
 // WebGL 2.0 requires EXT_color_buffer_float for GL_R16F render targets, which
 // is not universally available.  Fall back to GL_R8 (sufficient for the
 // luminance / auto-exposure feature and avoids the extension dependency).
-#ifndef GL_R16F
-#define GL_R16F 0x822D
-#endif
 static constexpr GLenum LUMINANCE_INTERNAL_FORMAT = GL_R8;
 #else
 static constexpr GLenum LUMINANCE_INTERNAL_FORMAT = GL_R16F;

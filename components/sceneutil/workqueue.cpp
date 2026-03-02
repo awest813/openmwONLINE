@@ -75,12 +75,17 @@ namespace SceneUtil
             return;
         }
 
+#if defined(__EMSCRIPTEN__) && !defined(__EMSCRIPTEN_PTHREADS__)
+        item->doWork();
+        item->signalDone();
+#else
         std::unique_lock<std::mutex> lock(mMutex);
         if (front)
             mQueue.push_front(std::move(item));
         else
             mQueue.push_back(std::move(item));
         mCondition.notify_one();
+#endif
     }
 
     osg::ref_ptr<WorkItem> WorkQueue::removeWorkItem()

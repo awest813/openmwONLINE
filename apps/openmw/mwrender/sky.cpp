@@ -373,7 +373,9 @@ namespace MWRender
         depth->setWriteMask(false);
         mEarlyRenderBinRoot->getOrCreateStateSet()->setAttributeAndModes(depth);
         mEarlyRenderBinRoot->getOrCreateStateSet()->setMode(GL_BLEND, osg::StateAttribute::ON);
+#ifndef __EMSCRIPTEN__
         mEarlyRenderBinRoot->getOrCreateStateSet()->setMode(GL_FOG, osg::StateAttribute::OFF);
+#endif
 
         mMoonScriptColor = Fallback::Map::getColour("Moons_Script_Color");
 

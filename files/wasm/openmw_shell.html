@@ -285,7 +285,8 @@
         if (text) {
           var match = text.match(/([^(]+)\((\d+(\.\d+)?)\/(\d+)\)/);
           if (match) {
-            var pct = (parseFloat(match[2]) / parseFloat(match[4])) * 100;
+            var total = parseFloat(match[4]);
+            var pct = total > 0 ? (parseFloat(match[2]) / total) * 100 : 0;
             setProgress(pct);
             setStatus(match[1].trim());
           } else {

@@ -1475,7 +1475,9 @@ namespace MWSound
         if (!sound->mHandle)
             return 0.f;
         OpenAL_SoundStream* stream = reinterpret_cast<OpenAL_SoundStream*>(sound->mHandle);
+#if !defined(__EMSCRIPTEN__) || defined(__EMSCRIPTEN_PTHREADS__)
         std::lock_guard<std::mutex> lock(mStreamThread->mMutex);
+#endif
         return stream->getStreamOffset();
     }
 
@@ -1484,7 +1486,9 @@ namespace MWSound
         if (!sound->mHandle)
             return 0.0;
         OpenAL_SoundStream* stream = reinterpret_cast<OpenAL_SoundStream*>(sound->mHandle);
+#if !defined(__EMSCRIPTEN__) || defined(__EMSCRIPTEN_PTHREADS__)
         std::lock_guard<std::mutex> lock(mStreamThread->mMutex);
+#endif
         return stream->getCurrentLoudness();
     }
 
@@ -1493,7 +1497,9 @@ namespace MWSound
         if (!sound->mHandle)
             return false;
         OpenAL_SoundStream* stream = reinterpret_cast<OpenAL_SoundStream*>(sound->mHandle);
+#if !defined(__EMSCRIPTEN__) || defined(__EMSCRIPTEN_PTHREADS__)
         std::lock_guard<std::mutex> lock(mStreamThread->mMutex);
+#endif
         return stream->isPlaying();
     }
 

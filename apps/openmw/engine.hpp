@@ -201,13 +201,12 @@ namespace OMW
         bool mMainLoopShutdownCompleted = false;
 #ifdef __EMSCRIPTEN__
         MWWorld::DateTimeManager* mWasmTimeManager = nullptr;
-        Misc::FrameRateLimiter* mWasmFrameRateLimiter = nullptr;
-        std::ostream* mWasmStats = nullptr;
+        std::unique_ptr<Misc::FrameRateLimiter> mWasmFrameRateLimiter;
+        std::unique_ptr<std::ofstream> mWasmStats;
 #endif
 
-        // not implemented
-        Engine(const Engine&);
-        Engine& operator=(const Engine&);
+        Engine(const Engine&) = delete;
+        Engine& operator=(const Engine&) = delete;
 
         void executeLocalScripts();
 

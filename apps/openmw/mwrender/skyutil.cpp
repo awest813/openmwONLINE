@@ -82,7 +82,7 @@ namespace
         for (int i = 0; i < numUvSets; ++i)
             geom->setTexCoordArray(i, texcoords, osg::Array::BIND_PER_VERTEX);
 
-        geom->addPrimitiveSet(new osg::DrawArrays(osg::PrimitiveSet::QUADS, 0, 4));
+        geom->addPrimitiveSet(new osg::DrawArrays(osg::PrimitiveSet::TRIANGLE_FAN, 0, 4));
 
         return geom;
     }

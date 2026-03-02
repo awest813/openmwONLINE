@@ -24,7 +24,7 @@ extern "C"
         sDataReady = true;
         Log(Debug::Info) << "WASM: Game data upload complete - "
                          << sUploadedFileCount << " files, "
-                         << (sUploadedByteCount / (1024 * 1024)) << " MB at "
+                         << (static_cast<double>(sUploadedByteCount) / (1024.0 * 1024.0)) << " MB at "
                          << sDataMountPath.string();
     }
 
@@ -43,10 +43,10 @@ extern "C"
     }
 
     EMSCRIPTEN_KEEPALIVE
-    void openmw_wasm_report_upload_progress(uint32_t fileCount, uint32_t totalBytes)
+    void openmw_wasm_report_upload_progress(uint32_t fileCount, double totalBytes)
     {
         sUploadedFileCount = fileCount;
-        sUploadedByteCount = totalBytes;
+        sUploadedByteCount = static_cast<uint64_t>(totalBytes);
     }
 }
 
@@ -63,9 +63,15 @@ namespace OMW::WasmFilePicker
         std::string escapedMount;
         for (char c : mountStr)
         {
-            if (c == '\\' || c == '\'')
-                escapedMount += '\\';
-            escapedMount += c;
+            switch (c)
+            {
+                case '\\': escapedMount += "\\\\"; break;
+                case '\'': escapedMount += "\\'"; break;
+                case '\n': escapedMount += "\\n"; break;
+                case '\r': escapedMount += "\\r"; break;
+                case '\0': escapedMount += "\\0"; break;
+                default: escapedMount += c; break;
+            }
         }
 
         std::string initScript = R"(

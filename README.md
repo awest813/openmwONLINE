@@ -40,22 +40,50 @@ cross-compilation details, and remaining work.
 - WebGL 2.0 / OpenGL ES 3.0 rendering context via SDL2
 - Automatic GLSL ES 3.00 shader transformation for all engine shaders
 - Persistent save/config storage via IndexedDB (IDBFS), survives browser reloads
-- In-browser Morrowind data loading via the File System Access API (drag-and-drop folder picker)
+- In-browser Morrowind data loading via the File System Access API (directory picker button)
 - Auto-generated `openmw.cfg` on first run pointing at the uploaded data
 - Single-threaded fallback for all subsystems (physics, Lua, NavMesh, audio streaming)
 - Optional pthread/Web Worker support with cross-origin isolation diagnostics
 - Custom HTML shell with loading progress, data picker UI, and console overlay
+- Click-to-play overlay for browser pointer lock (required user gesture)
+
+### Browser compatibility
+
+- **Chrome / Edge 86+**: Full support (File System Access API, WebGL 2.0, WASM)
+- **Firefox 111+**: Supported (uses fallback directory picker)
+- **Safari**: Not currently supported (missing File System Access API)
+
+### Testing in the browser
+
+You need to **own Morrowind** — the WASM build loads your existing game data files.
+
+1. Build the project (see below) to produce `openmw.html`, `openmw.js`, and `openmw.wasm`.
+2. Serve the build output with an HTTP server. If using the pthread build, the server
+   must send cross-origin isolation headers (`Cross-Origin-Opener-Policy: same-origin`
+   and `Cross-Origin-Embedder-Policy: require-corp`). For the non-pthread build, any
+   HTTP server works (e.g. `python3 -m http.server`).
+3. Open `openmw.html` in a supported browser.
+4. Wait for the engine to initialize, then click **Select Morrowind Data Folder** and
+   choose the folder containing your Morrowind `Data Files`.
+5. Click the canvas to engage pointer lock and begin playing.
+
+**Note:** Menu background video is disabled in the non-pthread build. Initial data loading
+may take a minute or more depending on the size of your game data.
 
 ### Building
 
 Configure CMake with an Emscripten toolchain and add:
 
-    -DOPENMW_EXPERIMENTAL_WASM=ON
+```
+-DOPENMW_EXPERIMENTAL_WASM=ON
+```
 
 To disable pthread/SharedArrayBuffer requirements (easier bring-up on hosts without
 cross-origin isolation headers):
 
-    -DOPENMW_EXPERIMENTAL_WASM_PTHREADS=OFF
+```
+-DOPENMW_EXPERIMENTAL_WASM_PTHREADS=OFF
+```
 
 The full dependency build + CMake configuration is automated by `CI/before_script.wasm.sh`.
 The CI job (`Emscripten_WASM` in `.gitlab-ci.yml`) produces `openmw.html`, `openmw.js`,
