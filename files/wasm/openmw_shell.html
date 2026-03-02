@@ -235,7 +235,7 @@
 
   <!-- In-game tester HUD (Ctrl+` to toggle) -->
   <div id="hud-toolbar">
-    <button onclick="copyLog()">Copy Log</button>
+    <button onclick="copyLog(this)">Copy Log</button>
     <a href="https://gitlab.com/OpenMW/openmw/-/issues/new?issue[labels]=wasm,bug"
        target="_blank" rel="noopener">Report Issue</a>
     <a href="USER_TESTING.md" target="_blank" rel="noopener">Testing Guide</a>
@@ -300,6 +300,25 @@
       if (c.requestPointerLock) c.requestPointerLock();
     });
 
+    // Re-show the click-to-play overlay whenever pointer lock is released so the
+    // user has a clear visual affordance to re-engage the game after pressing Escape.
+    document.addEventListener('pointerlockchange', function() {
+      var c = document.getElementById('canvas');
+      var locked = document.pointerLockElement === c
+                   || document.mozPointerLockElement === c;
+      if (canvasContainer.classList.contains('visible')) {
+        clickToPlay.classList.toggle('hidden', locked);
+      }
+    });
+
+    document.addEventListener('pointerlockerror', function() {
+      logToConsole('Pointer lock request failed — browser may require a direct user gesture on the canvas', 'warn');
+      // Make overlay visible again so the user can retry.
+      if (canvasContainer.classList.contains('visible')) {
+        clickToPlay.classList.remove('hidden');
+      }
+    });
+
     // ----------------------------------------------------------------
     // Console logging
     // ----------------------------------------------------------------
@@ -353,8 +372,11 @@
       ].join('\n');
     }
 
-    function copyLog() {
-      var copyBtn = document.getElementById('copy-log-btn');
+    function copyLog(callerBtn) {
+      // Accept the calling element so any Copy Log button (console overlay or HUD
+      // toolbar) flashes its own visual confirmation — not just the one with the
+      // fixed ID inside the console overlay.
+      var copyBtn = callerBtn || document.getElementById('copy-log-btn');
       var text = buildLogHeader() + logLines.join('\n');
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(text).then(function() {
@@ -455,6 +477,10 @@
     // Data directory picker
     // ----------------------------------------------------------------
     async function pickDataDirectory() {
+      if (typeof window.showDirectoryPicker !== 'function') {
+        showError('File System Access API not supported. Please use Chrome 86+, Edge 86+, or a Chromium-based browser.');
+        return;
+      }
       if (typeof globalThis.__openmwPickDataDirectory === 'function') {
         var btn = document.getElementById('pick-data-btn');
         btn.disabled = true;
@@ -539,13 +565,19 @@
         logToConsole('SharedArrayBuffer: ' + (typeof SharedArrayBuffer !== 'undefined' ? 'available' : 'unavailable'), 'info');
         setStatus('Engine initialized');
         setProgress(100);
-        if (typeof window.showDirectoryPicker === 'function') {
-          dataPickerSection.classList.add('visible');
-          setStatus('Ready - select your Morrowind data folder to begin');
-        } else {
-          var msg = 'File System Access API not available. Try Chrome, Edge, or a Chromium-based browser.';
-          logToConsole(msg, 'warn');
-          showError(msg);
+
+        dataPickerSection.classList.add('visible');
+        setStatus('Ready - select your Morrowind data folder to begin');
+
+        if (typeof window.showDirectoryPicker !== 'function') {
+          var hint = document.getElementById('data-hint');
+          hint.innerHTML = '<strong style="color:#ffd93d">Chrome or Edge required.</strong> '
+            + 'The directory picker uses the File System Access API, which is not supported by '
+            + 'your current browser. Please open this page in Chrome 86+, Edge 86+, or another '
+            + 'Chromium-based browser. See the '
+            + '<a href="USER_TESTING.md" target="_blank" rel="noopener" style="color:#c8a86e">testing guide</a> '
+            + 'for details.';
+          logToConsole('File System Access API unavailable — directory picker will not work in this browser', 'warn');
         }
       },
 

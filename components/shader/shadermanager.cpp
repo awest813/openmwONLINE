@@ -253,6 +253,16 @@ layout(location = 1) out vec4 omw_FragData1;
 layout(location = 2) out vec4 omw_FragData2;
 layout(location = 3) out vec4 omw_FragData3;
 
+// OSG GLES3 matrix uniforms — fragment shaders may reference these for world-space
+// operations such as view-space normal reconstruction and camera position derivation.
+uniform mat4 osg_ModelViewMatrix;
+uniform mat4 osg_ProjectionMatrix;
+uniform mat4 osg_ModelViewProjectionMatrix;
+// The normal matrix is the transpose of the inverse of the upper-left 3x3 of the
+// model-view matrix.  Several fragment shaders use it directly rather than receiving
+// a per-vertex varying, so it must be declared here as well as in the vertex preamble.
+uniform mat3 osg_NormalMatrix;
+
 // Custom struct replacing gl_FrontMaterial (fixed-function state)
 struct OMW_MaterialParameters {
     vec4 emission;

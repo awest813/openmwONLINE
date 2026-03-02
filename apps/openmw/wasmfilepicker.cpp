@@ -107,14 +107,26 @@ namespace OMW::WasmFilePicker
 
                     async function enumerateFiles(handle, pathPrefix) {
                         var entries = [];
-                        for await (var entry of handle.values()) {
-                            if (entry.kind === 'file') {
-                                var file = await entry.getFile();
-                                entries.push({ path: pathPrefix + entry.name, handle: entry, size: file.size });
-                            } else if (entry.kind === 'directory') {
-                                var subEntries = await enumerateFiles(entry, pathPrefix + entry.name + '/');
-                                entries = entries.concat(subEntries);
+                        try {
+                            for await (var entry of handle.values()) {
+                                if (entry.kind === 'file') {
+                                    try {
+                                        var file = await entry.getFile();
+                                        entries.push({ path: pathPrefix + entry.name, handle: entry, size: file.size });
+                                    } catch (fileErr) {
+                                        console.warn('Skipping unreadable file:', pathPrefix + entry.name, fileErr.message);
+                                    }
+                                } else if (entry.kind === 'directory') {
+                                    try {
+                                        var subEntries = await enumerateFiles(entry, pathPrefix + entry.name + '/');
+                                        entries = entries.concat(subEntries);
+                                    } catch (dirErr) {
+                                        console.warn('Skipping inaccessible directory:', pathPrefix + entry.name, dirErr.message);
+                                    }
+                                }
                             }
+                        } catch (iterErr) {
+                            console.warn('Failed to iterate directory:', pathPrefix, iterErr.message);
                         }
                         return entries;
                     }
