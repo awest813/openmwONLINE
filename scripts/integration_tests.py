@@ -48,6 +48,14 @@ testing_util_dir = tests_dir / "testing_util"
 time_str = datetime.datetime.now().strftime("%Y-%m-%d-%H.%M.%S")
 
 
+def parse_test_line(line, marker, expected_fields):
+    payload = line.split(marker, maxsplit=1)[1].strip()
+    fields = payload.split("\t", maxsplit=expected_fields - 1)
+    if len(fields) != expected_fields:
+        raise ValueError(f"malformed {marker} line: {line.strip()}")
+    return fields
+
+
 def run_test(test_name):
     start = time.time()
     print(f'[----------] Running tests from {test_name}')
@@ -86,7 +94,6 @@ def run_test(test_name):
             f"memory limit = {1024 * 1024 * 256}\n"
         )
     stdout_lines = list()
-    test_success = True
     fatal_errors = list()
     with subprocess.Popen(
         [openmw_binary, "--replace=config", "--config", config_dir, "--no-grab"],
@@ -105,32 +112,49 @@ def run_test(test_name):
         count = 0
         failed_tests = list()
         test_start = None
-        for line in process.stdout:
-            if args.verbose:
-                sys.stdout.write(line)
-            else:
-                stdout_lines.append(line)
-            if "Quit requested by a Lua script" in line:
-                quit_requested = True
-            elif "TEST_START" in line:
-                test_start = time.time()
-                number, name = line.split("TEST_START")[1].strip().split("\t", maxsplit=1)
-                running_test_number = int(number)
-                running_test_name = name
-                count += 1
-                print(f"[ RUN      ] {running_test_name}")
-            elif "TEST_OK" in line:
-                duration = (time.time() - test_start) * 1000
-                number, name = line.split("TEST_OK")[1].strip().split("\t", maxsplit=1)
-                assert running_test_number == int(number)
-                print(f"[       OK ] {running_test_name} ({duration:.3f} ms)")
-            elif "TEST_FAILED" in line:
-                duration = (time.time() - test_start) * 1000
-                number, name, error = line.split("TEST_FAILED")[1].strip().split("\t", maxsplit=2)
-                assert running_test_number == int(number)
-                print(error)
-                print(f"[  FAILED  ] {running_test_name} ({duration:.3f} ms)")
-                failed_tests.append(running_test_name)
+        try:
+            for line in process.stdout:
+                if args.verbose:
+                    sys.stdout.write(line)
+                else:
+                    stdout_lines.append(line)
+                if "Quit requested by a Lua script" in line:
+                    quit_requested = True
+                elif "TEST_START" in line:
+                    test_start = time.time()
+                    number, name = parse_test_line(line, "TEST_START", 2)
+                    running_test_number = int(number)
+                    running_test_name = name
+                    count += 1
+                    print(f"[ RUN      ] {running_test_name}")
+                elif "TEST_OK" in line:
+                    if test_start is None or running_test_number is None:
+                        fatal_errors.append(f"orphan TEST_OK line: {line.strip()}")
+                        continue
+                    duration = (time.time() - test_start) * 1000
+                    number, _ = parse_test_line(line, "TEST_OK", 2)
+                    if running_test_number != int(number):
+                        fatal_errors.append(
+                            f"mismatched test id: expected {running_test_number}, got {number}"
+                        )
+                        continue
+                    print(f"[       OK ] {running_test_name} ({duration:.3f} ms)")
+                elif "TEST_FAILED" in line:
+                    if test_start is None or running_test_number is None:
+                        fatal_errors.append(f"orphan TEST_FAILED line: {line.strip()}")
+                        continue
+                    duration = (time.time() - test_start) * 1000
+                    number, _, error = parse_test_line(line, "TEST_FAILED", 3)
+                    if running_test_number != int(number):
+                        fatal_errors.append(
+                            f"mismatched test id: expected {running_test_number}, got {number}"
+                        )
+                        continue
+                    print(error)
+                    print(f"[  FAILED  ] {running_test_name} ({duration:.3f} ms)")
+                    failed_tests.append(running_test_name)
+        except (ValueError, IndexError) as err:
+            fatal_errors.append(str(err))
         process.wait(5)
         if not quit_requested:
             fatal_errors.append("unexpected termination")
