@@ -61,7 +61,7 @@ namespace
 
         geom->setTexCoordArray(0, texcoords, osg::Array::BIND_PER_VERTEX);
 
-        geom->addPrimitiveSet(new osg::DrawArrays(osg::PrimitiveSet::QUADS, 0, 4));
+        geom->addPrimitiveSet(new osg::DrawArrays(osg::PrimitiveSet::TRIANGLE_FAN, 0, 4));
 
         return geom;
     }

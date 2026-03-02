@@ -86,14 +86,35 @@ namespace SceneUtil
 
     void DebugDraw::end()
     {
-        const osg::ref_ptr<osg::DrawArrays> drawArrays
-            = new osg::DrawArrays(mMode, 0, static_cast<int>(mVertices->size()));
-
         osg::ref_ptr<osg::Geometry> geometry(new osg::Geometry);
         geometry->setStateSet(mStateSet);
-        geometry->addPrimitiveSet(drawArrays);
         geometry->setVertexArray(std::exchange(mVertices, nullptr));
         geometry->setColorArray(std::exchange(mColors, nullptr), osg::Array::BIND_PER_VERTEX);
+
+        if (mMode == osg::PrimitiveSet::QUADS)
+        {
+            const int numVerts = static_cast<int>(geometry->getVertexArray()->getNumElements());
+            const int numQuads = numVerts / 4;
+            osg::ref_ptr<osg::DrawElementsUShort> indices
+                = new osg::DrawElementsUShort(osg::PrimitiveSet::TRIANGLES);
+            indices->reserve(numQuads * 6);
+            for (int i = 0; i < numQuads; ++i)
+            {
+                int base = i * 4;
+                indices->push_back(base);
+                indices->push_back(base + 1);
+                indices->push_back(base + 2);
+                indices->push_back(base);
+                indices->push_back(base + 2);
+                indices->push_back(base + 3);
+            }
+            geometry->addPrimitiveSet(indices);
+        }
+        else
+        {
+            geometry->addPrimitiveSet(
+                new osg::DrawArrays(mMode, 0, static_cast<int>(geometry->getVertexArray()->getNumElements())));
+        }
 
         mGroup.addChild(geometry);
     }
