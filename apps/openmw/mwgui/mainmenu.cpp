@@ -79,7 +79,9 @@ namespace MWGui
         const bool stretch = Settings::gui().mStretchMenuBackground;
         mVideoBackground->setSize(screenWidth, screenHeight);
         mVideo->autoResize(stretch);
+#if !defined(__EMSCRIPTEN__) || defined(__EMSCRIPTEN_PTHREADS__)
         mVideo->setVisible(true);
+#endif
     }
 
     MenuVideo::~MenuVideo()

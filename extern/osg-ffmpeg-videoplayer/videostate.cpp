@@ -830,9 +830,7 @@ void VideoState::init(std::unique_ptr<std::istream>&& inputstream, const std::st
 #if !defined(__EMSCRIPTEN__) || defined(__EMSCRIPTEN_PTHREADS__)
     this->parse_thread = std::make_unique<ParseThread>(this);
 #else
-    // Without pthread support under Emscripten we cannot run the threaded
-    // decode loop.  Mark the video as immediately ended so that callers
-    // that poll update() exit cleanly without blocking.
+    std::cerr << "Video playback disabled: no pthread support in this Emscripten build" << std::endl;
     this->mVideoEnded = true;
 #endif
 }
