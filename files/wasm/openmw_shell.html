@@ -183,7 +183,6 @@
       clickToPlay.classList.add('hidden');
       var c = document.getElementById('canvas');
       c.focus();
-      c.requestPointerLock = c.requestPointerLock || c.mozRequestPointerLock;
       if (c.requestPointerLock) c.requestPointerLock();
     });
 
@@ -206,7 +205,7 @@
     }
 
     document.addEventListener('keydown', function(e) {
-      if (e.key === '`' || e.key === '~') {
+      if ((e.key === '`' || e.key === '~') && e.ctrlKey) {
         e.preventDefault();
         toggleConsole();
       }
@@ -255,7 +254,7 @@
           uploadProgress.classList.remove('visible');
           if (success) {
             setStatus('Game data loaded successfully!');
-            dataPickerSection.style.display = 'none';
+            dataPickerSection.classList.remove('visible');
           } else {
             setStatus('Ready - select your Morrowind data folder to begin');
             btn.disabled = false;

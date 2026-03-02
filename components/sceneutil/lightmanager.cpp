@@ -836,16 +836,15 @@ namespace SceneUtil
 #ifdef __EMSCRIPTEN__
         if (settings.mLightingMethod == LightingMethod::FFP)
             Log(Debug::Warning) << "Fixed-function lighting unavailable on Emscripten/WebGL; "
-                                   "using per-object uniform lighting";
-        {
+                                   "falling back to per-object uniform lighting";
 #else
         if (settings.mLightingMethod == LightingMethod::FFP)
         {
             initFFP(ffpMaxLights);
         }
         else
-        {
 #endif
+        {
             static bool hasLoggedWarnings = false;
 
             if (settings.mLightingMethod == LightingMethod::SingleUBO && !hasLoggedWarnings)
@@ -859,7 +858,12 @@ namespace SceneUtil
                 hasLoggedWarnings = true;
             }
 
-            if (!supportsUBO || !supportsGPU4 || settings.mLightingMethod == LightingMethod::PerObjectUniform)
+            bool usePerObject = !supportsUBO || !supportsGPU4
+                || settings.mLightingMethod == LightingMethod::PerObjectUniform;
+#ifdef __EMSCRIPTEN__
+            usePerObject = usePerObject || settings.mLightingMethod == LightingMethod::FFP;
+#endif
+            if (usePerObject)
                 initPerObjectUniform(settings.mMaxLights);
             else
                 initSingleUBO(settings.mMaxLights);
@@ -1001,6 +1005,7 @@ namespace SceneUtil
                 break;
 #else
             case LightingMethod::FFP:
+                mStateSetGenerator = std::make_unique<StateSetGeneratorPerObjectUniform>();
                 break;
 #endif
             case LightingMethod::SingleUBO:
