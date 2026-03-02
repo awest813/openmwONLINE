@@ -22,7 +22,7 @@ extern "C"
     void openmw_wasm_notify_data_ready()
     {
         sDataReady = true;
-        Log(Debug::Info) << "WASM: Game data upload complete — "
+        Log(Debug::Info) << "WASM: Game data upload complete - "
                          << sUploadedFileCount << " files, "
                          << (sUploadedByteCount / (1024 * 1024)) << " MB at "
                          << sDataMountPath.string();

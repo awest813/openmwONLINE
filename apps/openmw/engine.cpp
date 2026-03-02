@@ -194,7 +194,9 @@ bool OMW::Engine::runMainLoopIteration(
 
     if (!frame(frameNumber, static_cast<float>(dt)))
     {
+#if !defined(__EMSCRIPTEN__) || defined(__EMSCRIPTEN_PTHREADS__)
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
+#endif
         return true;
     }
 

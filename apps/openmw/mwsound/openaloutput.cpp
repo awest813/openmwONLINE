@@ -402,8 +402,6 @@ namespace MWSound
             }
         }
 #else
-        std::mutex mMutex;
-
         StreamThread() = default;
         ~StreamThread() = default;
 

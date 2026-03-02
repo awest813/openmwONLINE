@@ -304,7 +304,7 @@ namespace MWSound
             mOutputSampleFormat = AV_SAMPLE_FMT_S16;
 
 #if OPENMW_FFMPEG_5_OR_GREATER
-        mOutputChannelLayout = (*stream)->codecpar->ch_layout; // sefault
+        mOutputChannelLayout = (*stream)->codecpar->ch_layout;
         if (mOutputChannelLayout.u.mask == 0)
             av_channel_layout_default(&mOutputChannelLayout, codecCtxPtr->ch_layout.nb_channels);
 
