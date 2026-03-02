@@ -476,57 +476,79 @@
     // ----------------------------------------------------------------
     // Data directory picker
     // ----------------------------------------------------------------
+    function resetDataPickerButton(btn) {
+      btn.disabled = false;
+      btn.textContent = 'Select Morrowind Data Folder';
+    }
+
+    function getLastPickResult() {
+      if (typeof globalThis.__openmwGetLastPickResult === 'function')
+        return globalThis.__openmwGetLastPickResult();
+      return null;
+    }
+
     async function pickDataDirectory() {
-      if (typeof window.showDirectoryPicker !== 'function') {
-        showError('File System Access API not supported. Please use Chrome 86+, Edge 86+, or a Chromium-based browser.');
+      if (typeof globalThis.__openmwPickDataDirectory !== 'function') {
+        setStatus('Engine not ready yet, please wait...');
         return;
       }
-      if (typeof globalThis.__openmwPickDataDirectory === 'function') {
-        var btn = document.getElementById('pick-data-btn');
-        btn.disabled = true;
-        btn.textContent = 'Uploading files...';
-        setStatus('Loading game data...');
 
-        globalThis.__openmwOnUploadPhase = function(phase) {
-          if (phase === 'scanning') {
-            setStatus('Scanning directory...');
-            uploadProgress.classList.add('visible');
-            uploadStats.textContent = 'Counting files...';
-            uploadBar.style.width = '0%';
-          } else if (phase === 'uploading') {
-            setStatus('Uploading game data...');
-          }
-        };
+      var btn = document.getElementById('pick-data-btn');
+      btn.disabled = true;
+      btn.textContent = 'Uploading files...';
+      setStatus('Loading game data...');
 
-        globalThis.__openmwOnUploadProgress = function(files, totalFiles, bytes, totalBytes) {
-          var pct = totalBytes > 0 ? (bytes / totalBytes) * 100 : 0;
-          uploadBar.style.width = pct.toFixed(1) + '%';
-          uploadBar.parentElement.setAttribute('aria-valuenow', Math.round(pct));
-          uploadStats.textContent = files + ' / ' + totalFiles + ' files';
-          uploadDetail.textContent = formatBytes(bytes) + ' / ' + formatBytes(totalBytes) + ' (' + pct.toFixed(0) + '%)';
-        };
-
-        try {
-          var success = await globalThis.__openmwPickDataDirectory();
-          uploadProgress.classList.remove('visible');
-          if (success) {
-            setStatus('Game data loaded successfully!');
-            dataPickerSection.classList.remove('visible');
-            showCanvas();
-          } else {
-            setStatus('Ready - select your Morrowind data folder to begin');
-            btn.disabled = false;
-            btn.textContent = 'Select Morrowind Data Folder';
-          }
-        } catch (e) {
-          logToConsole('Data load error: ' + e.message, 'error');
-          uploadProgress.classList.remove('visible');
-          btn.disabled = false;
-          btn.textContent = 'Select Morrowind Data Folder';
-          showError('Failed to load game data: ' + e.message);
+      globalThis.__openmwOnUploadPhase = function(phase) {
+        if (phase === 'scanning') {
+          setStatus('Scanning selected files...');
+          uploadProgress.classList.add('visible');
+          uploadStats.textContent = 'Counting files...';
+          uploadBar.style.width = '0%';
+          uploadDetail.textContent = '';
+        } else if (phase === 'uploading') {
+          setStatus('Uploading game data...');
         }
-      } else {
-        setStatus('Engine not ready yet, please wait...');
+      };
+
+      globalThis.__openmwOnUploadProgress = function(files, totalFiles, bytes, totalBytes) {
+        var pct = totalBytes > 0 ? (bytes / totalBytes) * 100 : 0;
+        uploadBar.style.width = pct.toFixed(1) + '%';
+        uploadBar.parentElement.setAttribute('aria-valuenow', Math.round(pct));
+        uploadStats.textContent = files + ' / ' + totalFiles + ' files';
+        uploadDetail.textContent = formatBytes(bytes) + ' / ' + formatBytes(totalBytes) + ' (' + pct.toFixed(0) + '%)';
+      };
+
+      try {
+        var success = await globalThis.__openmwPickDataDirectory();
+        uploadProgress.classList.remove('visible');
+        if (success) {
+          setStatus('Game data loaded successfully!');
+          dataPickerSection.classList.remove('visible');
+          showCanvas();
+          return;
+        }
+
+        resetDataPickerButton(btn);
+        var pickResult = getLastPickResult();
+        var pickStatus = pickResult && pickResult.status ? pickResult.status : 'cancelled';
+        var pickMessage = pickResult && pickResult.message ? pickResult.message : '';
+
+        if (pickStatus === 'cancelled') {
+          setStatus('Directory selection cancelled. Ready to try again.');
+        } else if (pickStatus === 'validation-failed' || pickStatus === 'empty-selection') {
+          var validationMessage = pickMessage || 'Selected folder does not contain required Morrowind data files.';
+          setStatus(validationMessage, true);
+          logToConsole(validationMessage, 'warn');
+        } else if (pickStatus === 'unsupported') {
+          showError(pickMessage || 'Directory import is not supported in this browser.');
+        } else {
+          setStatus(pickMessage || 'Ready - select your Morrowind data folder to begin');
+        }
+      } catch (e) {
+        logToConsole('Data load error: ' + e.message, 'error');
+        uploadProgress.classList.remove('visible');
+        resetDataPickerButton(btn);
+        showError('Failed to load game data: ' + e.message);
       }
     }
 
@@ -570,15 +592,27 @@
         dataPickerSection.classList.add('visible');
         setStatus('Ready - select your Morrowind data folder to begin');
 
-        if (typeof window.showDirectoryPicker !== 'function') {
-          var hint = document.getElementById('data-hint');
-          hint.innerHTML = '<strong style="color:#ffd93d">Chrome or Edge required.</strong> '
-            + 'The directory picker uses the File System Access API, which is not supported by '
-            + 'your current browser. Please open this page in Chrome 86+, Edge 86+, or another '
-            + 'Chromium-based browser. See the '
-            + '<a href="USER_TESTING.md" target="_blank" rel="noopener" style="color:#c8a86e">testing guide</a> '
-            + 'for details.';
-          logToConsole('File System Access API unavailable — directory picker will not work in this browser', 'warn');
+        var hint = document.getElementById('data-hint');
+        var pickerCaps = typeof globalThis.__openmwGetPickerCapabilities === 'function'
+          ? globalThis.__openmwGetPickerCapabilities()
+          : null;
+
+        if (pickerCaps && pickerCaps.supported) {
+          if (!pickerCaps.directoryPicker && pickerCaps.fileInputFallback) {
+            hint.innerHTML = '<strong style="color:#ffd93d">Fallback mode enabled.</strong> '
+              + 'Your browser does not support the native directory picker, so OpenMW will use '
+              + 'a directory-upload fallback dialog instead. If selection fails, try Chrome/Edge. '
+              + 'See the <a href="USER_TESTING.md" target="_blank" rel="noopener" style="color:#c8a86e">testing guide</a>.';
+            logToConsole('Native directory picker unavailable — using directory-upload fallback', 'warn');
+          }
+        } else if (pickerCaps && !pickerCaps.supported) {
+          hint.innerHTML = '<strong style="color:#ff9999">Directory import is unavailable.</strong> '
+            + 'This browser cannot provide folder upload APIs required by OpenMW WASM. '
+            + 'Please use Chrome/Edge, or Firefox with directory-upload support. See the '
+            + '<a href="USER_TESTING.md" target="_blank" rel="noopener" style="color:#c8a86e">testing guide</a>.';
+          setStatus('Directory import is not supported by this browser.', true);
+          document.getElementById('pick-data-btn').disabled = true;
+          logToConsole('No supported directory import APIs detected', 'error');
         }
       },
 

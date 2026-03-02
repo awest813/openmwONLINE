@@ -127,8 +127,10 @@ pre-fetches ports, runs `build_wasm_deps.sh`, and configures CMake.
   headers are missing.
 
 ### 5. In-Browser Data Loading
-- `wasmfilepicker.hpp/cpp` (`apps/openmw/`) provides a File System Access API
-  bridge (`__openmwPickDataDirectory()`).
+- `wasmfilepicker.hpp/cpp` (`apps/openmw/`) provides a browser data-import
+  bridge (`__openmwPickDataDirectory()`) using:
+  - Native File System Access API directory picker when available
+  - Directory-upload file input fallback for browsers without `showDirectoryPicker`
 - **Two-phase upload**: directory scan → enumeration + total size; then
   per-file upload with progress callbacks.
 - **Chunked reads**: files > 8 MB read in slices via `File.slice()` /
@@ -136,9 +138,11 @@ pre-fetches ports, runs `build_wasm_deps.sh`, and configures CMake.
 - Progress hooks: `__openmwOnUploadPhase`, `__openmwOnUploadProgress`;
   C++ counters via `openmw_wasm_report_upload_progress()`.
 - `setTimeout(0)` yield every 50 files prevents UI freeze on large uploads.
-- Cancel handling: returns `true` on success, `false` on `AbortError` (user
-  cancel); re-throws on other errors. Shell restores the button and status
-  message on cancel.
+- Upload reset + validation: `/gamedata` is cleared before upload to avoid
+  stale files, and uploads are rejected unless `Morrowind.esm` is present.
+- Cancel handling: returns `true` on success, `false` on user cancel/validation
+  failures, and re-throws on operational errors. Shell restores button/status
+  state for non-success outcomes.
 - Files uploaded into virtual FS at `/gamedata`.
 - Auto-generated `openmw.cfg` at first run:
   - `data=/gamedata`, `content=Morrowind.esm`, `fallback-archive=Morrowind.bsa`
@@ -243,7 +247,8 @@ Startup warns in the browser console if these are missing.
 
 ### 10. HTML Shell (`files/wasm/openmw_shell.html`)
 - Loading progress bar during engine init.
-- "Select Morrowind Data Folder" button (File System Access API).
+- "Select Morrowind Data Folder" button with native picker + fallback mode
+  messaging.
 - Upload progress bar with file count, byte count, and percentage.
 - "Click to Play" overlay — browsers require a user gesture before pointer lock.
   On click: hides overlay, focuses canvas, requests pointer lock; SDL2 handles
