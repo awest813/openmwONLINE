@@ -11,7 +11,7 @@ for catching bugs before a wider release.
 | Requirement | Details |
 |---|---|
 | **Morrowind** | You must own Morrowind. The WASM build does not include game data. |
-| **Browser** | Chrome 86+ or Edge 86+ recommended. Firefox 111+ is supported with a fallback picker. Safari is not supported. |
+| **Browser** | Chrome 86+ or Edge 86+ recommended (native directory picker). Firefox 111+ is supported with a directory-upload fallback. Safari is not supported. |
 | **WASM build** | `openmw.html`, `openmw.js`, and `openmw.wasm` produced by the CI job or a local build. |
 | **HTTP server** | Required (browsers block WASM from `file://`). See [Serving locally](#serving-locally) below. |
 
@@ -57,7 +57,7 @@ and any console errors for each item.
 
 ### Phase 2 — Data loading
 
-- [ ] Clicking the button opens a directory picker (Chrome) or file fallback (Firefox)
+- [ ] Clicking the button opens a directory picker (Chrome/Edge) or directory-upload fallback (Firefox)
 - [ ] Selecting the `Data Files` folder starts the upload phase
 - [ ] Scanning phase shows "Counting files..."
 - [ ] Upload progress bar updates smoothly during file transfer
@@ -157,7 +157,7 @@ Please include the following in every bug report:
 | Menu background video absent | Only plays in the pthread build. Non-pthread build shows a black screen — expected. |
 | HDR precision reduced | `GL_R8` luminance and `GL_RGBA8` ripple textures replace float formats. HDR and water ripple quality are reduced. |
 | Compute shaders disabled | Water ripple compute pass is disabled. Ripples use CPU-side fallback. |
-| Safari not supported | Missing File System Access API. No workaround currently. |
+| Safari not supported | Missing required directory import APIs. No workaround currently. |
 | Initial load is slow | First data upload can take 1–5 minutes for a vanilla install. Subsequent sessions re-use data from IndexedDB. |
 | EFX/reverb audio absent | Web Audio handles spatialization natively; EFX reverb effects are disabled. |
 | Mod support untested | Mod files uploaded via the directory picker should work, but this is not yet validated. |

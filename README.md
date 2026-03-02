@@ -40,7 +40,7 @@ cross-compilation details, and remaining work.
 - WebGL 2.0 / OpenGL ES 3.0 rendering context via SDL2
 - Automatic GLSL ES 3.00 shader transformation for all engine shaders
 - Persistent save/config storage via IndexedDB (IDBFS), survives browser reloads
-- In-browser Morrowind data loading via the File System Access API (directory picker button)
+- In-browser Morrowind data loading via File System Access API (with directory-upload fallback)
 - Auto-generated `openmw.cfg` on first run pointing at the uploaded data
 - Single-threaded fallback for all subsystems (physics, Lua, NavMesh, audio streaming)
 - Optional pthread/Web Worker support with cross-origin isolation diagnostics
@@ -49,9 +49,9 @@ cross-compilation details, and remaining work.
 
 ### Browser compatibility
 
-- **Chrome / Edge 86+**: Full support (File System Access API, WebGL 2.0, WASM)
-- **Firefox 111+**: Supported (uses fallback directory picker)
-- **Safari**: Not currently supported (missing File System Access API)
+- **Chrome / Edge 86+**: Full support (native directory picker, WebGL 2.0, WASM)
+- **Firefox 111+**: Supported with directory-upload fallback input
+- **Safari**: Not currently supported (missing required directory import APIs)
 
 ### Testing in the browser
 
