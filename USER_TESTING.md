@@ -125,8 +125,8 @@ Please include the following in every bug report:
 6. **Console log** — use "Copy Log" in the console overlay (`Ctrl+\``) and paste it
 
 **Where to report:**
-- GitHub Issues: https://github.com/awest813/openmwONLINE/issues
-- Use the label `wasm` and `bug`
+- GitLab Issues: https://gitlab.com/OpenMW/openmw/-/issues
+- Use the labels `wasm` and `bug`
 
 ### Issue template
 

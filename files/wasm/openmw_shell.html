@@ -222,7 +222,7 @@
     <div id="build-info">
       OpenMW WASM &mdash; experimental build &mdash;
       <a href="USER_TESTING.md" target="_blank" rel="noopener">Testing guide</a> &middot;
-      <a href="https://github.com/awest813/openmwONLINE/issues/new?labels=wasm,bug&template=wasm_bug.md" target="_blank" rel="noopener">Report a bug</a>
+      <a href="https://gitlab.com/OpenMW/openmw/-/issues/new?issue[labels]=wasm,bug" target="_blank" rel="noopener">Report a bug</a>
     </div>
   </div>
 
@@ -236,7 +236,7 @@
   <!-- In-game tester HUD (Ctrl+` to toggle) -->
   <div id="hud-toolbar">
     <button onclick="copyLog()">Copy Log</button>
-    <a href="https://github.com/awest813/openmwONLINE/issues/new?labels=wasm,bug&template=wasm_bug.md"
+    <a href="https://gitlab.com/OpenMW/openmw/-/issues/new?issue[labels]=wasm,bug"
        target="_blank" rel="noopener">Report Issue</a>
     <a href="USER_TESTING.md" target="_blank" rel="noopener">Testing Guide</a>
     <span id="hud-fps"></span>
@@ -248,7 +248,7 @@
       <span>Console &mdash; Ctrl+` to hide</span>
       <button class="console-btn" id="copy-log-btn" onclick="copyLog()">Copy Log</button>
       <a class="console-btn" id="report-issue-btn"
-         href="https://github.com/awest813/openmwONLINE/issues/new?labels=wasm,bug&template=wasm_bug.md"
+         href="https://gitlab.com/OpenMW/openmw/-/issues/new?issue[labels]=wasm,bug"
          target="_blank" rel="noopener">Report Issue</a>
     </div>
     <div id="console-output"></div>
@@ -404,8 +404,8 @@
         '**Console log:**\n```\n' + logLines.slice(-50).join('\n') + '\n```'
       );
       reportErrorLink.href =
-        'https://github.com/awest813/openmwONLINE/issues/new?labels=wasm,bug' +
-        '&body=' + issueBody;
+        'https://gitlab.com/OpenMW/openmw/-/issues/new?issue[labels]=wasm,bug' +
+        '&issue[description]=' + issueBody;
       errorPanel.classList.add('visible');
     }
 

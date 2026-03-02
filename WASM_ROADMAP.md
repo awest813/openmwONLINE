@@ -251,6 +251,14 @@ Startup warns in the browser console if these are missing.
 - Console output overlay (toggle with tilde key).
 - Responsive canvas layout.
 
+### 11. CI Build Job (`.gitlab-ci.yml`)
+- Job name: `Emscripten_WASM`; base image: `ubuntu:24.04`.
+- Executes `CI/before_script.wasm.sh` end-to-end.
+- Produces artifacts: `openmw.html`, `openmw.js`, `openmw.wasm`.
+- Triggered on merge requests (relevant file changes), protected branch pushes,
+  or manually.
+- Emscripten SDK and cross-compiled dependency directories cached across runs.
+
 ### 12. User Testing Infrastructure
 
 - **[USER_TESTING.md](USER_TESTING.md)** — Step-by-step testing guide covering
@@ -265,25 +273,17 @@ Startup warns in the browser console if these are missing.
   - Timestamped console overlay with **Copy Log** button (copies full session
     log including browser info to clipboard).
   - **Report Issue** link in the console toolbar and in-game HUD toolbar — opens
-    a pre-filled GitHub issue form with browser context.
+    a pre-filled GitLab issue form with browser context.
   - **Build info bar** at the bottom of the loading overlay linking to the
     testing guide and issue tracker.
   - **Error panel** — shown on engine abort or data-load failure; pre-fills a
-    GitHub issue body with the last 50 log lines and browser UA string.
+    GitLab issue description with the last 50 log lines and browser UA string.
   - **In-game HUD toolbar** (toggled with `Ctrl+\``) with Copy Log, Report
     Issue, and Testing Guide links, plus a live **FPS counter**.
   - `onRuntimeInitialized` logs browser UA and `SharedArrayBuffer` availability
     so testers can see thread mode at a glance.
   - `Module.onAbort` hook surfaces engine crashes as a user-visible error panel
     rather than a silent hang.
-
-### 11. CI Build Job (`.gitlab-ci.yml`)
-- Job name: `Emscripten_WASM`; base image: `ubuntu:24.04`.
-- Executes `CI/before_script.wasm.sh` end-to-end.
-- Produces artifacts: `openmw.html`, `openmw.js`, `openmw.wasm`.
-- Triggered on merge requests (relevant file changes), protected branch pushes,
-  or manually.
-- Emscripten SDK and cross-compiled dependency directories cached across runs.
 
 ---
 
