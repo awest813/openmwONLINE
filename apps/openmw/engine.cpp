@@ -260,7 +260,7 @@ void OMW::Engine::shutdownAfterMainLoop()
 void OMW::Engine::runWasmMainLoop(void* arg)
 {
     auto* engine = static_cast<Engine*>(arg);
-    if (!engine->runMainLoopIteration(*engine->mWasmTimeManager, *engine->mWasmFrameRateLimiter, engine->mWasmStats))
+    if (!engine->runMainLoopIteration(*engine->mWasmTimeManager, *engine->mWasmFrameRateLimiter, engine->mWasmStats.get()))
     {
         engine->shutdownAfterMainLoop();
         emscripten_cancel_main_loop();
@@ -1165,8 +1165,9 @@ void OMW::Engine::go()
 
 #ifdef __EMSCRIPTEN__
     mWasmTimeManager = &timeManager;
-    mWasmFrameRateLimiter = &frameRateLimiter;
-    mWasmStats = stats.is_open() ? &stats : nullptr;
+    mWasmFrameRateLimiter = std::make_unique<Misc::FrameRateLimiter>(std::move(frameRateLimiter));
+    if (stats.is_open())
+        mWasmStats = std::make_unique<std::ofstream>(std::move(stats));
     emscripten_set_main_loop_arg(&Engine::runWasmMainLoop, this, 0, 1);
 #else
     while (runMainLoopIteration(timeManager, frameRateLimiter, stats.is_open() ? &stats : nullptr))
