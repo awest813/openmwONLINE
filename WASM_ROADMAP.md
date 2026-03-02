@@ -27,7 +27,8 @@ installing any software.
 | Pthread / Web Worker support | ✅ Complete (opt-in) |
 | HTML shell (UI, progress, console) | ✅ Complete |
 | CI build job | ✅ Complete |
-| End-to-end browser testing | ⏳ Pending |
+| User testing infrastructure | ✅ Complete |
+| End-to-end browser testing | ⏳ In progress |
 | Performance profiling & optimization | ⏳ Pending |
 
 ---
@@ -36,6 +37,7 @@ installing any software.
 
 1. **End-to-end browser testing** — Load real Morrowind data in Chrome/Firefox,
    verify the main menu renders, and confirm save/load round-trips work.
+   See [USER_TESTING.md](USER_TESTING.md) for the structured testing checklist.
 2. **Performance profiling** — Profile frame time, memory usage, and asset load
    times; optimize hot paths for 60 fps gameplay.
 3. **Pthread validation** — Verify the pthread/SharedArrayBuffer path works on
@@ -248,6 +250,32 @@ Startup warns in the browser console if these are missing.
   subsequent `SDL_SetRelativeMouseMode` calls automatically.
 - Console output overlay (toggle with tilde key).
 - Responsive canvas layout.
+
+### 12. User Testing Infrastructure
+
+- **[USER_TESTING.md](USER_TESTING.md)** — Step-by-step testing guide covering
+  eight test phases: engine startup, data loading, rendering, input, save/load,
+  performance, persistence, and the console overlay. Includes a structured bug
+  report template and a known-issues reference.
+- **`scripts/serve_wasm.py`** — Python local HTTP server that injects the
+  `Cross-Origin-Opener-Policy: same-origin` and
+  `Cross-Origin-Embedder-Policy: require-corp` headers needed by the pthread
+  build. Accepts `--port` and `--no-coep` flags.
+- **HTML shell enhancements** (`files/wasm/openmw_shell.html`):
+  - Timestamped console overlay with **Copy Log** button (copies full session
+    log including browser info to clipboard).
+  - **Report Issue** link in the console toolbar and in-game HUD toolbar — opens
+    a pre-filled GitHub issue form with browser context.
+  - **Build info bar** at the bottom of the loading overlay linking to the
+    testing guide and issue tracker.
+  - **Error panel** — shown on engine abort or data-load failure; pre-fills a
+    GitHub issue body with the last 50 log lines and browser UA string.
+  - **In-game HUD toolbar** (toggled with `Ctrl+\``) with Copy Log, Report
+    Issue, and Testing Guide links, plus a live **FPS counter**.
+  - `onRuntimeInitialized` logs browser UA and `SharedArrayBuffer` availability
+    so testers can see thread mode at a glance.
+  - `Module.onAbort` hook surfaces engine crashes as a user-visible error panel
+    rather than a silent hang.
 
 ### 11. CI Build Job (`.gitlab-ci.yml`)
 - Job name: `Emscripten_WASM`; base image: `ubuntu:24.04`.

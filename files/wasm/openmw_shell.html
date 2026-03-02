@@ -26,7 +26,7 @@
       font-size: 2.5rem; margin-bottom: 1rem;
       color: #c8a86e;
     }
-    #loading-overlay p { color: #999; margin-bottom: 2rem; }
+    #loading-overlay p.subtitle { color: #999; margin-bottom: 2rem; }
     #progress-container {
       width: 400px; max-width: 80vw;
       background: #2a2a3e; border-radius: 8px;
@@ -38,6 +38,7 @@
       transition: width 0.3s;
     }
     #status { color: #888; font-size: 0.9rem; }
+    #status.error { color: #ff6b6b; }
     #data-picker-section {
       text-align: center; margin-top: 2rem;
       display: none;
@@ -79,6 +80,33 @@
       color: #666; font-size: 0.8rem;
       margin-top: 0.4rem;
     }
+    /* Fatal error panel */
+    #error-panel {
+      display: none; margin-top: 1.5rem;
+      background: #2a1a1e; border: 1px solid #ff6b6b;
+      border-radius: 8px; padding: 1rem 1.5rem;
+      text-align: center; max-width: 520px;
+    }
+    #error-panel.visible { display: block; }
+    #error-panel p { color: #ff9999; font-size: 0.9rem; margin-bottom: 0.75rem; }
+    #error-panel a {
+      display: inline-block;
+      padding: 8px 20px; font-size: 0.85rem;
+      background: #ff6b6b; color: #1a1a2e;
+      border: none; border-radius: 5px;
+      cursor: pointer; font-weight: 600;
+      text-decoration: none;
+    }
+    #error-panel a:hover { background: #ff9999; }
+    /* Build info badge */
+    #build-info {
+      position: absolute; bottom: 1rem; left: 50%;
+      transform: translateX(-50%);
+      color: #444; font-size: 0.7rem;
+      text-align: center; letter-spacing: 0.03em;
+    }
+    #build-info a { color: #666; text-decoration: none; }
+    #build-info a:hover { color: #c8a86e; }
     #canvas-container {
       width: 100vw; height: 100vh;
       display: none;
@@ -88,17 +116,41 @@
       width: 100%; height: 100%;
       display: block;
     }
-    #console-output {
+    /* Console overlay */
+    #console-overlay {
       position: fixed; bottom: 0; left: 0; right: 0;
-      max-height: 200px; overflow-y: auto;
-      background: rgba(0,0,0,0.85);
-      padding: 8px 12px;
+      max-height: 240px;
+      background: rgba(0,0,0,0.9);
+      display: none; flex-direction: column;
+      z-index: 50;
+    }
+    #console-overlay.visible { display: flex; }
+    #console-toolbar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 4px 10px;
+      border-bottom: 1px solid #333;
+      flex-shrink: 0;
+    }
+    #console-toolbar span {
+      font-size: 0.7rem; color: #555;
+      font-family: "Fira Code", "Consolas", monospace;
+      flex: 1;
+    }
+    .console-btn {
+      padding: 2px 10px; font-size: 0.72rem;
+      border: 1px solid #444; border-radius: 4px;
+      background: #222; color: #aaa;
+      cursor: pointer; white-space: nowrap;
+    }
+    .console-btn:hover { background: #333; color: #e0e0e0; }
+    .console-btn.copied { background: #2a4a2e; color: #6bcb77; border-color: #4caf50; }
+    #console-output {
+      flex: 1; overflow-y: auto;
+      padding: 6px 12px;
       font-family: "Fira Code", "Consolas", monospace;
       font-size: 0.75rem;
       color: #aaa;
-      display: none; z-index: 50;
     }
-    #console-output.visible { display: block; }
     .log-error { color: #ff6b6b; }
     .log-warn { color: #ffd93d; }
     .log-info { color: #6bcb77; }
@@ -116,12 +168,33 @@
       border-radius: 12px;
       background: rgba(26,26,46,0.9);
     }
+    /* In-game HUD tester toolbar (hidden by default, shown via Ctrl+`) */
+    #hud-toolbar {
+      position: fixed; top: 0; left: 0; right: 0;
+      display: none; align-items: center; gap: 8px;
+      padding: 4px 12px;
+      background: rgba(0,0,0,0.75);
+      z-index: 55; font-size: 0.75rem;
+    }
+    #hud-toolbar.visible { display: flex; }
+    #hud-toolbar a, #hud-toolbar button {
+      padding: 2px 10px;
+      border: 1px solid #555; border-radius: 4px;
+      background: #222; color: #aaa;
+      cursor: pointer; font-size: 0.72rem;
+      text-decoration: none;
+    }
+    #hud-toolbar a:hover, #hud-toolbar button:hover { color: #c8a86e; border-color: #c8a86e; }
+    #hud-fps {
+      margin-left: auto; color: #666;
+      font-family: "Fira Code", "Consolas", monospace;
+    }
   </style>
 </head>
 <body>
   <div id="loading-overlay">
     <h1>OpenMW</h1>
-    <p>Morrowind in the Browser</p>
+    <p class="subtitle">Morrowind in the Browser</p>
     <div id="progress-container" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
       <div id="progress-bar"></div>
     </div>
@@ -142,6 +215,15 @@
         <div id="upload-detail"></div>
       </div>
     </div>
+    <div id="error-panel">
+      <p id="error-message">An error occurred during initialization.</p>
+      <a id="report-error-link" href="#" target="_blank" rel="noopener">Report this issue</a>
+    </div>
+    <div id="build-info">
+      OpenMW WASM &mdash; experimental build &mdash;
+      <a href="USER_TESTING.md" target="_blank" rel="noopener">Testing guide</a> &middot;
+      <a href="https://github.com/awest813/openmwONLINE/issues/new?labels=wasm,bug&template=wasm_bug.md" target="_blank" rel="noopener">Report a bug</a>
+    </div>
   </div>
 
   <div id="canvas-container">
@@ -151,7 +233,26 @@
     </div>
   </div>
 
-  <div id="console-output"></div>
+  <!-- In-game tester HUD (Ctrl+` to toggle) -->
+  <div id="hud-toolbar">
+    <button onclick="copyLog()">Copy Log</button>
+    <a href="https://github.com/awest813/openmwONLINE/issues/new?labels=wasm,bug&template=wasm_bug.md"
+       target="_blank" rel="noopener">Report Issue</a>
+    <a href="USER_TESTING.md" target="_blank" rel="noopener">Testing Guide</a>
+    <span id="hud-fps"></span>
+  </div>
+
+  <!-- Console overlay -->
+  <div id="console-overlay">
+    <div id="console-toolbar">
+      <span>Console &mdash; Ctrl+` to hide</span>
+      <button class="console-btn" id="copy-log-btn" onclick="copyLog()">Copy Log</button>
+      <a class="console-btn" id="report-issue-btn"
+         href="https://github.com/awest813/openmwONLINE/issues/new?labels=wasm,bug&template=wasm_bug.md"
+         target="_blank" rel="noopener">Report Issue</a>
+    </div>
+    <div id="console-output"></div>
+  </div>
 
   <script>
     var statusEl = document.getElementById('status');
@@ -160,9 +261,22 @@
     var canvasContainer = document.getElementById('canvas-container');
     var dataPickerSection = document.getElementById('data-picker-section');
     var consoleOutput = document.getElementById('console-output');
+    var consoleOverlay = document.getElementById('console-overlay');
+    var hudToolbar = document.getElementById('hud-toolbar');
+    var errorPanel = document.getElementById('error-panel');
+    var errorMessage = document.getElementById('error-message');
+    var reportErrorLink = document.getElementById('report-error-link');
 
-    function setStatus(text) {
+    // Collect all log lines for "Copy Log"
+    var logLines = [];
+
+    function setStatus(text, isError) {
       statusEl.textContent = text;
+      if (isError) {
+        statusEl.classList.add('error');
+      } else {
+        statusEl.classList.remove('error');
+      }
     }
 
     function setProgress(pct) {
@@ -186,22 +300,33 @@
       if (c.requestPointerLock) c.requestPointerLock();
     });
 
+    // ----------------------------------------------------------------
+    // Console logging
+    // ----------------------------------------------------------------
     var MAX_CONSOLE_LINES = 500;
 
     function logToConsole(msg, level) {
+      var ts = new Date().toISOString().slice(11, 23);
+      var prefix = '[' + ts + '] ';
+      var full = prefix + msg;
+      logLines.push(full);
+
       var line = document.createElement('div');
-      line.textContent = msg;
+      line.textContent = full;
       if (level === 'error') line.className = 'log-error';
       else if (level === 'warn') line.className = 'log-warn';
       else if (level === 'info') line.className = 'log-info';
       consoleOutput.appendChild(line);
-      while (consoleOutput.childElementCount > MAX_CONSOLE_LINES)
+      while (consoleOutput.childElementCount > MAX_CONSOLE_LINES) {
         consoleOutput.removeChild(consoleOutput.firstChild);
+        logLines.shift();
+      }
       consoleOutput.scrollTop = consoleOutput.scrollHeight;
     }
 
     function toggleConsole() {
-      consoleOutput.classList.toggle('visible');
+      var visible = consoleOverlay.classList.toggle('visible');
+      hudToolbar.classList.toggle('visible', visible);
     }
 
     document.addEventListener('keydown', function(e) {
@@ -211,6 +336,109 @@
       }
     });
 
+    // ----------------------------------------------------------------
+    // Copy Log to clipboard
+    // ----------------------------------------------------------------
+    function buildLogHeader() {
+      return [
+        '=== OpenMW WASM Session Log ===',
+        'Date: ' + new Date().toISOString(),
+        'Browser: ' + navigator.userAgent,
+        'Platform: ' + (navigator.platform || 'unknown'),
+        'Memory: ' + (navigator.deviceMemory ? navigator.deviceMemory + ' GB' : 'unknown'),
+        'Logical CPUs: ' + (navigator.hardwareConcurrency || 'unknown'),
+        'SharedArrayBuffer: ' + (typeof SharedArrayBuffer !== 'undefined' ? 'available' : 'unavailable'),
+        '================================',
+        ''
+      ].join('\n');
+    }
+
+    function copyLog() {
+      var copyBtn = document.getElementById('copy-log-btn');
+      var text = buildLogHeader() + logLines.join('\n');
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function() {
+          flashCopyButton(copyBtn);
+        }).catch(function() {
+          fallbackCopy(text, copyBtn);
+        });
+      } else {
+        fallbackCopy(text, copyBtn);
+      }
+    }
+
+    function fallbackCopy(text, btn) {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      try { document.execCommand('copy'); } catch(e) {}
+      document.body.removeChild(ta);
+      if (btn) flashCopyButton(btn);
+    }
+
+    function flashCopyButton(btn) {
+      if (!btn) return;
+      var orig = btn.textContent;
+      btn.textContent = 'Copied!';
+      btn.classList.add('copied');
+      setTimeout(function() {
+        btn.textContent = orig;
+        btn.classList.remove('copied');
+      }, 2000);
+    }
+
+    // ----------------------------------------------------------------
+    // Error panel helpers
+    // ----------------------------------------------------------------
+    function showError(msg) {
+      setStatus(msg, true);
+      errorMessage.textContent = msg;
+      var issueBody = encodeURIComponent(
+        '**Browser:** ' + navigator.userAgent + '\n' +
+        '**Error:** ' + msg + '\n\n' +
+        '**Steps to reproduce:**\n1. \n\n' +
+        '**Console log:**\n```\n' + logLines.slice(-50).join('\n') + '\n```'
+      );
+      reportErrorLink.href =
+        'https://github.com/awest813/openmwONLINE/issues/new?labels=wasm,bug' +
+        '&body=' + issueBody;
+      errorPanel.classList.add('visible');
+    }
+
+    // ----------------------------------------------------------------
+    // Simple FPS counter (updated once per second)
+    // ----------------------------------------------------------------
+    var fpsSamples = [];
+    var lastFpsTime = performance.now();
+    var hudFps = document.getElementById('hud-fps');
+
+    function recordFrame() {
+      var now = performance.now();
+      fpsSamples.push(now);
+      var cutoff = now - 1000;
+      while (fpsSamples.length && fpsSamples[0] < cutoff) fpsSamples.shift();
+      if (now - lastFpsTime >= 500) {
+        hudFps.textContent = fpsSamples.length + ' fps';
+        lastFpsTime = now;
+      }
+    }
+
+    // Hook into requestAnimationFrame to sample FPS without patching Emscripten
+    var _origRAF = window.requestAnimationFrame.bind(window);
+    window.requestAnimationFrame = function(cb) {
+      return _origRAF(function(ts) {
+        recordFrame();
+        cb(ts);
+      });
+    };
+
+    // ----------------------------------------------------------------
+    // Upload progress helpers
+    // ----------------------------------------------------------------
     var uploadProgress = document.getElementById('upload-progress');
     var uploadStats = document.getElementById('upload-stats');
     var uploadBar = document.getElementById('upload-bar');
@@ -223,6 +451,9 @@
       return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
     }
 
+    // ----------------------------------------------------------------
+    // Data directory picker
+    // ----------------------------------------------------------------
     async function pickDataDirectory() {
       if (typeof globalThis.__openmwPickDataDirectory === 'function') {
         var btn = document.getElementById('pick-data-btn');
@@ -261,26 +492,33 @@
             btn.textContent = 'Select Morrowind Data Folder';
           }
         } catch (e) {
-          setStatus('Failed to load game data: ' + e.message);
+          logToConsole('Data load error: ' + e.message, 'error');
           uploadProgress.classList.remove('visible');
           btn.disabled = false;
           btn.textContent = 'Select Morrowind Data Folder';
+          showError('Failed to load game data: ' + e.message);
         }
       } else {
         setStatus('Engine not ready yet, please wait...');
       }
     }
 
+    // ----------------------------------------------------------------
+    // Emscripten Module object
+    // ----------------------------------------------------------------
     var Module = {
       canvas: (function() { return document.getElementById('canvas'); })(),
+
       print: function(text) {
         console.log(text);
         logToConsole(text, 'info');
       },
+
       printErr: function(text) {
         console.error(text);
         logToConsole(text, 'error');
       },
+
       setStatus: function(text) {
         if (text) {
           var match = text.match(/([^(]+)\((\d+(\.\d+)?)\/(\d+)\)/);
@@ -294,17 +532,26 @@
           }
         }
       },
+
       onRuntimeInitialized: function() {
+        logToConsole('Engine runtime initialized', 'info');
+        logToConsole('Browser: ' + navigator.userAgent, 'info');
+        logToConsole('SharedArrayBuffer: ' + (typeof SharedArrayBuffer !== 'undefined' ? 'available' : 'unavailable'), 'info');
         setStatus('Engine initialized');
         setProgress(100);
         if (typeof window.showDirectoryPicker === 'function') {
           dataPickerSection.classList.add('visible');
           setStatus('Ready - select your Morrowind data folder to begin');
         } else {
-          setStatus('File System Access API not available in this browser');
-          logToConsole('Your browser does not support the File System Access API.', 'warn');
-          logToConsole('Try Chrome, Edge, or another Chromium-based browser.', 'warn');
+          var msg = 'File System Access API not available. Try Chrome, Edge, or a Chromium-based browser.';
+          logToConsole(msg, 'warn');
+          showError(msg);
         }
+      },
+
+      onAbort: function(what) {
+        logToConsole('Engine aborted: ' + what, 'error');
+        showError('Engine crashed: ' + what + '. See console log for details.');
       },
     };
   </script>
