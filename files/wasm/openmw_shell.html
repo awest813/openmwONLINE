@@ -251,10 +251,16 @@
         };
 
         try {
-          await globalThis.__openmwPickDataDirectory();
-          setStatus('Game data loaded successfully!');
+          var success = await globalThis.__openmwPickDataDirectory();
           uploadProgress.classList.remove('visible');
-          dataPickerSection.style.display = 'none';
+          if (success) {
+            setStatus('Game data loaded successfully!');
+            dataPickerSection.style.display = 'none';
+          } else {
+            setStatus('Ready - select your Morrowind data folder to begin');
+            btn.disabled = false;
+            btn.textContent = 'Select Morrowind Data Folder';
+          }
         } catch (e) {
           setStatus('Failed to load game data: ' + e.message);
           uploadProgress.classList.remove('visible');

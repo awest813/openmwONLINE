@@ -834,14 +834,10 @@ namespace SceneUtil
         setUpdateCallback(new LightManagerUpdateCallback);
 
 #ifdef __EMSCRIPTEN__
-        if (false)
+        if (settings.mLightingMethod == LightingMethod::FFP)
+            Log(Debug::Warning) << "Fixed-function lighting unavailable on Emscripten/WebGL; "
+                                   "using per-object uniform lighting";
         {
-        }
-        else
-        {
-            if (settings.mLightingMethod == LightingMethod::FFP)
-                Log(Debug::Warning) << "Fixed-function lighting unavailable on Emscripten/WebGL; "
-                                       "using per-object uniform lighting";
 #else
         if (settings.mLightingMethod == LightingMethod::FFP)
         {

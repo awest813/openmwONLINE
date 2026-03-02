@@ -281,9 +281,9 @@ namespace MWSound
 
         AVCodecContextPtr codecCtxPtr(std::exchange(codecCtx, nullptr));
 
-#ifdef __EMSCRIPTEN__
-        // Disable FFmpeg internal codec threading: WebAssembly without pthreads
-        // cannot spawn worker threads inside avcodec_open2.
+#if defined(__EMSCRIPTEN__) && !defined(__EMSCRIPTEN_PTHREADS__)
+        // Disable FFmpeg internal codec threading: single-threaded WebAssembly
+        // builds cannot spawn worker threads inside avcodec_open2.
         codecCtxPtr->thread_count = 1;
         codecCtxPtr->thread_type = 0;
 #endif

@@ -145,52 +145,56 @@ namespace OMW::WasmFilePicker
                     globalThis.__openmwPickDataDirectory = async function() {
                         if (typeof window === 'undefined' || !window.showDirectoryPicker) {
                             console.error('File System Access API not available.');
-                            return;
+                            return false;
                         }
 
+                        var dirHandle;
                         try {
-                            var dirHandle = await window.showDirectoryPicker({ mode: 'read' });
-                            console.log('Selected directory:', dirHandle.name);
-
-                            if (typeof globalThis.__openmwOnUploadPhase === 'function')
-                                globalThis.__openmwOnUploadPhase('scanning');
-
-                            var fileList = await enumerateFiles(dirHandle, '');
-                            var totalBytes = fileList.reduce(function(sum, f) { return sum + f.size; }, 0);
-                            var stats = globalThis.__openmwUploadStats;
-                            stats.totalFiles = fileList.length;
-                            stats.totalBytes = totalBytes;
-                            stats.files = 0;
-                            stats.bytes = 0;
-
-                            console.log('Found', fileList.length, 'files (' + (totalBytes / (1024*1024)).toFixed(1) + ' MB)');
-
-                            if (typeof globalThis.__openmwOnUploadPhase === 'function')
-                                globalThis.__openmwOnUploadPhase('uploading');
-
-                            for (var i = 0; i < fileList.length; i++) {
-                                await uploadFileChunked(fileList[i], fileList[i].path);
-                                stats.files++;
-                                stats.bytes += fileList[i].size;
-
-                                if (typeof globalThis.__openmwOnUploadProgress === 'function')
-                                    globalThis.__openmwOnUploadProgress(stats.files, stats.totalFiles, stats.bytes, stats.totalBytes);
-
-                                globalThis.__openmwReportProgress(stats.files, stats.bytes);
-
-                                if (i % 50 === 0)
-                                    await new Promise(function(r) { setTimeout(r, 0); });
-                            }
-
-                            console.log('Upload complete:', stats.files, 'files,', (stats.bytes / (1024*1024)).toFixed(1), 'MB');
-                            globalThis.__openmwNotifyDataReady();
+                            dirHandle = await window.showDirectoryPicker({ mode: 'read' });
                         } catch (e) {
                             if (e.name === 'AbortError') {
                                 console.log('Directory picker cancelled by user');
-                            } else {
-                                console.error('Directory picker error:', e);
+                                return false;
                             }
+                            console.error('Directory picker error:', e);
+                            throw e;
                         }
+
+                        console.log('Selected directory:', dirHandle.name);
+
+                        if (typeof globalThis.__openmwOnUploadPhase === 'function')
+                            globalThis.__openmwOnUploadPhase('scanning');
+
+                        var fileList = await enumerateFiles(dirHandle, '');
+                        var totalBytes = fileList.reduce(function(sum, f) { return sum + f.size; }, 0);
+                        var stats = globalThis.__openmwUploadStats;
+                        stats.totalFiles = fileList.length;
+                        stats.totalBytes = totalBytes;
+                        stats.files = 0;
+                        stats.bytes = 0;
+
+                        console.log('Found', fileList.length, 'files (' + (totalBytes / (1024*1024)).toFixed(1) + ' MB)');
+
+                        if (typeof globalThis.__openmwOnUploadPhase === 'function')
+                            globalThis.__openmwOnUploadPhase('uploading');
+
+                        for (var i = 0; i < fileList.length; i++) {
+                            await uploadFileChunked(fileList[i], fileList[i].path);
+                            stats.files++;
+                            stats.bytes += fileList[i].size;
+
+                            if (typeof globalThis.__openmwOnUploadProgress === 'function')
+                                globalThis.__openmwOnUploadProgress(stats.files, stats.totalFiles, stats.bytes, stats.totalBytes);
+
+                            globalThis.__openmwReportProgress(stats.files, stats.bytes);
+
+                            if (i % 50 === 0)
+                                await new Promise(function(r) { setTimeout(r, 0); });
+                        }
+
+                        console.log('Upload complete:', stats.files, 'files,', (stats.bytes / (1024*1024)).toFixed(1), 'MB');
+                        globalThis.__openmwNotifyDataReady();
+                        return true;
                     };
                 }
 
