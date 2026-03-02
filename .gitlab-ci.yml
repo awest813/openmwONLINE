@@ -1345,7 +1345,7 @@ Emscripten_WASM:
   script:
     - source "$EMSDK_DIR/emsdk_env.sh"
     - cd "$BUILD_DIR"
-    - emmake make -j$(nproc) 2>&1 | tail -100
+    - emmake make -j$(nproc)
   artifacts:
     paths:
       - build-wasm/openmw.html
