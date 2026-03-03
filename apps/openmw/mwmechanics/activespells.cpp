@@ -1,6 +1,7 @@
 #include "activespells.hpp"
 
 #include <optional>
+#include <unordered_set>
 
 #include <components/debug/debuglog.hpp>
 
@@ -38,10 +39,12 @@ namespace
     bool merge(std::vector<ESM::ActiveEffect>& present, const std::vector<ESM::ActiveEffect>& queued)
     {
         // Can't merge if we already have an effect with the same effect index
+        std::unordered_set<int32_t> presentIndices;
+        presentIndices.reserve(present.size());
+        for (const auto& pEffect : present)
+            presentIndices.insert(pEffect.mEffectIndex);
         auto problem = std::find_if(queued.begin(), queued.end(), [&](const auto& qEffect) {
-            return std::find_if(present.begin(), present.end(), [&](const auto& pEffect) {
-                return pEffect.mEffectIndex == qEffect.mEffectIndex;
-            }) != present.end();
+            return presentIndices.contains(qEffect.mEffectIndex);
         });
         if (problem != queued.end())
             return false;
@@ -52,6 +55,7 @@ namespace
     void addEffects(
         std::vector<ESM::ActiveEffect>& effects, const ESM::EffectList& list, bool ignoreResistances = false)
     {
+        effects.reserve(effects.size() + list.mList.size());
         for (const auto& enam : list.mList)
         {
             if (enam.mData.mRange != ESM::RT_Self)

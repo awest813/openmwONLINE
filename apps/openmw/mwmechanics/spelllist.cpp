@@ -1,6 +1,7 @@
 #include "spelllist.hpp"
 
 #include <algorithm>
+#include <unordered_set>
 
 #include <components/esm3/loadcrea.hpp>
 #include <components/esm3/loadnpc.hpp>
@@ -113,9 +114,9 @@ namespace MWMechanics
     void SpellList::removeAll(const std::vector<ESM::RefId>& ids)
     {
         bool changed = withBaseRecord([&](auto& spells) {
+            const std::unordered_set<ESM::RefId> idSet(ids.begin(), ids.end());
             const auto it = std::remove_if(spells.begin(), spells.end(), [&](const auto& spell) {
-                const auto isSpell = [&](const auto& id) { return spell == id; };
-                return ids.end() != std::find_if(ids.begin(), ids.end(), isSpell);
+                return idSet.contains(spell);
             });
             if (it == spells.end())
                 return false;
