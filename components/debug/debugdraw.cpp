@@ -266,7 +266,10 @@ namespace Debug
 
         const osg::StateSet* stateSet = getStateSet();
 
-        const osg::Program::PerContextProgram& pcp = *state->getLastAppliedProgramObject();
+        const osg::Program::PerContextProgram* pcpPtr = state->getLastAppliedProgramObject();
+        if (!pcpPtr)
+            return;
+        const osg::Program::PerContextProgram& pcp = *pcpPtr;
         auto transLocation = pcp.getUniformLocation(stateSet->getUniform("trans")->getNameID());
         auto colLocation = pcp.getUniformLocation(stateSet->getUniform("color")->getNameID());
         auto scaleLocation = pcp.getUniformLocation(stateSet->getUniform("scale")->getNameID());
