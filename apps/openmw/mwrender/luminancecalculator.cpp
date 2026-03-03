@@ -1,5 +1,8 @@
 #include "luminancecalculator.hpp"
 
+#include <osg/GLExtensions>
+
+#include <components/debug/debuglog.hpp>
 #include <components/misc/mathutil.hpp>
 #include <components/settings/values.hpp>
 #include <components/shader/shadermanager.hpp>
@@ -8,8 +11,8 @@
 
 #ifdef __EMSCRIPTEN__
 // WebGL 2.0 requires EXT_color_buffer_float for GL_R16F render targets, which
-// is not universally available.  Fall back to GL_R8 (sufficient for the
-// luminance / auto-exposure feature and avoids the extension dependency).
+// is not universally available.  Start with GL_R8 and upgrade lazily on the
+// first draw call if EXT_color_buffer_float is supported.
 static constexpr GLenum LUMINANCE_INTERNAL_FORMAT = GL_R8;
 #else
 static constexpr GLenum LUMINANCE_INTERNAL_FORMAT = GL_R16F;
@@ -106,6 +109,37 @@ namespace MWRender
     {
         if (!mEnabled)
             return;
+
+#ifdef __EMSCRIPTEN__
+        // On the first draw call the GL context is realized; check whether the
+        // EXT_color_buffer_float extension is available and, if so, upgrade all
+        // luminance textures from GL_R8 to GL_R16F for better HDR precision.
+        if (!mFormatChecked)
+        {
+            mFormatChecked = true;
+            if (osg::isGLExtensionSupported(state.getContextID(), "EXT_color_buffer_float"))
+            {
+                Log(Debug::Info) << "WASM: EXT_color_buffer_float supported; upgrading luminance buffers to GL_R16F";
+                for (auto& buffer : mBuffers)
+                {
+                    buffer.mipmappedSceneLuminanceTex->setInternalFormat(GL_R16F);
+                    buffer.mipmappedSceneLuminanceTex->dirtyTextureObject();
+                    buffer.luminanceTex->setInternalFormat(GL_R16F);
+                    buffer.luminanceTex->dirtyTextureObject();
+                    if (buffer.luminanceProxyTex)
+                    {
+                        buffer.luminanceProxyTex->setInternalFormat(GL_R16F);
+                        buffer.luminanceProxyTex->dirtyTextureObject();
+                    }
+                }
+                mCompiled = false;
+            }
+            else
+            {
+                Log(Debug::Info) << "WASM: EXT_color_buffer_float not available; using GL_R8 for luminance buffers";
+            }
+        }
+#endif
 
         bool dirty = !mCompiled;
 

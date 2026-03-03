@@ -28,6 +28,8 @@ installing any software.
 | HTML shell (UI, progress, console) | ✅ Complete |
 | CI build job | ✅ Complete |
 | User testing infrastructure | ✅ Complete |
+| Expansion auto-detection (Tribunal / Bloodmoon) | ✅ Complete |
+| EXT_color_buffer_float runtime upgrade | ✅ Complete |
 | End-to-end browser testing | ⏳ In progress |
 | Performance profiling & optimization | ⏳ Pending |
 
@@ -44,9 +46,11 @@ installing any software.
    a properly configured cross-origin isolated host.
 4. **Hosting & deployment** — Document (or automate) the required server headers
    (`COOP`/`COEP`) and produce a deployable artifact package.
-5. **Post-processor / HDR** — `GL_R8` luminance fallback reduces HDR precision;
-   `GL_RGBA8` ripple texture fallback likewise reduces water ripple quality.
-   Evaluate whether `EXT_color_buffer_float` can be requested conditionally.
+5. **Post-processor / HDR** — `EXT_color_buffer_float` is now requested at
+   runtime and used when available (GL_R16F luminance, GL_RGBA16F ripples).
+   Remaining: validate visual quality improvement and consider
+   `EXT_color_buffer_half_float` as an alternative on devices that only
+   support half-float textures but not renderable floats.
 6. **Mod/extension compatibility** — Verify common mods work through the browser
    file picker and IDBFS pipeline.
 
@@ -147,6 +151,11 @@ pre-fetches ports, runs `build_wasm_deps.sh`, and configures CMake.
 - Auto-generated `openmw.cfg` at first run:
   - `data=/gamedata`, `content=Morrowind.esm`, `fallback-archive=Morrowind.bsa`
   - `encoding=win1252`; commented-out Tribunal/Bloodmoon entries.
+- **Expansion auto-detection** (`updateCfgWithExpansions()`): after each
+  successful upload, `openmw_wasm_notify_data_ready()` scans `/gamedata` for
+  `Tribunal.esm` and `Bloodmoon.esm`. If found, the corresponding commented-out
+  entries in `openmw.cfg` are uncommented and an immediate IDBFS flush is
+  triggered so the updated config persists across reloads.
 
 ### 6. Graphics & Rendering
 
@@ -167,8 +176,8 @@ pre-fetches ports, runs `build_wasm_deps.sh`, and configures CMake.
 |---|---|
 | `GL_DEPTH_CLAMP` | Guarded (`water.cpp`, `shadertechnique.cpp`) |
 | `osg::ClipControl` | Guarded in shadow technique |
-| `GL_RGBA16F` FBO (ripples) | Remapped to `GL_RGBA8` |
-| `GL_R16F` (luminance) | Remapped to `GL_R8` |
+| `GL_RGBA16F` FBO (ripples) | Starts as `GL_RGBA8`; upgraded to `GL_RGBA16F` on first draw if `EXT_color_buffer_float` is available |
+| `GL_R16F` (luminance) | Starts as `GL_R8`; upgraded to `GL_R16F` on first draw if `EXT_color_buffer_float` is available |
 | `glDisablei` | Nullified (post-processor) |
 | UBO in post-processor | Disabled |
 | `GL_LIGHTING` / `GL_NORMALIZE` | Guarded in all affected render files |

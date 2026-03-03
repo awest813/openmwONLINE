@@ -1339,7 +1339,7 @@ Emscripten_WASM:
   before_script:
     - export DEBIAN_FRONTEND=noninteractive
     - apt-get update && apt-get install -y --no-install-recommends
-        git cmake make python3 wget unzip xz-utils
+        git cmake make python3 wget unzip xz-utils bzip2
         build-essential autoconf automake libtool pkg-config
     - CI/before_script.wasm.sh
   script:
