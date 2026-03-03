@@ -222,6 +222,30 @@ namespace MWRender
         osg::GLExtensions& ext = *state.get<osg::GLExtensions>();
         const unsigned contextID = state.getContextID();
 
+#ifdef __EMSCRIPTEN__
+        // On the first draw call, check whether EXT_color_buffer_float is available.
+        // If so, upgrade the ripple textures from GL_RGBA8 to GL_RGBA16F for better
+        // water ripple quality.  mUseCompute is always false for Emscripten, so the
+        // bindImage path is never taken and only the FBO/texture path matters here.
+        if (!mFormatChecked)
+        {
+            mFormatChecked = true;
+            if (osg::isGLExtensionSupported(contextID, "EXT_color_buffer_float"))
+            {
+                Log(Debug::Info) << "WASM: EXT_color_buffer_float supported; upgrading ripple textures to GL_RGBA16F";
+                for (auto& tex : mTextures)
+                {
+                    tex->setInternalFormat(GL_RGBA16F);
+                    tex->dirtyTextureObject();
+                }
+            }
+            else
+            {
+                Log(Debug::Info) << "WASM: EXT_color_buffer_float not available; using GL_RGBA8 for ripple textures";
+            }
+        }
+#endif
+
         const auto bindImage = [&](osg::Texture2D* texture, GLuint index, GLenum access) {
             osg::Texture::TextureObject* to = texture->getTextureObject(contextID);
             if (!to || texture->isDirty(contextID))
@@ -230,7 +254,9 @@ namespace MWRender
                 to = texture->getTextureObject(contextID);
             }
 #ifdef __EMSCRIPTEN__
-            ext.glBindImageTexture(index, to->id(), 0, GL_FALSE, 0, access, GL_RGBA8);
+            // mUseCompute is always false for Emscripten so this path is unreachable;
+            // derive the format from the texture itself in case that ever changes.
+            ext.glBindImageTexture(index, to->id(), 0, GL_FALSE, 0, access, texture->getInternalFormat());
 #else
             ext.glBindImageTexture(index, to->id(), 0, GL_FALSE, 0, access, GL_RGBA16F);
 #endif

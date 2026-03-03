@@ -3,6 +3,9 @@
 #include "wasmfilepicker.hpp"
 
 #include <algorithm>
+#include <fstream>
+#include <sstream>
+#include <string_view>
 
 #include <emscripten.h>
 
@@ -26,6 +29,7 @@ extern "C"
                          << sUploadedFileCount << " files, "
                          << (static_cast<double>(sUploadedByteCount) / (1024.0 * 1024.0)) << " MB at "
                          << sDataMountPath.string();
+        OMW::WasmFilePicker::updateCfgWithExpansions();
     }
 
     EMSCRIPTEN_KEEPALIVE
@@ -542,6 +546,105 @@ namespace OMW::WasmFilePicker
     uint64_t getUploadedByteCount()
     {
         return sUploadedByteCount;
+    }
+
+    void updateCfgWithExpansions()
+    {
+        // Look for Tribunal and Bloodmoon ESMs in the uploaded data.
+        // Files are expected directly in the data mount (i.e. the user selected the
+        // "Data Files" folder, so ESMs sit at the root of /gamedata).
+        const auto checkExpansion = [](const std::filesystem::path& base, const char* esm) -> bool {
+            // Try the canonical capitalisation first, then fully lower-case.
+            if (std::filesystem::exists(base / esm))
+                return true;
+            std::string lower(esm);
+            std::transform(lower.begin(), lower.end(), lower.begin(),
+                [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+            return std::filesystem::exists(base / lower);
+        };
+
+        const bool hasTribunal = checkExpansion(sDataMountPath, "Tribunal.esm");
+        const bool hasBloodmoon = checkExpansion(sDataMountPath, "Bloodmoon.esm");
+
+        if (!hasTribunal && !hasBloodmoon)
+        {
+            Log(Debug::Info) << "WASM: No expansion ESMs detected in uploaded data";
+            return;
+        }
+
+        // Locate the config file written by bootstrapWasmConfigFile().
+        const char* cfgHome = std::getenv("XDG_CONFIG_HOME");
+        const std::string configBase = (cfgHome && cfgHome[0] != '\0') ? cfgHome : "/persistent/home/.config";
+        const std::string cfgFile = configBase + "/openmw/openmw.cfg";
+
+        if (!std::filesystem::exists(cfgFile))
+        {
+            Log(Debug::Warning) << "WASM: Config file not found; cannot update for detected expansions";
+            return;
+        }
+
+        std::ifstream in(cfgFile);
+        if (!in.is_open())
+        {
+            Log(Debug::Warning) << "WASM: Cannot open config file for reading";
+            return;
+        }
+
+        std::ostringstream buf;
+        buf << in.rdbuf();
+        in.close();
+        std::string content = buf.str();
+
+        // Uncomment entries for detected expansions.  The commented lines were
+        // written by bootstrapWasmConfigFile() with exactly these tokens.
+        // Each token appears at most once in the auto-generated config, so a
+        // single find-and-replace per entry is sufficient.
+        const auto uncomment = [&content](std::string_view commentedLine, std::string_view activeLine) {
+            auto pos = content.find(commentedLine);
+            if (pos != std::string::npos)
+                content.replace(pos, commentedLine.size(), activeLine);
+        };
+
+        if (hasTribunal)
+        {
+            uncomment("# content=Tribunal.esm", "content=Tribunal.esm");
+            uncomment("# fallback-archive=Tribunal.bsa", "fallback-archive=Tribunal.bsa");
+            Log(Debug::Info) << "WASM: Enabling Tribunal expansion in config";
+        }
+
+        if (hasBloodmoon)
+        {
+            uncomment("# content=Bloodmoon.esm", "content=Bloodmoon.esm");
+            uncomment("# fallback-archive=Bloodmoon.bsa", "fallback-archive=Bloodmoon.bsa");
+            Log(Debug::Info) << "WASM: Enabling Bloodmoon expansion in config";
+        }
+
+        std::ofstream out(cfgFile);
+        if (!out.is_open())
+        {
+            Log(Debug::Warning) << "WASM: Cannot write updated config file";
+            return;
+        }
+
+        out << content;
+        out.close();
+
+        Log(Debug::Info) << "WASM: Config updated with detected expansions (takes effect on next page reload)";
+
+        // Trigger an IDBFS flush so the updated config reaches persistent storage
+        // before the user reloads the page.  Any flush error is logged by the
+        // existing JavaScript callback registered in initializeWasmPersistentStorage().
+        // The availability check and invocation are kept in a single script call to
+        // avoid a race between the two emscripten_run_script calls.
+        emscripten_run_script(R"(
+            if (typeof globalThis !== 'undefined'
+                    && typeof globalThis.__openmwSyncPersistentStorage === 'function') {
+                globalThis.__openmwSyncPersistentStorage();
+            } else {
+                console.warn('OpenMW WASM: persistent storage sync unavailable; '
+                    + 'expansion config changes will be saved on the next periodic sync.');
+            }
+        )");
     }
 }
 

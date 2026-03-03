@@ -81,6 +81,9 @@ namespace MWRender
 
         bool mPaused = false;
         bool mUseCompute = false;
+#ifdef __EMSCRIPTEN__
+        mutable bool mFormatChecked = false;
+#endif
 
         double mLastSimulationTime = 0;
         double mRemainingWaveTime = 0;

@@ -41,6 +41,7 @@ _EXTRA_TYPES = {
     ".js": "application/javascript",
     ".html": "text/html; charset=utf-8",
     ".md": "text/markdown; charset=utf-8",
+    ".data": "application/octet-stream",
 }
 
 

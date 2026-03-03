@@ -59,6 +59,9 @@ namespace MWRender
         bool mCompiled = false;
         bool mEnabled = false;
         bool mIsBlank = true;
+#ifdef __EMSCRIPTEN__
+        mutable bool mFormatChecked = false;
+#endif
 
         int mWidth = 1;
         int mHeight = 1;
