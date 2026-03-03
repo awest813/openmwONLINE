@@ -90,6 +90,102 @@ static const char fragmentShaderSource_withBaseTexture_twoShadowMaps[] =
         "} \n";
 #endif
 
+#ifdef __EMSCRIPTEN__
+// GLES3 / WebGL 2.0 compatible debug HUD shaders.
+// The legacy versions below use gl_Vertex, gl_TexCoord, texture2D, and gl_FragColor
+// which are not available in GLSL ES 3.00.  These replacements use the OSG GLES3
+// attribute names (osg_Vertex, osg_MultiTexCoord0) and named output variables.
+std::string debugVertexShaderSource =
+        "#version 300 es\n"
+        "precision highp float;\n"
+        "in vec4 osg_Vertex;\n"
+        "in vec4 osg_MultiTexCoord0;\n"
+        "out vec2 omw_TexCoord0;\n"
+        "void main(void){\n"
+        "    gl_Position = osg_Vertex;\n"
+        "    omw_TexCoord0 = osg_MultiTexCoord0.xy;\n"
+        "}\n";
+std::string debugFragmentShaderSource =
+        "#version 300 es\n"
+        "precision highp float;\n"
+        "in vec2 omw_TexCoord0;\n"
+        "uniform sampler2D texture;\n"
+        "out vec4 omw_FragColor;\n"
+        "void main(void)\n"
+        "{\n"
+        "    float f = texture(texture, omw_TexCoord0).r;\n"
+        "\n"
+        "    f = 256.0 * f;\n"
+        "    float fC = floor( f ) / 256.0;\n"
+        "\n"
+        "    f = 256.0 * fract( f );\n"
+        "    float fS = floor( f ) / 256.0;\n"
+        "\n"
+        "    f = 256.0 * fract( f );\n"
+        "    float fH = floor( f ) / 256.0;\n"
+        "\n"
+        "    fS *= 0.5;\n"
+        "    fH = ( fH  * 0.34 + 0.66 ) * ( 1.0 - fS );\n"
+        "\n"
+        "    vec3 rgb = vec3( ( fC > 0.5 ? ( 1.0 - fC ) : fC ),\n"
+        "                     abs( fC - 0.333333 ),\n"
+        "                     abs( fC - 0.666667 ) );\n"
+        "\n"
+        "    rgb = min( vec3( 1.0, 1.0, 1.0 ), 3.0 * rgb );\n"
+        "\n"
+        "    float fMax = max( max( rgb.r, rgb.g ), rgb.b );\n"
+        "    fMax = 1.0 / fMax;\n"
+        "\n"
+        "    vec3 color = fMax * rgb;\n"
+        "\n"
+        "    omw_FragColor = vec4( fS + fH * color, 1 );\n"
+        "}\n";
+
+std::string debugFrustumVertexShaderSource =
+        "#version 300 es\n"
+        "precision highp float;\n"
+        "in vec4 osg_Vertex;\n"
+        "uniform mat4 transform;\n"
+        "out float depth;\n"
+        "void main(void){\n"
+        "    gl_Position = transform * osg_Vertex;\n"
+        "    depth = gl_Position.z / gl_Position.w;\n"
+        "}\n";
+std::string debugFrustumFragmentShaderSource =
+        "#version 300 es\n"
+        "precision highp float;\n"
+        "in float depth;\n"
+        "out vec4 omw_FragColor;\n"
+        "void main(void)\n"
+        "{\n"
+        "    float f = depth;\n"
+        "\n"
+        "    f = 256.0 * f;\n"
+        "    float fC = floor( f ) / 256.0;\n"
+        "\n"
+        "    f = 256.0 * fract( f );\n"
+        "    float fS = floor( f ) / 256.0;\n"
+        "\n"
+        "    f = 256.0 * fract( f );\n"
+        "    float fH = floor( f ) / 256.0;\n"
+        "\n"
+        "    fS *= 0.5;\n"
+        "    fH = ( fH  * 0.34 + 0.66 ) * ( 1.0 - fS );\n"
+        "\n"
+        "    vec3 rgb = vec3( ( fC > 0.5 ? ( 1.0 - fC ) : fC ),\n"
+        "                     abs( fC - 0.333333 ),\n"
+        "                     abs( fC - 0.666667 ) );\n"
+        "\n"
+        "    rgb = min( vec3( 1.0, 1.0, 1.0 ), 3.0 * rgb );\n"
+        "\n"
+        "    float fMax = max( max( rgb.r, rgb.g ), rgb.b );\n"
+        "    fMax = 1.0 / fMax;\n"
+        "\n"
+        "    vec3 color = fMax * rgb;\n"
+        "\n"
+        "    omw_FragColor = vec4( fS + fH * color, 1 );\n"
+        "}\n";
+#else
 std::string debugVertexShaderSource = "void main(void){gl_Position = gl_Vertex; gl_TexCoord[0]=gl_MultiTexCoord0;}";
 std::string debugFragmentShaderSource =
         "uniform sampler2D texture;                                              \n"
@@ -165,6 +261,7 @@ std::string debugFrustumFragmentShaderSource =
         "    gl_FragColor = vec4(0.0, 0.0, 1.0, 0.0);                            \n"
 #endif
         "}                                                                       \n";
+#endif // __EMSCRIPTEN__
 
 
 template<class T>
