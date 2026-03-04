@@ -73,6 +73,7 @@ namespace OMW::WasmFilePicker
                 case '\'': escapedMount += "\\'"; break;
                 case '\n': escapedMount += "\\n"; break;
                 case '\r': escapedMount += "\\r"; break;
+                case '\t': escapedMount += "\\t"; break;
                 case '\0': escapedMount += "\\0"; break;
                 default: escapedMount += c; break;
             }
@@ -345,15 +346,18 @@ namespace OMW::WasmFilePicker
                                     FS.mkdir(current);
                             }
                             var stream = FS.open(fullPath, 'w');
-                            var offset = 0;
-                            while (offset < file.size) {
-                                var end = Math.min(offset + CHUNK_SIZE, file.size);
-                                var slice = file.slice(offset, end);
-                                var chunk = new Uint8Array(await slice.arrayBuffer());
-                                FS.write(stream, chunk, 0, chunk.length);
-                                offset = end;
+                            try {
+                                var offset = 0;
+                                while (offset < file.size) {
+                                    var end = Math.min(offset + CHUNK_SIZE, file.size);
+                                    var slice = file.slice(offset, end);
+                                    var chunk = new Uint8Array(await slice.arrayBuffer());
+                                    FS.write(stream, chunk, 0, chunk.length);
+                                    offset = end;
+                                }
+                            } finally {
+                                FS.close(stream);
                             }
-                            FS.close(stream);
                         }
                     }
 
