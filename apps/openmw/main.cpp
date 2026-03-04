@@ -203,9 +203,15 @@ namespace
         escaped << '"';
         for (char c : input)
         {
-            if (c == '\\' || c == '"')
-                escaped << '\\';
-            escaped << c;
+            switch (c)
+            {
+                case '\\': escaped << "\\\\"; break;
+                case '"':  escaped << "\\\""; break;
+                case '\n': escaped << "\\n";  break;
+                case '\r': escaped << "\\r";  break;
+                case '\t': escaped << "\\t";  break;
+                default:   escaped << c;      break;
+            }
         }
         escaped << '"';
         return escaped.str();
