@@ -266,10 +266,13 @@ namespace MWRender
         state.pushStateSet(frameState.mStateset);
         state.apply();
         state.applyAttribute(mProgramBlobber);
-        for (const auto& [name, stack] : state.getUniformMap())
+        if (const auto* pcp = state.getLastAppliedProgramObject())
         {
-            if (!stack.uniformVec.empty())
-                state.getLastAppliedProgramObject()->apply(*(stack.uniformVec.back().first));
+            for (const auto& [name, stack] : state.getUniformMap())
+            {
+                if (!stack.uniformVec.empty())
+                    pcp->apply(*(stack.uniformVec.back().first));
+            }
         }
 
         if (mUseCompute)
@@ -289,10 +292,13 @@ namespace MWRender
 
         // PASS: Wave simulation
         state.applyAttribute(mProgramSimulation);
-        for (const auto& [name, stack] : state.getUniformMap())
+        if (const auto* pcp = state.getLastAppliedProgramObject())
         {
-            if (!stack.uniformVec.empty())
-                state.getLastAppliedProgramObject()->apply(*(stack.uniformVec.back().first));
+            for (const auto& [name, stack] : state.getUniformMap())
+            {
+                if (!stack.uniformVec.empty())
+                    pcp->apply(*(stack.uniformVec.back().first));
+            }
         }
 
         if (mUseCompute)
