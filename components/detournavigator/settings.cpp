@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <stdexcept>
 #include <string>
+#include <thread>
 
 namespace DetourNavigator
 {
@@ -95,6 +96,11 @@ namespace DetourNavigator
         result.mMaxTilesNumber = std::min(limits.mMaxTiles, ::Settings::navigator().mMaxTilesNumber.get());
         result.mWaitUntilMinDistanceToPlayer = ::Settings::navigator().mWaitUntilMinDistanceToPlayer;
         result.mAsyncNavMeshUpdaterThreads = ::Settings::navigator().mAsyncNavMeshUpdaterThreads;
+        if (result.mAsyncNavMeshUpdaterThreads == 0)
+        {
+            const auto concurrency = std::thread::hardware_concurrency();
+            result.mAsyncNavMeshUpdaterThreads = std::max<std::size_t>(1, concurrency > 0 ? concurrency / 2 : 1);
+        }
         result.mMaxNavMeshTilesCacheSize = ::Settings::navigator().mMaxNavMeshTilesCacheSize;
         result.mEnableWriteRecastMeshToFile = ::Settings::navigator().mEnableWriteRecastMeshToFile;
         result.mEnableWriteNavMeshToFile = ::Settings::navigator().mEnableWriteNavMeshToFile;

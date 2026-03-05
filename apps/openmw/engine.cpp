@@ -1078,6 +1078,11 @@ void OMW::Engine::go()
     Settings::camera().mViewingDistance.set(std::min(Settings::camera().mViewingDistance.get(), 4096.f));
     Settings::video().mAntialiasing.set(0);
     Settings::camera().mReverseZ.set(false);
+    // More aggressive small-feature culling for browser performance.
+    // Desktop default is 2.0; 4.0 removes more distant small objects (barrels, rocks)
+    // with minimal visual impact at the capped viewing distance.
+    if (Settings::camera().mSmallFeatureCullingPixelSize.get() < 4.0f)
+        Settings::camera().mSmallFeatureCullingPixelSize.set(4.0f);
 #endif
 
     MWClass::registerClasses();
