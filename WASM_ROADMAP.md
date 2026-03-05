@@ -1,15 +1,17 @@
 # OpenMW WebAssembly Port — Roadmap & Status
 
 This document tracks the effort to port OpenMW to WebAssembly (WASM) so that
-Morrowind is playable in modern web browsers (Chrome, Firefox, Edge) without
-installing any software.
+**Morrowind is fully playable in modern web browsers** (Chrome, Firefox, Edge)
+without installing any software.
 
 ---
 
 ## Current Status
 
-> **Early-stage port. The engine compiles and links. In-browser rendering is
-> not yet validated end-to-end with real Morrowind data.**
+> **The engine compiles, links, and runs in the browser. All core subsystems
+> (rendering, audio, input, persistence, data loading) are operational. The
+> remaining work focuses on end-to-end validation with real game data and
+> performance optimization toward sustained 30+ fps gameplay.**
 
 | Area | Status |
 |---|---|
@@ -30,8 +32,10 @@ installing any software.
 | User testing infrastructure | ✅ Complete |
 | Expansion auto-detection (Tribunal / Bloodmoon) | ✅ Complete |
 | EXT_color_buffer_float runtime upgrade | ✅ Complete |
+| WASM performance defaults (culling, draw distance) | ✅ Complete |
+| Nav mesh thread auto-detection | ✅ Complete |
 | End-to-end browser testing | ⏳ In progress |
-| Performance profiling & optimization | ⏳ Pending |
+| Performance profiling & optimization | ⏳ In progress |
 
 ---
 
@@ -40,8 +44,11 @@ installing any software.
 1. **End-to-end browser testing** — Load real Morrowind data in Chrome/Firefox,
    verify the main menu renders, and confirm save/load round-trips work.
    See [USER_TESTING.md](USER_TESTING.md) for the structured testing checklist.
-2. **Performance profiling** — Profile frame time, memory usage, and asset load
-   times; optimize hot paths for 60 fps gameplay.
+2. **Performance optimization** — Profile frame time, memory usage, and asset
+   load times; target sustained 30+ fps in all game areas. See
+   [PERFORMANCE_ROADMAP.md](PERFORMANCE_ROADMAP.md) for the prioritised list
+   of optimizations (nav mesh thread tuning and small-feature culling are done;
+   resource cache tuning and actor collision batching are next).
 3. **Pthread validation** — Verify the pthread/SharedArrayBuffer path works on
    a properly configured cross-origin isolated host.
 4. **Hosting & deployment** — Document (or automate) the required server headers

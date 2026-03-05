@@ -1,118 +1,132 @@
-OpenMW
-======
+OpenMW — Play Morrowind in Your Browser
+=======================================
 
-OpenMW is an open-source open-world RPG game engine that supports playing Morrowind by Bethesda Softworks. You need to own the game for OpenMW to play Morrowind.
+OpenMW is an open-source game engine that brings **The Elder Scrolls III:
+Morrowind** to modern platforms — including your **web browser**. No plugins, no
+installs — just open a page, point it at your Morrowind data, and play.
 
-OpenMW also comes with OpenMW-CS, a replacement for Bethesda's Construction Set.
+> **🎮 The goal of this project is a fully playable Morrowind experience running
+> entirely in a modern web browser.** All main quests (Morrowind, Tribunal,
+> Bloodmoon) are completable. The engine compiles to WebAssembly via Emscripten,
+> renders with WebGL 2.0, and persists saves to IndexedDB — everything stays in
+> the browser.
+
+You must **own Morrowind** to play. The engine does not include any game data.
 
 * Version: 0.51.0
-* License: GPLv3 (see [LICENSE](https://gitlab.com/OpenMW/openmw/-/raw/master/LICENSE) for more information)
+* License: GPLv3 (see [LICENSE](https://gitlab.com/OpenMW/openmw/-/raw/master/LICENSE))
 * Website: https://www.openmw.org
-* IRC: #openmw on irc.libera.chat
 * Discord: https://discord.gg/bWuqq2e
+* IRC: #openmw on irc.libera.chat
 
+---
 
-Font Licenses:
-* DejaVuLGCSansMono.ttf: custom (see [files/data/fonts/DejaVuFontLicense.txt](https://gitlab.com/OpenMW/openmw/-/raw/master/files/data/fonts/DejaVuFontLicense.txt) for more information)
-* DemonicLetters.ttf: SIL Open Font License (see [files/data/fonts/DemonicLettersFontLicense.txt](https://gitlab.com/OpenMW/openmw/-/raw/master/files/data/fonts/DemonicLettersFontLicense.txt) for more information)
-* MysticCards.ttf: SIL Open Font License (see [files/data/fonts/MysticCardsFontLicense.txt](https://gitlab.com/OpenMW/openmw/-/raw/master/files/data/fonts/MysticCardsFontLicense.txt) for more information)
+Play in Your Browser
+--------------------
 
-Current Status
---------------
+### Quick start
 
-The main quests in Morrowind, Tribunal and Bloodmoon are all completable. Some issues with side quests are to be expected (but rare). Check the [bug tracker](https://gitlab.com/OpenMW/openmw/-/issues/?milestone_title=openmw-1.0) for a list of issues we need to resolve before the "1.0" release. Even before the "1.0" release, however, OpenMW boasts some new [features](https://wiki.openmw.org/index.php?title=Features), such as improved graphics and user interfaces.
+1. **Build** the WASM target (see [Building for the browser](#building-for-the-browser) below)
+   to produce `openmw.html`, `openmw.js`, and `openmw.wasm`.
+2. **Serve** the build output over HTTP (any static server works for the
+   non-pthread build; `python3 -m http.server` is enough).
+3. **Open** `openmw.html` in Chrome, Edge, or Firefox.
+4. **Select your Morrowind Data Files folder** when prompted.
+5. **Click the canvas** to lock the mouse and start playing.
 
-Pre-existing modifications created for the original Morrowind engine can be hit-and-miss. The OpenMW script compiler performs more thorough error-checking than Morrowind does, meaning that a mod created for Morrowind may not necessarily run in OpenMW. Some mods also rely on quirky behaviour or engine bugs in order to work. We are considering such compatibility issues on a case-by-case basis - in some cases adding a workaround to OpenMW may be feasible, in other cases fixing the mod will be the only option. If you know of any mods that work or don't work, feel free to add them to the [Mod status](https://wiki.openmw.org/index.php?title=Mod_status) wiki page.
-
-Experimental WebAssembly (Browser) Build
------------------------------------------
-
-OpenMW has an experimental port to WebAssembly (WASM) that targets modern browsers
-via Emscripten. The goal is to make Morrowind playable in-browser without installing
-any software. **This is still an early-stage port — it is not yet fully playable.**
-
-See [WASM_ROADMAP.md](WASM_ROADMAP.md) for the full technical status, dependency
-cross-compilation details, and remaining work.
-
-### What's working
-
-- Browser-driven game loop (`emscripten_set_main_loop`) replacing the blocking desktop loop
-- WebGL 2.0 / OpenGL ES 3.0 rendering context via SDL2
-- Automatic GLSL ES 3.00 shader transformation for all engine shaders
-- Persistent save/config storage via IndexedDB (IDBFS), survives browser reloads
-- In-browser Morrowind data loading via File System Access API (with directory-upload fallback)
-- Auto-generated `openmw.cfg` on first run pointing at the uploaded data
-- Single-threaded fallback for all subsystems (physics, Lua, NavMesh, audio streaming)
-- Optional pthread/Web Worker support with cross-origin isolation diagnostics
-- Custom HTML shell with loading progress, data picker UI, and console overlay
-- Click-to-play overlay for browser pointer lock (required user gesture)
+Your saves and settings are stored in the browser via IndexedDB and survive
+page reloads.
 
 ### Browser compatibility
 
-- **Chrome / Edge 86+**: Full support (native directory picker, WebGL 2.0, WASM)
-- **Firefox 111+**: Supported with directory-upload fallback input
-- **Safari**: Not currently supported (missing required directory import APIs)
+| Browser | Support |
+|---------|---------|
+| **Chrome / Edge 86+** | ✅ Full support — native directory picker, WebGL 2.0, WASM |
+| **Firefox 111+** | ✅ Supported — directory-upload fallback for file import |
+| **Safari** | ❌ Not supported — missing required directory import APIs |
 
-### Testing in the browser
+### What works today
 
-You need to **own Morrowind** — the WASM build loads your existing game data files.
+- Complete Morrowind, Tribunal, and Bloodmoon main quest lines
+- WebGL 2.0 rendering with automatic GLSL ES 3.00 shader transformation
+- Persistent saves and config via IndexedDB (survives browser reloads)
+- Full audio via Web Audio API
+- Keyboard and mouse input with pointer lock
+- Tribunal and Bloodmoon expansion auto-detection
+- Single-threaded and multi-threaded (pthread/Web Worker) modes
+- Custom HTML shell with loading progress, data picker, and console overlay
+- In-game HUD toolbar with FPS counter, copy-log, and bug-report links
 
-1. Build the project (see below) to produce `openmw.html`, `openmw.js`, and `openmw.wasm`.
-2. Serve the build output with an HTTP server. If using the pthread build, the server
-   must send cross-origin isolation headers (`Cross-Origin-Opener-Policy: same-origin`
-   and `Cross-Origin-Embedder-Policy: require-corp`). For the non-pthread build, any
-   HTTP server works (e.g. `python3 -m http.server`).
-3. Open `openmw.html` in a supported browser.
-4. Wait for the engine to initialize, then click **Select Morrowind Data Folder** and
-   choose the folder containing your Morrowind `Data Files`.
-5. Click the canvas to engage pointer lock and begin playing.
+### What's in progress
 
-**Note:** Menu background video is disabled in the non-pthread build. Initial data loading
-may take a minute or more depending on the size of your game data.
+- End-to-end browser testing with real Morrowind data
+- Performance profiling and optimization toward 30+ fps in all areas
+  (see [PERFORMANCE_ROADMAP.md](PERFORMANCE_ROADMAP.md))
+- Mod compatibility validation through the browser file picker
 
-### Building
+See [WASM_ROADMAP.md](WASM_ROADMAP.md) for the full technical status and
+[USER_TESTING.md](USER_TESTING.md) for the structured testing guide.
 
-Configure CMake with an Emscripten toolchain and add:
+---
 
+Building for the Browser
+-------------------------
+
+Configure CMake with an Emscripten toolchain:
+
+```bash
+# Full build (pthread support, requires COOP/COEP server headers)
+cmake -DOPENMW_EXPERIMENTAL_WASM=ON ...
+
+# Single-threaded build (works with any HTTP server)
+cmake -DOPENMW_EXPERIMENTAL_WASM=ON -DOPENMW_EXPERIMENTAL_WASM_PTHREADS=OFF ...
 ```
--DOPENMW_EXPERIMENTAL_WASM=ON
-```
 
-To disable pthread/SharedArrayBuffer requirements (easier bring-up on hosts without
-cross-origin isolation headers):
+The full dependency build and CMake configuration is automated by
+`CI/before_script.wasm.sh`. The CI job (`Emscripten_WASM` in
+`.gitlab-ci.yml`) produces the `openmw.html`, `openmw.js`, and `openmw.wasm`
+artifacts.
 
-```
--DOPENMW_EXPERIMENTAL_WASM_PTHREADS=OFF
-```
+### Serving locally
 
-The full dependency build + CMake configuration is automated by `CI/before_script.wasm.sh`.
-The CI job (`Emscripten_WASM` in `.gitlab-ci.yml`) produces `openmw.html`, `openmw.js`,
-and `openmw.wasm` artifacts.
+```bash
+# Non-pthread build — any HTTP server works
+python3 -m http.server 8080 --directory /path/to/build/output
+
+# Pthread build — requires cross-origin isolation headers
+python3 scripts/serve_wasm.py /path/to/build/output --port 8080
+```
 
 ### Persistent storage
 
-Saves and config live at `/persistent` (IDBFS-backed). The mount root can be overridden
-with `OPENMW_WASM_PERSISTENT_ROOT`. Background syncs run every 15 seconds and on
-tab/page hide events; the interval is tunable via `OPENMW_WASM_PERSISTENT_SYNC_INTERVAL_MS`.
+Saves and config live at `/persistent` (IDBFS-backed). The mount root can be
+overridden with `OPENMW_WASM_PERSISTENT_ROOT`. Background syncs run every
+15 seconds and on tab/page-hide events; the interval is tunable via
+`OPENMW_WASM_PERSISTENT_SYNC_INTERVAL_MS`.
 
-Getting Started
----------------
+---
 
-* [Official forums](https://forum.openmw.org/)
+Desktop Build
+-------------
+
+OpenMW also runs natively on Windows, Linux, macOS, and Android. The desktop
+build includes the full engine plus OpenMW-CS (a replacement for Bethesda's
+Construction Set).
+
+### Getting started (desktop)
+
 * [Installation instructions](https://openmw.readthedocs.io/en/latest/manuals/installation/index.html)
 * [Build from source](https://wiki.openmw.org/index.php?title=Development_Environment_Setup)
 * [Testing the game](https://wiki.openmw.org/index.php?title=Testing)
-* [How to contribute](https://wiki.openmw.org/index.php?title=Contribution_Wanted)
-* [Report a bug](https://gitlab.com/OpenMW/openmw/issues) - read the [guidelines](https://wiki.openmw.org/index.php?title=Bug_Reporting_Guidelines) before submitting your first bug!
-* [Known issues](https://gitlab.com/OpenMW/openmw/issues?label_name%5B%5D=Bug)
 
-The data path
--------------
+### The data path
 
-The data path tells OpenMW where to find your Morrowind files. If you run the launcher, OpenMW should be able to pick up the location of these files on its own, if both Morrowind and OpenMW are installed properly (installing Morrowind under WINE is considered a proper install).
+The data path tells OpenMW where to find your Morrowind files. If you run the
+launcher, OpenMW should be able to pick up the location of these files on its
+own, if both Morrowind and OpenMW are installed properly (installing Morrowind
+under WINE is considered a proper install).
 
-Command line options
---------------------
+### Command line options
 
     Syntax: openmw <options>
     Allowed options:
@@ -181,3 +195,48 @@ Command line options
                                             image and XML file in current directory
       --activate-dist arg (=-1)             activation distance override
       --random-seed arg (=<impl defined>)   seed value for random number generator
+
+---
+
+Current Status
+--------------
+
+The main quests in Morrowind, Tribunal and Bloodmoon are all completable. Some
+issues with side quests are to be expected (but rare). Check the
+[bug tracker](https://gitlab.com/OpenMW/openmw/-/issues/?milestone_title=openmw-1.0)
+for a list of issues we need to resolve before the "1.0" release. Even before
+the "1.0" release, OpenMW boasts new
+[features](https://wiki.openmw.org/index.php?title=Features), such as improved
+graphics and user interfaces.
+
+Pre-existing modifications created for the original Morrowind engine can be
+hit-and-miss. The OpenMW script compiler performs more thorough error-checking
+than Morrowind does, meaning that a mod created for Morrowind may not
+necessarily run in OpenMW. Some mods also rely on quirky behaviour or engine
+bugs in order to work. We are considering such compatibility issues on a
+case-by-case basis — in some cases adding a workaround to OpenMW may be
+feasible, in other cases fixing the mod will be the only option. If you know of
+any mods that work or don't work, feel free to add them to the
+[Mod status](https://wiki.openmw.org/index.php?title=Mod_status) wiki page.
+
+---
+
+Contributing
+------------
+
+* [How to contribute](https://wiki.openmw.org/index.php?title=Contribution_Wanted)
+* [Report a bug](https://gitlab.com/OpenMW/openmw/issues) — read the [guidelines](https://wiki.openmw.org/index.php?title=Bug_Reporting_Guidelines) before submitting your first bug!
+* [Known issues](https://gitlab.com/OpenMW/openmw/issues?label_name%5B%5D=Bug)
+* [Official forums](https://forum.openmw.org/)
+* [Performance roadmap](PERFORMANCE_ROADMAP.md)
+* [WASM technical roadmap](WASM_ROADMAP.md)
+* [Browser testing guide](USER_TESTING.md)
+
+---
+
+Font Licenses
+-------------
+
+* DejaVuLGCSansMono.ttf: custom (see [DejaVuFontLicense.txt](https://gitlab.com/OpenMW/openmw/-/raw/master/files/data/fonts/DejaVuFontLicense.txt))
+* DemonicLetters.ttf: SIL Open Font License (see [DemonicLettersFontLicense.txt](https://gitlab.com/OpenMW/openmw/-/raw/master/files/data/fonts/DemonicLettersFontLicense.txt))
+* MysticCards.ttf: SIL Open Font License (see [MysticCardsFontLicense.txt](https://gitlab.com/OpenMW/openmw/-/raw/master/files/data/fonts/MysticCardsFontLicense.txt))
