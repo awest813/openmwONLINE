@@ -31,7 +31,7 @@ without installing any software.
 | CI build job | ✅ Complete |
 | User testing infrastructure | ✅ Complete |
 | Expansion auto-detection (Tribunal / Bloodmoon) | ✅ Complete |
-| EXT_color_buffer_float runtime upgrade | ✅ Complete |
+| HDR/ripple fallback matrix + graceful degradation | ✅ Complete |
 | WASM performance defaults (culling, draw distance) | ✅ Complete |
 | Nav mesh thread auto-detection | ✅ Complete |
 | End-to-end browser testing | ⏳ In progress |
@@ -53,12 +53,7 @@ without installing any software.
    a properly configured cross-origin isolated host.
 4. **Hosting & deployment** — Document (or automate) the required server headers
    (`COOP`/`COEP`) and produce a deployable artifact package.
-5. **Post-processor / HDR** — `EXT_color_buffer_float` is now requested at
-   runtime and used when available (GL_R16F luminance, GL_RGBA16F ripples).
-   Remaining: validate visual quality improvement and consider
-   `EXT_color_buffer_half_float` as an alternative on devices that only
-   support half-float textures but not renderable floats.
-6. **Mod/extension compatibility** — Verify common mods work through the browser
+5. **Mod/extension compatibility** — Verify common mods work through the browser
    file picker and IDBFS pipeline.
 
 ---
@@ -183,14 +178,36 @@ pre-fetches ports, runs `build_wasm_deps.sh`, and configures CMake.
 |---|---|
 | `GL_DEPTH_CLAMP` | Guarded (`water.cpp`, `shadertechnique.cpp`) |
 | `osg::ClipControl` | Guarded in shadow technique |
-| `GL_RGBA16F` FBO (ripples) | Starts as `GL_RGBA8`; upgraded to `GL_RGBA16F` on first draw if `EXT_color_buffer_float` is available |
-| `GL_R16F` (luminance) | Starts as `GL_R8`; upgraded to `GL_R16F` on first draw if `EXT_color_buffer_float` is available |
+| `GL_RGBA16F` FBO (ripples) | Starts as `GL_RGBA8`; upgraded to `GL_RGBA16F` on first draw if `EXT_color_buffer_float` **or** `EXT_color_buffer_half_float` is available |
+| `GL_R16F` (luminance) | Starts as `GL_R8`; upgraded to `GL_R16F` only when `EXT_color_buffer_float` is available; stays `GL_R8` otherwise |
 | `glDisablei` | Nullified (post-processor) |
 | UBO in post-processor | Disabled |
 | `GL_LIGHTING` / `GL_NORMALIZE` | Guarded in all affected render files |
 | Compute shaders (ripples) | Disabled |
 | `GL_LIGHTING` in MyGUI | Guarded |
 | `SDL_GetWindowGammaRamp` | Guarded |
+
+
+#### HDR/ripple browser capability matrix (runtime policy)
+
+| Detected extension support | Ripple target (`RipplesSurface`) | HDR luminance target (`LuminanceCalculator`) | Expected quality/result |
+|---|---|---|---|
+| `EXT_color_buffer_float` | Upgrade `GL_RGBA8` → `GL_RGBA16F` | Upgrade `GL_R8` → `GL_R16F` | Best precision for ripples + HDR adaptation |
+| No float, but `EXT_color_buffer_half_float` | Upgrade `GL_RGBA8` → `GL_RGBA16F` | Keep `GL_R8` | Better ripple stability; HDR stays reduced precision |
+| Neither extension | Keep `GL_RGBA8` | Keep `GL_R8` | Lowest precision, but scene remains renderable (no catastrophic failure) |
+
+#### Cross-browser validation notes
+
+A quick capability probe (Playwright in CI/container) confirmed:
+
+- Chromium: WebGL2 available, `EXT_color_buffer_float` + `EXT_color_buffer_half_float` available.
+- WebKit: WebGL2 available, `EXT_color_buffer_float` + `EXT_color_buffer_half_float` available.
+- Firefox (container build): WebGL2 unavailable in this environment, so fallback behavior must be validated on real user devices.
+
+For visual validation, compare screenshots/video for three modes: (1) float path,
+(2) half-float-only path, and (3) full fallback path. Acceptance target is
+"looks correct enough" with no black scene, no broken water pass, and no render
+loop failure on unsupported devices.
 
 #### GLSL ES 3.00 shader transformation
 `shadermanager.cpp` runs `transformShaderToGLES3()` automatically for all

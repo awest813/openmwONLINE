@@ -224,15 +224,23 @@ namespace MWRender
 
 #ifdef __EMSCRIPTEN__
         // On the first draw call, check whether EXT_color_buffer_float is available.
-        // If so, upgrade the ripple textures from GL_RGBA8 to GL_RGBA16F for better
-        // water ripple quality.  mUseCompute is always false for Emscripten, so the
-        // bindImage path is never taken and only the FBO/texture path matters here.
+        // If EXT_color_buffer_float is unavailable, try EXT_color_buffer_half_float.
+        // Upgrade to GL_RGBA16F when either extension is present for better quality,
+        // otherwise keep GL_RGBA8 as a compatibility fallback. mUseCompute is always
+        // false for Emscripten, so the bindImage path is never taken and only the
+        // FBO/texture path matters here.
         if (!mFormatChecked)
         {
             mFormatChecked = true;
-            if (osg::isGLExtensionSupported(contextID, "EXT_color_buffer_float"))
+            const bool hasColorBufferFloat = osg::isGLExtensionSupported(contextID, "EXT_color_buffer_float");
+            const bool hasColorBufferHalfFloat
+                = osg::isGLExtensionSupported(contextID, "EXT_color_buffer_half_float");
+
+            if (hasColorBufferFloat || hasColorBufferHalfFloat)
             {
-                Log(Debug::Info) << "WASM: EXT_color_buffer_float supported; upgrading ripple textures to GL_RGBA16F";
+                Log(Debug::Info) << "WASM: "
+                                 << (hasColorBufferFloat ? "EXT_color_buffer_float" : "EXT_color_buffer_half_float")
+                                 << " supported; upgrading ripple textures to GL_RGBA16F";
                 for (auto& tex : mTextures)
                 {
                     tex->setInternalFormat(GL_RGBA16F);
@@ -241,7 +249,8 @@ namespace MWRender
             }
             else
             {
-                Log(Debug::Info) << "WASM: EXT_color_buffer_float not available; using GL_RGBA8 for ripple textures";
+                Log(Debug::Info) << "WASM: neither EXT_color_buffer_float nor EXT_color_buffer_half_float available; "
+                                    "using GL_RGBA8 for ripple textures";
             }
         }
 #endif

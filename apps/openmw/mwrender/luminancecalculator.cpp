@@ -117,7 +117,12 @@ namespace MWRender
         if (!mFormatChecked)
         {
             mFormatChecked = true;
-            if (osg::isGLExtensionSupported(state.getContextID(), "EXT_color_buffer_float"))
+            const bool hasColorBufferFloat
+                = osg::isGLExtensionSupported(state.getContextID(), "EXT_color_buffer_float");
+            const bool hasColorBufferHalfFloat
+                = osg::isGLExtensionSupported(state.getContextID(), "EXT_color_buffer_half_float");
+
+            if (hasColorBufferFloat)
             {
                 Log(Debug::Info) << "WASM: EXT_color_buffer_float supported; upgrading luminance buffers to GL_R16F";
                 for (auto& buffer : mBuffers)
@@ -134,9 +139,16 @@ namespace MWRender
                 }
                 mCompiled = false;
             }
+            else if (hasColorBufferHalfFloat)
+            {
+                Log(Debug::Info)
+                    << "WASM: EXT_color_buffer_half_float detected without EXT_color_buffer_float; "
+                       "keeping luminance buffers at GL_R8 for compatibility";
+            }
             else
             {
-                Log(Debug::Info) << "WASM: EXT_color_buffer_float not available; using GL_R8 for luminance buffers";
+                Log(Debug::Info) << "WASM: neither EXT_color_buffer_float nor EXT_color_buffer_half_float available; "
+                                    "using GL_R8 for luminance buffers";
             }
         }
 #endif
