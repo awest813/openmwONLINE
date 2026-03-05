@@ -74,6 +74,14 @@ and any console errors for each item.
 - [ ] Menu background is solid black (non-pthread build — expected) or plays the cinematic (pthread build)
 - [ ] No visible shader corruption, black meshes, or Z-fighting
 
+
+### Phase 3.5 — HDR / water fallback validation
+
+- [ ] Capture browser console lines beginning with `WASM:` that describe ripple/luminance format choice
+- [ ] Confirm scene still renders when float color buffers are unavailable (no black screen / no crash)
+- [ ] Compare water ripples against a float-capable browser to verify no severe artifacts (minor precision loss acceptable)
+- [ ] Compare HDR adaptation speed/brightness against a float-capable browser (banding tolerable, broken exposure is not)
+
 ### Phase 4 — Input and interaction
 
 - [ ] Mouse movement is captured and controls the camera/cursor correctly
@@ -155,7 +163,7 @@ Please include the following in every bug report:
 | Issue | Details |
 |---|---|
 | Menu background video absent | Only plays in the pthread build. Non-pthread build shows a black screen — expected. |
-| HDR precision reduced | `GL_R8` luminance and `GL_RGBA8` ripple textures replace float formats. HDR and water ripple quality are reduced. |
+| HDR/ripple precision may downgrade by capability | Runtime picks best available path: float (`EXT_color_buffer_float`) when possible, ripple half-float fallback (`EXT_color_buffer_half_float`) otherwise, and full 8-bit fallback when neither extension is present. |
 | Compute shaders disabled | Water ripple compute pass is disabled. Ripples use CPU-side fallback. |
 | Safari not supported | Missing required directory import APIs. No workaround currently. |
 | Initial load is slow | First data upload can take 1–5 minutes for a vanilla install. Subsequent sessions re-use data from IndexedDB. |
@@ -191,3 +199,14 @@ server. The `scripts/serve_wasm.py` helper sets these automatically.
   one, a **lightly modded** install to check mod compatibility.
 - If the page crashes or freezes, take a screenshot of the browser's
   crash/hang dialog and note what you were doing at the time.
+
+
+## Browser capability matrix (HDR/ripple fallback)
+
+| Browser/runtime capability | Ripple format | Luminance format | Outcome |
+|---|---|---|---|
+| `EXT_color_buffer_float` present | `GL_RGBA16F` | `GL_R16F` | Highest quality path |
+| Float absent, `EXT_color_buffer_half_float` present | `GL_RGBA16F` | `GL_R8` | Ripple quality improved, HDR precision reduced |
+| Neither extension present | `GL_RGBA8` | `GL_R8` | Lowest quality, but rendering must remain stable |
+
+When reporting bugs, include the `WASM:` capability logs from the in-game console overlay so we can correlate visual quality with the selected fallback path.
