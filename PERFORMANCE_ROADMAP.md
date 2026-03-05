@@ -1,8 +1,13 @@
 # OpenMW Performance & Impact Fix Roadmap
 
-This document tracks planned performance improvements and other high/medium impact
-fixes that can be made safely without destabilizing the engine. Each item includes
-an impact rating, estimated effort, risk level, and the specific files involved.
+This document tracks planned performance improvements and high-impact fixes for
+OpenMW, with a focus on achieving smooth, fully playable Morrowind in the browser.
+Each item includes an impact rating, estimated effort, risk level, and the specific
+files involved.
+
+> **Goal:** Deliver a stable 30+ fps experience for the complete Morrowind game
+> running in modern web browsers (Chrome, Firefox, Edge) via the WebAssembly port,
+> while also benefiting the desktop engine.
 
 ---
 
@@ -10,8 +15,8 @@ an impact rating, estimated effort, risk level, and the specific files involved.
 
 | Symbol | Meaning |
 |--------|---------|
-| 🔴 | High impact |
-| 🟡 | Medium impact |
+| 🔴 | High impact — directly affects browser playability |
+| 🟡 | Medium impact — noticeable improvement in specific scenarios |
 | 🟢 | Low impact / code quality |
 | ✅ | Completed |
 | ⏳ | In progress |
@@ -23,11 +28,11 @@ an impact rating, estimated effort, risk level, and the specific files involved.
 
 | Area | Impact | Status |
 |------|--------|--------|
-| Shadow caster frustum culling | 🔴 High | ☐ Not started |
+| Navigation mesh thread tuning | 🔴 High | ✅ Completed |
+| Small-feature culling defaults | 🟡 Medium | ✅ Completed |
+| Shadow caster frustum culling | 🔴 High | ⏳ Investigated — see findings below |
 | RigGeometry / GPU pre-compilation | 🔴 High | ☐ Not started |
 | Actor-actor collision batching | 🔴 High | ☐ Not started |
-| Navigation mesh thread tuning | 🔴 High | ☐ Not started |
-| Small-feature culling defaults | 🟡 Medium | ☐ Not started |
 | Terrain composite-map resolution | 🟡 Medium | ☐ Not started |
 | NPC sound-pointer caching | 🟡 Medium | ☐ Not started |
 | Resource cache expiry tuning | 🟡 Medium | ☐ Not started |
@@ -41,26 +46,34 @@ an impact rating, estimated effort, risk level, and the specific files involved.
 
 ## High-Impact Fixes 🔴
 
-### 1. Shadow Caster Frustum Culling
+### 1. Shadow Caster Frustum Culling ⏳
 
 **File**: `components/sceneutil/mwshadowtechnique.cpp` (around line 1830)
 
-**Problem**: The shadow technique currently renders shadow maps for all shadow
-casters in the scene regardless of whether they are inside the camera view
-frustum. This wastes GPU time drawing geometry that can never contribute to a
-visible shadow.
+**Problem**: The shadow technique potentially renders shadow maps for shadow
+casters that fall outside the intersection of the camera view frustum and the
+light volume, wasting GPU time on geometry that cannot contribute to a visible
+shadow.
 
-**Fix**: Before adding a node to the shadow caster render list, test it against
-the main camera frustum. Nodes that are completely outside the frustum can be
-skipped without any visual change.
+**Investigation findings**: The existing `VDSMCameraCullCallback` already pushes
+a `Polytope`-based `CullingSet` (line 376) derived from
+`computeLightViewFrustumPolytope()`, which starts from the main camera frustum
+and removes planes facing away from the light to allow shadow casters behind
+the camera. `ComputeLightSpaceBounds` also applies the same polytope (line
+1356). Small-feature culling is explicitly disabled for the shadow camera (line
+684) because perspective correction can make "small" objects cast large shadows.
 
-**Risk**: Low. Frustum culling is a standard optimisation; shadow casters outside
-the view cannot produce visible shadows.
+**Remaining work**: The polytope may be tighter in specific cases. Investigate
+whether the frustum far-plane distance can be reduced for cascaded shadow maps
+so that shadow casters well beyond the viewing distance are excluded earlier.
 
-**Effort estimate**: 3–6 hours
+**Risk**: Low-medium. A tighter polytope could cause shadow pop-in at cascade
+boundaries.
 
-**Expected gain**: 10–30 % reduction in shadow map draw calls in open-world
-exterior cells, which are the most shadow-heavy scenes.
+**Effort estimate**: 4–6 hours (reduced from original 3–6 due to existing work)
+
+**Expected gain**: 5–15 % reduction in shadow map draw calls, mainly in
+exterior cells where the light volume extends far behind the camera.
 
 ---
 
@@ -119,27 +132,27 @@ most noticeable in Vivec, Balmora market, and dungeon encounters.
 
 ---
 
-### 4. Navigation Mesh — Per-Platform Thread Count Tuning
+### 4. Navigation Mesh — Per-Platform Thread Count Tuning ✅
 
 **File**: `components/detournavigator/asyncnavmeshupdater.cpp`,
-`components/detournavigator/settings.hpp`
+`components/detournavigator/settings.hpp`,
+`components/settings/categories/navigator.hpp`,
+`files/settings-default.cfg`
 
-**Problem**: The async nav mesh updater spawns a fixed number of worker threads
-(`mSettings.mAsyncNavMeshUpdaterThreads`). On machines with many cores the
-default may be too conservative; on low-core machines (and in the WASM
-single-threaded build) it may do redundant work.
+**Problem**: The async nav mesh updater spawned a fixed 1 thread regardless of
+available hardware.
 
-**Fix**:
-1. Auto-detect available hardware concurrency at startup and set a sensible
-   default (e.g. `max(1, hardware_concurrency / 2)`).
-2. Cap at a configurable maximum so the game does not monopolise all cores.
-3. In the WASM single-threaded build the value is already forced to 0 — document
-   this explicitly in settings comments.
+**Fix** (completed):
+1. Changed the default config value from `1` to `0` (meaning auto-detect).
+2. In `settings.cpp`, when the value is 0, it resolves to
+   `max(1, hardware_concurrency / 2)` using `std::thread::hardware_concurrency()`.
+3. Updated the config file comment to document `0 = auto-detect` and WASM
+   behaviour.
+4. In the WASM single-threaded build, threads are not spawned regardless of
+   this value (guarded by `#if !defined(__EMSCRIPTEN__) || defined(__EMSCRIPTEN_PTHREADS__)`).
 
-**Risk**: Low. Thread count is already user-configurable; this only improves the
-default value logic.
-
-**Effort estimate**: 2–3 hours
+**Risk**: Low. Thread count is still user-configurable; this only changes the
+default value logic. Explicit numeric values continue to work as before.
 
 **Expected gain**: Faster nav mesh rebuild after fast-travel or cell transitions
 on multi-core hardware; reduced CPU contention on low-core hardware.
@@ -148,30 +161,27 @@ on multi-core hardware; reduced CPU contention on low-core hardware.
 
 ## Medium-Impact Fixes 🟡
 
-### 5. Small-Feature Culling — Review Default Pixel Threshold
+### 5. Small-Feature Culling — WASM-Optimised Default ✅
 
-**File**: `apps/openmw/mwrender/renderingmanager.cpp` (camera settings block),
+**File**: `apps/openmw/engine.cpp`, `apps/openmw/mwrender/renderingmanager.cpp`,
 `files/settings/settings-default.cfg`
 
-**Problem**: Small-feature culling (`camera/small_feature_culling_pixel_size`)
-removes objects whose projected screen area is below a pixel threshold. If the
-default threshold is too low, many distant small objects are still drawn; if too
-high, objects pop out noticeably.
+**Problem**: The default `camera/small_feature_culling_pixel_size` of 2.0 was
+tuned for desktop rendering at high viewing distances. The WASM build already
+caps viewing distance at 4096 units, but the culling threshold was not adjusted
+to match.
 
-**Fix**:
-1. Profile a representative exterior cell (Seyda Neen dock area) with varying
-   thresholds.
-2. Pick a default that gives the best frame-time improvement without visible
-   pop-in at normal viewing distances.
-3. Document the trade-off in `settings-default.cfg` as a comment.
+**Fix** (completed):
+1. In the WASM performance defaults block (`engine.cpp`), the pixel size is
+   raised to 4.0 if the user has not set a higher value. This removes more
+   distant small objects (barrels, rocks, clutter) with minimal visual impact
+   at the capped viewing distance.
+2. The desktop default (2.0) is unchanged.
 
-**Risk**: Low. The setting is already exposed; this is a configuration change
-only.
-
-**Effort estimate**: 2–4 hours (including profiling time)
+**Risk**: Very low. The setting is already exposed and user-overridable.
 
 **Expected gain**: 5–15 % reduction in draw calls for exterior cells populated
-with many small props (barrels, crates, rocks).
+with many small props, directly improving browser frame rates.
 
 ---
 
@@ -412,17 +422,19 @@ See `scripts/HOWTO-benchmark.md` for full instructions.
 
 ## Recommended Fix Order
 
-The following order minimises risk while maximising early performance gains:
+Completed items are shown for reference. The remaining order minimises risk
+while maximising early gains toward fully playable browser performance:
 
-1. **Shadow caster frustum culling** (#1) — pure culling, no behaviour change,
-   high visual-area payoff.
-2. **Small-feature culling defaults** (#5) — config-only change, safe to revert.
+1. ~~**Nav mesh thread tuning** (#4)~~ ✅
+2. ~~**Small-feature culling defaults** (#5)~~ ✅
 3. **NPC sound-pointer caching** (#7) — isolated change, very low risk.
 4. **Water legacy code removal** (#11) — dead code removal only.
 5. **Terrain LOD consolidation** (#13) — pure refactor, enables future work.
-6. **Nav mesh thread tuning** (#4) — improves load times, easy to tune.
-7. **Actor-actor collision** (#3) — requires physics testing.
-8. **RigGeometry refactor** (#2) — largest change; do last to avoid blocking
+6. **Shadow caster frustum tightening** (#1) — investigate polytope bounds.
+7. **Resource cache memory-pressure eviction** (#8) — critical for WASM 512 MB
+   memory limit.
+8. **Actor-actor collision** (#3) — requires physics testing.
+9. **RigGeometry refactor** (#2) — largest change; do last to avoid blocking
    other work.
 
 ---
