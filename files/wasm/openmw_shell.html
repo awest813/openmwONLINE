@@ -595,6 +595,7 @@
     var _periodicSyncHandle = 0;
     var _persistentStorageChecked = false;
     var SYNC_INTERVAL_MS = 30000; // 30 seconds
+    var SYNC_TIMEOUT_MS = 10000; // recover if sync callback never fires
 
     // Coalescing sync: if a sync is already in flight, queue one follow-up.
     // This prevents overlapping FS.syncfs calls which can corrupt IndexedDB.
@@ -606,16 +607,30 @@
       }
       _idbfsSyncInFlight = true;
       _lastSyncTime = Date.now();
-      FS.syncfs(false, function(err) {
+      var syncSettled = false;
+      function settleSync(queuedReason) {
         _idbfsSyncInFlight = false;
+        if (_idbfsSyncQueued) {
+          _idbfsSyncQueued = false;
+          syncPersistentStorage(queuedReason);
+        }
+      }
+      var syncTimeoutHandle = setTimeout(function() {
+        if (syncSettled) return;
+        syncSettled = true;
+        console.error('OpenMW WASM: IDBFS sync timed out (' + (reason || 'unknown') + ') after ' + SYNC_TIMEOUT_MS + 'ms');
+        logToConsole('IDBFS sync timed out after ' + SYNC_TIMEOUT_MS + 'ms', 'warn');
+        settleSync('queued-after-timeout');
+      }, SYNC_TIMEOUT_MS);
+      FS.syncfs(false, function(err) {
+        if (syncSettled) return;
+        syncSettled = true;
+        clearTimeout(syncTimeoutHandle);
         if (err) {
           console.error('OpenMW WASM: IDBFS sync failed (' + (reason || 'unknown') + '):', err);
           logToConsole('IDBFS sync failed: ' + err, 'error');
         }
-        if (_idbfsSyncQueued) {
-          _idbfsSyncQueued = false;
-          syncPersistentStorage('queued');
-        }
+        settleSync('queued');
       });
     }
 
