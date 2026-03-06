@@ -535,12 +535,17 @@
 
         if (pickStatus === 'cancelled') {
           setStatus('Directory selection cancelled. Ready to try again.');
+          logToConsole('Directory selection cancelled by user', 'info');
         } else if (pickStatus === 'validation-failed' || pickStatus === 'empty-selection') {
           var validationMessage = pickMessage || 'Selected folder does not contain required Morrowind data files.';
           setStatus(validationMessage, true);
           logToConsole(validationMessage, 'warn');
         } else if (pickStatus === 'unsupported') {
           showError(pickMessage || 'Directory import is not supported in this browser.');
+        } else if (pickStatus === 'error') {
+          var importErrorMessage = pickMessage || 'Failed to import selected folder.';
+          logToConsole('Data import failed: ' + importErrorMessage, 'error');
+          showError(importErrorMessage);
         } else {
           setStatus(pickMessage || 'Ready - select your Morrowind data folder to begin');
         }
