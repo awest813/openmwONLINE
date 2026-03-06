@@ -330,12 +330,15 @@ bool OMW::Engine::frame(unsigned frameNumber, float frametime)
             mStateManager->update(frametime);
         }
 
-        bool paused = mWorld->getTimeManager()->isPaused();
+        auto* const timeManager = mWorld->getTimeManager();
+        const bool paused = timeManager->isPaused();
+        const auto state = mStateManager->getState();
+        const bool hasActiveGame = state != MWBase::StateManager::State_NoGame;
 
         {
             ScopedProfile<UserStatsType::Script> profile(frameStart, frameNumber, *timer, *stats);
 
-            if (mStateManager->getState() != MWBase::StateManager::State_NoGame)
+            if (hasActiveGame)
             {
                 if (!mWindowManager->containsMode(MWGui::GM_MainMenu) || !paused)
                 {
@@ -353,7 +356,7 @@ bool OMW::Engine::frame(unsigned frameNumber, float frametime)
 
                 if (!paused)
                 {
-                    double hours = (frametime * mWorld->getTimeManager()->getGameTimeScale()) / 3600.0;
+                    double hours = (frametime * timeManager->getGameTimeScale()) / 3600.0;
                     mWorld->advanceTime(hours, true);
                     mWorld->rechargeItems(frametime, true);
                 }
@@ -364,12 +367,10 @@ bool OMW::Engine::frame(unsigned frameNumber, float frametime)
         {
             ScopedProfile<UserStatsType::Mechanics> profile(frameStart, frameNumber, *timer, *stats);
 
-            if (mStateManager->getState() != MWBase::StateManager::State_NoGame)
-            {
+            if (hasActiveGame)
                 mMechanicsManager->update(frametime, paused);
-            }
 
-            if (mStateManager->getState() == MWBase::StateManager::State_Running)
+            if (state == MWBase::StateManager::State_Running)
             {
                 MWWorld::Ptr player = mWorld->getPlayerPtr();
                 if (!paused && player.getClass().getCreatureStats(player).isDead())
@@ -381,20 +382,16 @@ bool OMW::Engine::frame(unsigned frameNumber, float frametime)
         {
             ScopedProfile<UserStatsType::Physics> profile(frameStart, frameNumber, *timer, *stats);
 
-            if (mStateManager->getState() != MWBase::StateManager::State_NoGame)
-            {
+            if (hasActiveGame)
                 mWorld->updatePhysics(frametime, paused, frameStart, frameNumber, *stats);
-            }
         }
 
         // update world
         {
             ScopedProfile<UserStatsType::World> profile(frameStart, frameNumber, *timer, *stats);
 
-            if (mStateManager->getState() != MWBase::StateManager::State_NoGame)
-            {
+            if (hasActiveGame)
                 mWorld->update(frametime, paused);
-            }
         }
 
         // update GUI
