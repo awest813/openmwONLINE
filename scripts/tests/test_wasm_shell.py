@@ -34,6 +34,61 @@ class WasmShellTests(unittest.TestCase):
         self.assertIn("hasRequiredBaseFiles", self.wasm_picker_cpp)
         self.assertIn("morrowind.esm", self.wasm_picker_cpp)
 
+    def test_idbfs_sync_coalescing_function_exists(self):
+        self.assertIn("function syncPersistentStorage(reason)", self.shell_html)
+        self.assertIn("_idbfsSyncInFlight", self.shell_html)
+        self.assertIn("_idbfsSyncQueued", self.shell_html)
+        self.assertIn("__openmwSyncPersistentStorage", self.shell_html)
+
+    def test_periodic_idbfs_sync_is_configured(self):
+        self.assertIn("function startPeriodicSync()", self.shell_html)
+        self.assertIn("function stopPeriodicSync()", self.shell_html)
+        self.assertIn("SYNC_INTERVAL_MS", self.shell_html)
+
+    def test_page_lifecycle_events_trigger_sync(self):
+        self.assertIn("visibilitychange", self.shell_html)
+        self.assertIn("pagehide", self.shell_html)
+        self.assertIn("beforeunload", self.shell_html)
+        self.assertRegex(
+            self.shell_html,
+            r"addEventListener\(\s*'visibilitychange'",
+            msg="Expected visibilitychange event listener for IDBFS sync",
+        )
+
+    def test_webgl_context_loss_handling(self):
+        self.assertIn("webglcontextlost", self.shell_html)
+        self.assertIn("webglcontextrestored", self.shell_html)
+        self.assertIn("_webglContextLost", self.shell_html)
+
+    def test_heap_memory_monitoring(self):
+        self.assertIn("function checkHeapUsage()", self.shell_html)
+        self.assertIn("HEAP_WARNING_THRESHOLD", self.shell_html)
+        self.assertIn("function startHeapMonitor()", self.shell_html)
+
+    def test_runtime_init_starts_periodic_sync_and_heap_monitor(self):
+        self.assertRegex(
+            self.shell_html,
+            r"onRuntimeInitialized:[\s\S]*?startPeriodicSync\(\)",
+            msg="Expected onRuntimeInitialized to call startPeriodicSync()",
+        )
+        self.assertRegex(
+            self.shell_html,
+            r"onRuntimeInitialized:[\s\S]*?startHeapMonitor\(\)",
+            msg="Expected onRuntimeInitialized to call startHeapMonitor()",
+        )
+
+    def test_abort_handler_syncs_and_stops_periodic(self):
+        self.assertRegex(
+            self.shell_html,
+            r"onAbort:[\s\S]*?stopPeriodicSync\(\)",
+            msg="Expected onAbort to call stopPeriodicSync()",
+        )
+        self.assertRegex(
+            self.shell_html,
+            r"onAbort:[\s\S]*?syncPersistentStorage\(",
+            msg="Expected onAbort to trigger a final sync",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
