@@ -269,6 +269,25 @@
 
     // Collect all log lines for "Copy Log"
     var logLines = [];
+    var phaseTimeline = [];
+
+    function reportPhase(phase, status, details) {
+      var entry = {
+        phase: phase,
+        status: status,
+        details: details || '',
+        timestamp: new Date().toISOString()
+      };
+      phaseTimeline.push(entry);
+      globalThis.__openmwPhaseTimeline = phaseTimeline.slice();
+      try {
+        globalThis.dispatchEvent(new CustomEvent('openmw:phase', { detail: entry }));
+      } catch (e) {
+        // Ignore dispatch failures in constrained runtimes.
+      }
+      logToConsole('WASM_PHASE ' + JSON.stringify(entry), status === 'failed' ? 'error' : 'info');
+    }
+    globalThis.__openmwReportPhase = reportPhase;
 
     function setStatus(text, isError) {
       statusEl.textContent = text;
@@ -291,6 +310,7 @@
       loadingOverlay.classList.add('hidden');
       canvasContainer.classList.add('visible');
       clickToPlay.classList.remove('hidden');
+      reportPhase('rendering_main_menu', 'passed', 'Canvas is visible and awaiting click-to-play');
     }
 
     clickToPlay.addEventListener('click', function() {
@@ -417,6 +437,7 @@
     // Error panel helpers
     // ----------------------------------------------------------------
     function showError(msg) {
+      reportPhase('runtime_error', 'failed', msg);
       setStatus(msg, true);
       errorMessage.textContent = msg;
       var issueBody = encodeURIComponent(
@@ -500,12 +521,14 @@
 
       globalThis.__openmwOnUploadPhase = function(phase) {
         if (phase === 'scanning') {
+          reportPhase('data_import', 'running', 'Scanning selected files');
           setStatus('Scanning selected files...');
           uploadProgress.classList.add('visible');
           uploadStats.textContent = 'Counting files...';
           uploadBar.style.width = '0%';
           uploadDetail.textContent = '';
         } else if (phase === 'uploading') {
+          reportPhase('data_import', 'running', 'Uploading selected files');
           setStatus('Uploading game data...');
         }
       };
@@ -522,6 +545,7 @@
         var success = await globalThis.__openmwPickDataDirectory();
         uploadProgress.classList.remove('visible');
         if (success) {
+          reportPhase('data_import', 'passed', 'Game data import completed');
           setStatus('Game data loaded successfully!');
           dataPickerSection.classList.remove('visible');
           showCanvas();
@@ -534,15 +558,19 @@
         var pickMessage = pickResult && pickResult.message ? pickResult.message : '';
 
         if (pickStatus === 'cancelled') {
+          reportPhase('data_import', 'failed', 'Directory selection cancelled by user');
           setStatus('Directory selection cancelled. Ready to try again.');
           logToConsole('Directory selection cancelled by user', 'info');
         } else if (pickStatus === 'validation-failed' || pickStatus === 'empty-selection') {
+          reportPhase('data_import', 'failed', 'Validation failed: ' + (pickMessage || 'required files missing'));
           var validationMessage = pickMessage || 'Selected folder does not contain required Morrowind data files.';
           setStatus(validationMessage, true);
           logToConsole(validationMessage, 'warn');
         } else if (pickStatus === 'unsupported') {
+          reportPhase('data_import', 'failed', pickMessage || 'Directory import unsupported in browser');
           showError(pickMessage || 'Directory import is not supported in this browser.');
         } else if (pickStatus === 'error') {
+          reportPhase('data_import', 'failed', pickMessage || 'Directory import failed unexpectedly');
           var importErrorMessage = pickMessage || 'Failed to import selected folder.';
           logToConsole('Data import failed: ' + importErrorMessage, 'error');
           showError(importErrorMessage);
@@ -550,6 +578,7 @@
           setStatus(pickMessage || 'Ready - select your Morrowind data folder to begin');
         }
       } catch (e) {
+        reportPhase('data_import', 'failed', e.message);
         logToConsole('Data load error: ' + e.message, 'error');
         uploadProgress.classList.remove('visible');
         resetDataPickerButton(btn);
@@ -570,6 +599,7 @@
       // persisted config and saves from IndexedDB on the very first frame.
       preRun: [function() {
         if (typeof IDBFS === 'undefined' || typeof FS === 'undefined') {
+          reportPhase('persistence_sync', 'failed', 'IDBFS unavailable in preRun');
           console.warn('OpenMW WASM: IDBFS unavailable in preRun — persistent storage disabled.');
           return;
         }
@@ -595,12 +625,16 @@
         // that C++ can read saved config and game data from IndexedDB.
         Module.addRunDependency('idbfs-initial-sync');
         setStatus('Loading saved data...');
+        reportPhase('persistence_sync', 'running', 'Initial IDBFS populate started');
 
         FS.syncfs(true, function(err) {
-          if (err)
+          if (err) {
+            reportPhase('persistence_sync', 'failed', 'Initial IDBFS sync failed: ' + err);
             console.error('OpenMW WASM: Initial IDBFS sync failed:', err);
-          else
+          } else {
+            reportPhase('persistence_sync', 'passed', 'Initial IDBFS sync complete');
             console.log('OpenMW WASM: Initial IDBFS sync complete — persistent storage ready.');
+          }
           Module.removeRunDependency('idbfs-initial-sync');
         });
       }],
@@ -630,6 +664,7 @@
       },
 
       onRuntimeInitialized: function() {
+        reportPhase('startup', 'passed', 'Runtime initialized and ready for data import');
         logToConsole('Engine runtime initialized', 'info');
         logToConsole('Browser: ' + navigator.userAgent, 'info');
         logToConsole('SharedArrayBuffer: ' + (typeof SharedArrayBuffer !== 'undefined' ? 'available' : 'unavailable'), 'info');
@@ -653,6 +688,7 @@
             logToConsole('Native directory picker unavailable — using directory-upload fallback', 'warn');
           }
         } else if (pickerCaps && !pickerCaps.supported) {
+          reportPhase('data_import', 'failed', 'No supported directory import APIs detected');
           hint.innerHTML = '<strong style="color:#ff9999">Directory import is unavailable.</strong> '
             + 'This browser cannot provide folder upload APIs required by OpenMW WASM. '
             + 'Please use Chrome/Edge, or Firefox with directory-upload support. See the '
