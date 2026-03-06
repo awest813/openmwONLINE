@@ -593,6 +593,7 @@
     var _idbfsSyncQueued = false;
     var _lastSyncTime = 0;
     var _periodicSyncHandle = 0;
+    var _persistentStorageChecked = false;
     var SYNC_INTERVAL_MS = 30000; // 30 seconds
 
     // Coalescing sync: if a sync is already in flight, queue one follow-up.
@@ -637,6 +638,38 @@
       }
     }
 
+    async function ensurePersistentStorage() {
+      if (_persistentStorageChecked) return;
+      _persistentStorageChecked = true;
+
+      if (!navigator.storage || typeof navigator.storage.persisted !== 'function' || typeof navigator.storage.persist !== 'function') {
+        reportPhase('persistence_storage', 'failed', 'Persistent storage API unavailable');
+        logToConsole('Persistent storage API unavailable — saves may be evicted under storage pressure', 'warn');
+        return;
+      }
+
+      try {
+        var alreadyPersistent = await navigator.storage.persisted();
+        if (alreadyPersistent) {
+          reportPhase('persistence_storage', 'passed', 'Persistent storage already granted');
+          logToConsole('Persistent storage already granted by browser', 'info');
+          return;
+        }
+
+        var granted = await navigator.storage.persist();
+        if (granted) {
+          reportPhase('persistence_storage', 'passed', 'Persistent storage granted');
+          logToConsole('Persistent storage granted — save data eviction risk reduced', 'info');
+        } else {
+          reportPhase('persistence_storage', 'failed', 'Persistent storage request denied');
+          logToConsole('Persistent storage request denied — browser may evict saves under pressure', 'warn');
+        }
+      } catch (e) {
+        reportPhase('persistence_storage', 'failed', 'Persistent storage check failed: ' + e.message);
+        logToConsole('Persistent storage check failed: ' + e.message, 'warn');
+      }
+    }
+
     // Sync on page lifecycle events to protect saves.
     document.addEventListener('visibilitychange', function() {
       if (document.visibilityState === 'hidden') {
@@ -650,6 +683,10 @@
 
     window.addEventListener('beforeunload', function() {
       syncPersistentStorage('beforeunload');
+    });
+
+    window.addEventListener('freeze', function() {
+      syncPersistentStorage('freeze');
     });
 
     // ----------------------------------------------------------------
@@ -803,6 +840,7 @@
         // Start background persistence sync and heap monitoring now that the
         // engine runtime is alive and IDBFS is mounted.
         startPeriodicSync();
+        ensurePersistentStorage();
         startHeapMonitor();
 
         dataPickerSection.classList.add('visible');
