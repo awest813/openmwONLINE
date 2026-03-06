@@ -587,6 +587,136 @@
     }
 
     // ----------------------------------------------------------------
+    // Persistent storage sync (IDBFS → IndexedDB)
+    // ----------------------------------------------------------------
+    var _idbfsSyncInFlight = false;
+    var _idbfsSyncQueued = false;
+    var _lastSyncTime = 0;
+    var _periodicSyncHandle = 0;
+    var SYNC_INTERVAL_MS = 30000; // 30 seconds
+
+    // Coalescing sync: if a sync is already in flight, queue one follow-up.
+    // This prevents overlapping FS.syncfs calls which can corrupt IndexedDB.
+    function syncPersistentStorage(reason) {
+      if (typeof FS === 'undefined') return;
+      if (_idbfsSyncInFlight) {
+        _idbfsSyncQueued = true;
+        return;
+      }
+      _idbfsSyncInFlight = true;
+      _lastSyncTime = Date.now();
+      FS.syncfs(false, function(err) {
+        _idbfsSyncInFlight = false;
+        if (err) {
+          console.error('OpenMW WASM: IDBFS sync failed (' + (reason || 'unknown') + '):', err);
+          logToConsole('IDBFS sync failed: ' + err, 'error');
+        }
+        if (_idbfsSyncQueued) {
+          _idbfsSyncQueued = false;
+          syncPersistentStorage('queued');
+        }
+      });
+    }
+
+    // Expose globally so C++ (via emscripten_run_script) can trigger syncs.
+    globalThis.__openmwSyncPersistentStorage = function() {
+      syncPersistentStorage('engine');
+    };
+
+    function startPeriodicSync() {
+      if (_periodicSyncHandle) return;
+      _periodicSyncHandle = setInterval(function() {
+        syncPersistentStorage('periodic');
+      }, SYNC_INTERVAL_MS);
+    }
+
+    function stopPeriodicSync() {
+      if (_periodicSyncHandle) {
+        clearInterval(_periodicSyncHandle);
+        _periodicSyncHandle = 0;
+      }
+    }
+
+    // Sync on page lifecycle events to protect saves.
+    document.addEventListener('visibilitychange', function() {
+      if (document.visibilityState === 'hidden') {
+        syncPersistentStorage('visibilitychange');
+      }
+    });
+
+    window.addEventListener('pagehide', function() {
+      syncPersistentStorage('pagehide');
+    });
+
+    window.addEventListener('beforeunload', function() {
+      syncPersistentStorage('beforeunload');
+    });
+
+    // ----------------------------------------------------------------
+    // WebGL context loss / restore handling
+    // ----------------------------------------------------------------
+    var _webglContextLost = false;
+
+    (function() {
+      var c = document.getElementById('canvas');
+      c.addEventListener('webglcontextlost', function(e) {
+        e.preventDefault();
+        _webglContextLost = true;
+        logToConsole('WebGL context lost — the browser reclaimed GPU resources. Waiting for restore...', 'warn');
+        reportPhase('webgl_context', 'failed', 'WebGL context lost');
+        // Show a non-fatal overlay so the player knows what happened.
+        var overlay = document.getElementById('click-to-play');
+        if (overlay) {
+          overlay.querySelector('span').textContent = 'GPU context lost — waiting for browser to restore...';
+          overlay.classList.remove('hidden');
+        }
+      }, false);
+
+      c.addEventListener('webglcontextrestored', function() {
+        _webglContextLost = false;
+        logToConsole('WebGL context restored — resuming rendering.', 'info');
+        reportPhase('webgl_context', 'passed', 'WebGL context restored');
+        var overlay = document.getElementById('click-to-play');
+        if (overlay) {
+          overlay.querySelector('span').textContent = 'Click to Play';
+        }
+      }, false);
+    })();
+
+    // ----------------------------------------------------------------
+    // WASM heap memory monitoring
+    // ----------------------------------------------------------------
+    var HEAP_WARNING_THRESHOLD = 0.85; // warn at 85% of max
+    var _heapWarningShown = false;
+
+    function checkHeapUsage() {
+      if (typeof Module === 'undefined' || !Module.HEAP8) return;
+      var used = Module.HEAP8.length;
+      // Emscripten with ALLOW_MEMORY_GROWTH: max is typically 2GB (2147483648)
+      // or 4GB for wasm64.  Use the buffer's byteLength as current allocation.
+      var maxHeap = 2147483648;
+      var ratio = used / maxHeap;
+      if (ratio >= HEAP_WARNING_THRESHOLD && !_heapWarningShown) {
+        _heapWarningShown = true;
+        var usedMB = (used / (1024 * 1024)).toFixed(0);
+        var maxMB = (maxHeap / (1024 * 1024)).toFixed(0);
+        logToConsole('Memory warning: WASM heap at ' + usedMB + 'MB / ' + maxMB + 'MB (' + (ratio * 100).toFixed(0) + '%)', 'warn');
+        reportPhase('memory_pressure', 'failed', 'Heap usage at ' + (ratio * 100).toFixed(0) + '%');
+      }
+      // Reset warning once usage drops below threshold
+      if (ratio < HEAP_WARNING_THRESHOLD - 0.05) {
+        _heapWarningShown = false;
+      }
+    }
+
+    // Check heap every 10 seconds once the engine is running
+    var _heapCheckHandle = 0;
+    function startHeapMonitor() {
+      if (_heapCheckHandle) return;
+      _heapCheckHandle = setInterval(checkHeapUsage, 10000);
+    }
+
+    // ----------------------------------------------------------------
     // Emscripten Module object
     // ----------------------------------------------------------------
     var Module = {
@@ -671,6 +801,11 @@
         setStatus('Engine initialized');
         setProgress(100);
 
+        // Start background persistence sync and heap monitoring now that the
+        // engine runtime is alive and IDBFS is mounted.
+        startPeriodicSync();
+        startHeapMonitor();
+
         dataPickerSection.classList.add('visible');
         setStatus('Ready - select your Morrowind data folder to begin');
 
@@ -700,6 +835,8 @@
       },
 
       onAbort: function(what) {
+        stopPeriodicSync();
+        syncPersistentStorage('abort');
         logToConsole('Engine aborted: ' + what, 'error');
         showError('Engine crashed: ' + what + '. See console log for details.');
       },
