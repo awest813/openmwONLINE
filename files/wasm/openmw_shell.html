@@ -608,30 +608,29 @@
       _idbfsSyncInFlight = true;
       _lastSyncTime = Date.now();
       var syncSettled = false;
+      function settleSync(queuedReason) {
+        _idbfsSyncInFlight = false;
+        if (_idbfsSyncQueued) {
+          _idbfsSyncQueued = false;
+          syncPersistentStorage(queuedReason);
+        }
+      }
       var syncTimeoutHandle = setTimeout(function() {
         if (syncSettled) return;
         syncSettled = true;
-        _idbfsSyncInFlight = false;
         console.error('OpenMW WASM: IDBFS sync timed out (' + (reason || 'unknown') + ') after ' + SYNC_TIMEOUT_MS + 'ms');
         logToConsole('IDBFS sync timed out after ' + SYNC_TIMEOUT_MS + 'ms', 'warn');
-        if (_idbfsSyncQueued) {
-          _idbfsSyncQueued = false;
-          syncPersistentStorage('queued-after-timeout');
-        }
+        settleSync('queued-after-timeout');
       }, SYNC_TIMEOUT_MS);
       FS.syncfs(false, function(err) {
         if (syncSettled) return;
         syncSettled = true;
         clearTimeout(syncTimeoutHandle);
-        _idbfsSyncInFlight = false;
         if (err) {
           console.error('OpenMW WASM: IDBFS sync failed (' + (reason || 'unknown') + '):', err);
           logToConsole('IDBFS sync failed: ' + err, 'error');
         }
-        if (_idbfsSyncQueued) {
-          _idbfsSyncQueued = false;
-          syncPersistentStorage('queued');
-        }
+        settleSync('queued');
       });
     }
 

@@ -40,7 +40,7 @@ class WasmShellTests(unittest.TestCase):
         self.assertIn("_idbfsSyncQueued", self.shell_html)
         self.assertIn("__openmwSyncPersistentStorage", self.shell_html)
 
-    def test_idbfs_sync_timeout_recovery_is_present(self):
+    def test_idbfs_sync_timeout_mechanism_is_present(self):
         self.assertIn("SYNC_TIMEOUT_MS", self.shell_html)
         self.assertIn("IDBFS sync timed out", self.shell_html)
         self.assertIn("queued-after-timeout", self.shell_html)
