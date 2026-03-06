@@ -264,6 +264,21 @@ void OMW::Engine::runWasmMainLoop(void* arg)
     {
         engine->shutdownAfterMainLoop();
         emscripten_cancel_main_loop();
+        return;
+    }
+
+    // Periodically flush user settings and Lua permanent storage to the virtual
+    // filesystem so that the background IDBFS sync (in the HTML shell) picks
+    // them up.  This protects keybindings, video prefs, and mod-script state
+    // against tab closure or browser crashes between explicit saves.
+    // ~18 000 frames ≈ 5 minutes at 60 fps (approximate; varies with framerate).
+    static unsigned int sFrameCounter = 0;
+    static constexpr unsigned int kSettingsFlushInterval = 18000;
+    if (++sFrameCounter >= kSettingsFlushInterval)
+    {
+        sFrameCounter = 0;
+        Settings::Manager::saveUser(engine->mCfgMgr.getUserConfigPath() / "settings.cfg");
+        engine->mLuaManager->savePermanentStorage(engine->mCfgMgr.getUserConfigPath());
     }
 }
 #endif
@@ -1080,6 +1095,11 @@ void OMW::Engine::go()
     // with minimal visual impact at the capped viewing distance.
     if (Settings::camera().mSmallFeatureCullingPixelSize.get() < 4.0f)
         Settings::camera().mSmallFeatureCullingPixelSize.set(4.0f);
+    // Tighter resource cache expiry for browser builds.  The desktop default (5s)
+    // is too generous when WASM heap is capped at ~2 GB; 2s lets the engine reclaim
+    // textures and meshes sooner as the player moves between cells.
+    if (Settings::cells().mCacheExpiryDelay > 2.0f)
+        Settings::cells().mCacheExpiryDelay.set(2.0f);
 #endif
 
     MWClass::registerClasses();
