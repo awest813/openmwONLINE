@@ -199,6 +199,7 @@ namespace
 
     std::string toJavaScriptStringLiteral(const std::string& input)
     {
+        constexpr char hexDigits[] = "0123456789abcdef";
         std::ostringstream escaped;
         escaped << '"';
         for (unsigned char c : input)
@@ -216,8 +217,8 @@ namespace
                     {
                         // Escape remaining ASCII control characters as \uXXXX
                         escaped << "\\u00";
-                        escaped << "0123456789abcdef"[c >> 4];
-                        escaped << "0123456789abcdef"[c & 0xf];
+                        escaped << hexDigits[c >> 4];
+                        escaped << hexDigits[c & 0xf];
                     }
                     else
                     {
@@ -436,16 +437,16 @@ namespace
         // Replace each placeholder token in the script template.  Guard against
         // missing tokens to avoid std::string::replace() throwing std::out_of_range
         // if the script template is accidentally edited.
-        const auto replaceScriptToken = [](std::string& script, std::string_view token,
+        const auto replaceScriptToken = [](std::string& scriptTemplate, std::string_view token,
                                             std::string_view value) {
-            const auto pos = script.find(token);
+            const auto pos = scriptTemplate.find(token);
             if (pos == std::string::npos)
             {
                 Log(Debug::Error) << "WASM: Missing template token '" << token
                                   << "' in persistence script — persistent storage may be misconfigured";
                 return;
             }
-            script.replace(pos, token.size(), value);
+            scriptTemplate.replace(pos, token.size(), value);
         };
 
         replaceScriptToken(persistenceScript, "__OPENMW_SYNC_INTERVAL_MS__", std::to_string(periodicSyncIntervalMs));

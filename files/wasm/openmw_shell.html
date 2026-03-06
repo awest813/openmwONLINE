@@ -581,28 +581,38 @@
           ? window.__openmwPersistentRoot
           : '/persistent';
 
-        if (!FS.analyzePath(persistentRoot).exists)
-          FS.mkdir(persistentRoot);
-
-        try {
-          FS.mount(IDBFS, {}, persistentRoot);
-        } catch (e) {
-          if (!e.message || !e.message.includes('already mounted'))
-            console.error('OpenMW WASM: Failed to mount IDBFS at', persistentRoot, e);
-        }
-
         // Block main() until the initial populate-from-storage completes so
         // that C++ can read saved config and game data from IndexedDB.
+        // Add the dependency BEFORE any operation that might fail asynchronously
+        // so that we always have a matching removeRunDependency call.
         Module.addRunDependency('idbfs-initial-sync');
         setStatus('Loading saved data...');
 
-        FS.syncfs(true, function(err) {
-          if (err)
-            console.error('OpenMW WASM: Initial IDBFS sync failed:', err);
-          else
-            console.log('OpenMW WASM: Initial IDBFS sync complete — persistent storage ready.');
+        try {
+          if (!FS.analyzePath(persistentRoot).exists)
+            FS.mkdir(persistentRoot);
+
+          try {
+            FS.mount(IDBFS, {}, persistentRoot);
+          } catch (mountErr) {
+            if (!mountErr.message || !mountErr.message.includes('already mounted'))
+              console.error('OpenMW WASM: Failed to mount IDBFS at', persistentRoot, mountErr);
+            // Continue even if mount failed (may be already mounted from a prior run).
+          }
+
+          FS.syncfs(true, function(err) {
+            if (err)
+              console.error('OpenMW WASM: Initial IDBFS sync failed:', err);
+            else
+              console.log('OpenMW WASM: Initial IDBFS sync complete — persistent storage ready.');
+            Module.removeRunDependency('idbfs-initial-sync');
+          });
+        } catch (e) {
+          // A synchronous error (e.g. mkdir failure) must not leave the
+          // run-dependency permanently unresolved, which would hang forever.
+          console.error('OpenMW WASM: IDBFS setup error in preRun:', e);
           Module.removeRunDependency('idbfs-initial-sync');
-        });
+        }
       }],
 
       print: function(text) {

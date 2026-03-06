@@ -609,7 +609,6 @@ if(OPENMW_IS_EMSCRIPTEN)
     if(NOT TARGET OpenAL::OpenAL)
         add_library(OpenAL::OpenAL INTERFACE IMPORTED)
         set_target_properties(OpenAL::OpenAL PROPERTIES
-            INTERFACE_COMPILE_OPTIONS "-lopenal"
             INTERFACE_LINK_LIBRARIES "-lopenal")
     endif()
     set(OPENAL_FOUND TRUE)
