@@ -49,11 +49,18 @@ class WasmShellTests(unittest.TestCase):
         self.assertIn("visibilitychange", self.shell_html)
         self.assertIn("pagehide", self.shell_html)
         self.assertIn("beforeunload", self.shell_html)
+        self.assertIn("freeze", self.shell_html)
         self.assertRegex(
             self.shell_html,
             r"addEventListener\(\s*'visibilitychange'",
             msg="Expected visibilitychange event listener for IDBFS sync",
         )
+
+    def test_persistent_storage_request_is_attempted(self):
+        self.assertIn("function ensurePersistentStorage()", self.shell_html)
+        self.assertIn("navigator.storage.persisted", self.shell_html)
+        self.assertIn("navigator.storage.persist()", self.shell_html)
+        self.assertIn("persistence_storage", self.shell_html)
 
     def test_webgl_context_loss_handling(self):
         self.assertIn("webglcontextlost", self.shell_html)
@@ -72,6 +79,11 @@ class WasmShellTests(unittest.TestCase):
             self.shell_html,
             r"onRuntimeInitialized:[\s\S]*?startPeriodicSync\(\)",
             msg="Expected onRuntimeInitialized to call startPeriodicSync()",
+        )
+        self.assertRegex(
+            self.shell_html,
+            r"onRuntimeInitialized:[\s\S]*?ensurePersistentStorage\(\)",
+            msg="Expected onRuntimeInitialized to call ensurePersistentStorage()",
         )
         self.assertRegex(
             self.shell_html,
