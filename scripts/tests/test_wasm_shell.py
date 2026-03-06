@@ -40,6 +40,12 @@ class WasmShellTests(unittest.TestCase):
         self.assertIn("_idbfsSyncQueued", self.shell_html)
         self.assertIn("__openmwSyncPersistentStorage", self.shell_html)
 
+    def test_idbfs_sync_timeout_recovery_is_present(self):
+        self.assertIn("SYNC_TIMEOUT_MS", self.shell_html)
+        self.assertIn("IDBFS sync timed out", self.shell_html)
+        self.assertIn("queued-after-timeout", self.shell_html)
+        self.assertIn("clearTimeout(syncTimeoutHandle)", self.shell_html)
+
     def test_periodic_idbfs_sync_is_configured(self):
         self.assertIn("function startPeriodicSync()", self.shell_html)
         self.assertIn("function stopPeriodicSync()", self.shell_html)
