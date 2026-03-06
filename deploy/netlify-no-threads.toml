@@ -1,0 +1,38 @@
+# Netlify configuration — OpenMW WASM non-pthread (single-threaded) build
+#
+# Deploy the contents of your WASM build output directory to Netlify.
+# This file goes in the ROOT of the published directory (the same folder
+# as openmw.html).
+#
+# The non-pthread (single-threaded) build works WITHOUT cross-origin
+# isolation headers.  COOP/COEP headers are not set here.  This means
+# the build can also be served from any other static host.
+#
+# For the PTHREAD build (which requires COOP/COEP headers), use
+# netlify.toml instead.
+
+[build]
+  # Adjust this to your actual build output directory if connecting a Git repo.
+  publish = "build-wasm"
+
+# ── Security / caching headers (no cross-origin isolation needed) ────────────
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "SAMEORIGIN"
+
+[[headers]]
+  for = "/openmw.html"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
+[[headers]]
+  for = "/*.wasm"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/*.data"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

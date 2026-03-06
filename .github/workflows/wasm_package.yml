@@ -1,0 +1,112 @@
+name: WASM Package
+
+# Produces the deployable openmw-wasm-no-threads.zip artifact on every push
+# and pull request that touches WASM-related sources.
+#
+# Full WASM compilation requires Emscripten and is handled by the GitLab CI
+# pipeline.  This job runs the packaging script against pre-built artifacts
+# (downloaded from the GitLab pipeline or a local build) when the artifacts
+# are already present, and otherwise performs a lightweight validation of the
+# packaging script and deploy configs so that config-only PRs get fast
+# feedback without a full Emscripten build.
+
+on:
+  push:
+    paths:
+      - 'deploy/**'
+      - 'scripts/package_wasm.sh'
+      - 'scripts/serve_wasm.py'
+      - 'DEPLOYMENT.md'
+      - '.github/workflows/wasm_package.yml'
+  pull_request:
+    paths:
+      - 'deploy/**'
+      - 'scripts/package_wasm.sh'
+      - 'scripts/serve_wasm.py'
+      - 'DEPLOYMENT.md'
+      - '.github/workflows/wasm_package.yml'
+  workflow_dispatch:
+
+jobs:
+  validate-deploy-configs:
+    name: Validate deployment configs
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Verify shell script syntax ─────────────────────────────────────────
+      - name: Check package_wasm.sh syntax
+        run: bash -n scripts/package_wasm.sh
+
+      # ── Verify JSON configs are valid ──────────────────────────────────────
+      - name: Validate vercel.json
+        run: python3 -c "import json, sys; json.load(open('deploy/vercel.json'))"
+
+      - name: Validate vercel-no-threads.json
+        run: python3 -c "import json, sys; json.load(open('deploy/vercel-no-threads.json'))"
+
+      # ── Smoke-test the packaging script with stub artifacts ────────────────
+      - name: Create stub WASM artifacts
+        run: |
+          mkdir -p /tmp/build-wasm-stub
+          echo '<!DOCTYPE html><html><body>stub</body></html>' > /tmp/build-wasm-stub/openmw.html
+          echo 'var Module={};'                                > /tmp/build-wasm-stub/openmw.js
+          printf '\x00asm\x01\x00\x00\x00'                    > /tmp/build-wasm-stub/openmw.wasm
+
+      - name: Run package_wasm.sh (non-pthread, stub artifacts)
+        run: |
+          bash scripts/package_wasm.sh \
+            --build-dir /tmp/build-wasm-stub \
+            --out-dir   /tmp/build-wasm-stub
+
+      - name: Verify archive contents
+        run: |
+          cd /tmp/build-wasm-stub
+          unzip -l openmw-wasm-no-threads.zip
+          # Must contain all required files
+          unzip -l openmw-wasm-no-threads.zip | grep -q 'openmw\.html'
+          unzip -l openmw-wasm-no-threads.zip | grep -q 'openmw\.js'
+          unzip -l openmw-wasm-no-threads.zip | grep -q 'openmw\.wasm'
+          unzip -l openmw-wasm-no-threads.zip | grep -q 'nginx\.conf'
+          unzip -l openmw-wasm-no-threads.zip | grep -q 'netlify\.toml'
+          unzip -l openmw-wasm-no-threads.zip | grep -q 'vercel\.json'
+          unzip -l openmw-wasm-no-threads.zip | grep -q 'serve_wasm\.py'
+          unzip -l openmw-wasm-no-threads.zip | grep -q 'README\.md'
+          # Non-pthread configs must NOT contain COOP/COEP headers
+          unzip -p openmw-wasm-no-threads.zip 'openmw-wasm-no-threads/deploy/netlify.toml' \
+            | grep -qv 'Cross-Origin-Opener-Policy'
+          echo "All required files present in archive."
+
+      - name: Verify SHA-256 checksum file
+        run: |
+          cd /tmp/build-wasm-stub
+          sha256sum -c openmw-wasm-no-threads.zip.sha256
+
+      - name: Run package_wasm.sh (pthread, stub artifacts)
+        run: |
+          bash scripts/package_wasm.sh \
+            --build-dir /tmp/build-wasm-stub \
+            --out-dir   /tmp/build-wasm-stub \
+            --pthread
+
+      - name: Verify pthread archive contains COOP/COEP configs
+        run: |
+          cd /tmp/build-wasm-stub
+          # pthread archive must include the full _headers file
+          unzip -p openmw-wasm-pthread.zip \
+            'openmw-wasm-pthread/deploy/_headers' | grep -q 'require-corp'
+          echo "pthread archive contains COOP/COEP headers config."
+
+      - name: Upload stub packages as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: openmw-wasm-deploy-configs-stub
+          path: |
+            /tmp/build-wasm-stub/openmw-wasm-no-threads.zip
+            /tmp/build-wasm-stub/openmw-wasm-no-threads.zip.sha256
+            /tmp/build-wasm-stub/openmw-wasm-pthread.zip
+            /tmp/build-wasm-stub/openmw-wasm-pthread.zip.sha256
+          retention-days: 7

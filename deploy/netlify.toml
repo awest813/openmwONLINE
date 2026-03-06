@@ -1,0 +1,56 @@
+# Netlify configuration — OpenMW WASM pthread build
+#
+# Deploy the contents of your WASM build output directory to Netlify.
+# This file goes in the ROOT of the published directory (the same folder
+# as openmw.html).
+#
+# For the NON-PTHREAD build, delete the [[headers]] block below or replace it
+# with the non-pthread _headers file.  The non-pthread build works on Netlify
+# without any custom headers.
+#
+# Deployment steps:
+#   1. Drag the build output folder onto https://app.netlify.com/drop, OR
+#   2. Use the Netlify CLI:
+#        npx netlify-cli deploy --dir /path/to/build-wasm --prod
+#   3. If using netlify.toml for a Git-connected site, set `publish` to the
+#      CI output directory.
+
+[build]
+  # Adjust this to your actual build output directory if connecting a Git repo.
+  publish = "build-wasm"
+
+# ── Cross-origin isolation headers (pthread build) ───────────────────────────
+#
+# Required for SharedArrayBuffer / Atomics in the browser.
+# Remove the [[headers]] section entirely for non-pthread deployments.
+#
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Cross-Origin-Opener-Policy  = "same-origin"
+    Cross-Origin-Embedder-Policy = "require-corp"
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "SAMEORIGIN"
+
+# Disable caching for the HTML entry point.
+[[headers]]
+  for = "/openmw.html"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+    Cross-Origin-Opener-Policy  = "same-origin"
+    Cross-Origin-Embedder-Policy = "require-corp"
+
+# Cache WASM and data files aggressively (content-addressed filenames).
+[[headers]]
+  for = "/*.wasm"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+    Cross-Origin-Opener-Policy  = "same-origin"
+    Cross-Origin-Embedder-Policy = "require-corp"
+
+[[headers]]
+  for = "/*.data"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+    Cross-Origin-Opener-Policy  = "same-origin"
+    Cross-Origin-Embedder-Policy = "require-corp"
