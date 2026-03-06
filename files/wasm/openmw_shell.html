@@ -563,6 +563,48 @@
     var Module = {
       canvas: (function() { return document.getElementById('canvas'); })(),
 
+      // Mount IDBFS and perform the initial populate-from-storage sync BEFORE
+      // main() is called.  Using addRunDependency/removeRunDependency causes
+      // Emscripten to defer calling main() until the sync completes, so that
+      // C++ code (bootstrapWasmConfigFile, parseOptions) sees the correct
+      // persisted config and saves from IndexedDB on the very first frame.
+      preRun: [function() {
+        if (typeof IDBFS === 'undefined' || typeof FS === 'undefined') {
+          console.warn('OpenMW WASM: IDBFS unavailable in preRun — persistent storage disabled.');
+          return;
+        }
+
+        // The C++ default for OPENMW_WASM_PERSISTENT_ROOT is '/persistent'.
+        // Deployments that customise this root can set window.__openmwPersistentRoot
+        // before the script loads.
+        var persistentRoot = (typeof window !== 'undefined' && window.__openmwPersistentRoot)
+          ? window.__openmwPersistentRoot
+          : '/persistent';
+
+        if (!FS.analyzePath(persistentRoot).exists)
+          FS.mkdir(persistentRoot);
+
+        try {
+          FS.mount(IDBFS, {}, persistentRoot);
+        } catch (e) {
+          if (!e.message || !e.message.includes('already mounted'))
+            console.error('OpenMW WASM: Failed to mount IDBFS at', persistentRoot, e);
+        }
+
+        // Block main() until the initial populate-from-storage completes so
+        // that C++ can read saved config and game data from IndexedDB.
+        Module.addRunDependency('idbfs-initial-sync');
+        setStatus('Loading saved data...');
+
+        FS.syncfs(true, function(err) {
+          if (err)
+            console.error('OpenMW WASM: Initial IDBFS sync failed:', err);
+          else
+            console.log('OpenMW WASM: Initial IDBFS sync complete — persistent storage ready.');
+          Module.removeRunDependency('idbfs-initial-sync');
+        });
+      }],
+
       print: function(text) {
         console.log(text);
         logToConsole(text, 'info');

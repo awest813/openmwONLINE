@@ -18,7 +18,7 @@ without installing any software.
 | Toolchain / CMake | ✅ Complete |
 | Dependency cross-compilation | ✅ Complete |
 | Main loop refactoring | ✅ Complete |
-| Persistent storage (IDBFS) | ✅ Complete |
+| Persistent storage (IDBFS) | ✅ Complete (initial sync now in preRun — config persists across reloads) |
 | In-browser data loading (File System Access API) | ✅ Complete |
 | WebGL 2.0 rendering context | ✅ Complete |
 | GLSL ES 3.00 shader transform | ✅ Complete |
@@ -127,7 +127,13 @@ pre-fetches ports, runs `build_wasm_deps.sh`, and configures CMake.
 - IDBFS mounted at `/persistent` (override: `OPENMW_WASM_PERSISTENT_ROOT`).
 - `HOME` and XDG paths redirected into the mount; config/saves survive reloads.
 - XDG subdirectories pre-created before `ConfigurationManager` runs.
-- Startup and shutdown syncs; periodic background sync (default 15 s,
+- **Initial sync via `Module.preRun` with `addRunDependency`**: the HTML shell
+  mounts IDBFS and performs the populate-from-storage sync in a `preRun` hook
+  before `main()` is called. This guarantees that config files and saves from
+  IndexedDB are visible to C++ startup code (`bootstrapWasmConfigFile`,
+  `parseOptions`), fixing a race condition where previously the engine always
+  started with the default bootstrap config instead of the saved one.
+- Shutdown sync; periodic background sync (default 15 s,
   tunable via `OPENMW_WASM_PERSISTENT_SYNC_INTERVAL_MS`; `<=0` disables).
 - `visibilitychange` / `pagehide` hooks trigger sync on tab hide/page unload.
 - Overlapping sync requests coalesced to avoid IDBFS race conditions.
@@ -151,7 +157,9 @@ pre-fetches ports, runs `build_wasm_deps.sh`, and configures CMake.
   stale files, and uploads are rejected unless `Morrowind.esm` is present.
 - Cancel handling: returns `true` on success, `false` on user cancel/validation
   failures, and re-throws on operational errors. Shell restores button/status
-  state for non-success outcomes.
+  state for non-success outcomes. Directory-upload fallback cancel detection
+  uses a 500 ms window-focus delay to prevent false cancellation in browsers
+  where the `focus` event fires before the `change` event.
 - Files uploaded into virtual FS at `/gamedata`.
 - Auto-generated `openmw.cfg` at first run:
   - `data=/gamedata`, `content=Morrowind.esm`, `fallback-archive=Morrowind.bsa`
@@ -160,7 +168,9 @@ pre-fetches ports, runs `build_wasm_deps.sh`, and configures CMake.
   successful upload, `openmw_wasm_notify_data_ready()` scans `/gamedata` for
   `Tribunal.esm` and `Bloodmoon.esm`. If found, the corresponding commented-out
   entries in `openmw.cfg` are uncommented and an immediate IDBFS flush is
-  triggered so the updated config persists across reloads.
+  triggered so the updated config persists across reloads.  Fixed a bug where
+  the config line search would match `activeLine` inside the commented form
+  (`# activeLine`), preventing expansion lines from ever being uncommented.
 
 ### 6. Graphics & Rendering
 
