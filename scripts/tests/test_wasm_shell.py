@@ -63,6 +63,8 @@ class WasmShellTests(unittest.TestCase):
     def test_heap_memory_monitoring(self):
         self.assertIn("function checkHeapUsage()", self.shell_html)
         self.assertIn("HEAP_WARNING_THRESHOLD", self.shell_html)
+        self.assertIn("HEAP_WARNING_HYSTERESIS", self.shell_html)
+        self.assertIn("WASM_MAX_HEAP_BYTES", self.shell_html)
         self.assertIn("function startHeapMonitor()", self.shell_html)
 
     def test_runtime_init_starts_periodic_sync_and_heap_monitor(self):

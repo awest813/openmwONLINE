@@ -271,7 +271,7 @@ void OMW::Engine::runWasmMainLoop(void* arg)
     // filesystem so that the background IDBFS sync (in the HTML shell) picks
     // them up.  This protects keybindings, video prefs, and mod-script state
     // against tab closure or browser crashes between explicit saves.
-    // ~18 000 frames ≈ 5 minutes at 60 fps.
+    // ~18 000 frames ≈ 5 minutes at 60 fps (approximate; varies with framerate).
     static unsigned int sFrameCounter = 0;
     static constexpr unsigned int kSettingsFlushInterval = 18000;
     if (++sFrameCounter >= kSettingsFlushInterval)

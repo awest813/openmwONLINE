@@ -687,24 +687,23 @@
     // WASM heap memory monitoring
     // ----------------------------------------------------------------
     var HEAP_WARNING_THRESHOLD = 0.85; // warn at 85% of max
+    var HEAP_WARNING_HYSTERESIS = 0.05; // clear warning once usage drops 5% below threshold
+    var WASM_MAX_HEAP_BYTES = 2147483648; // 2 GB (wasm32 limit)
     var _heapWarningShown = false;
 
     function checkHeapUsage() {
       if (typeof Module === 'undefined' || !Module.HEAP8) return;
-      var used = Module.HEAP8.length;
-      // Emscripten with ALLOW_MEMORY_GROWTH: max is typically 2GB (2147483648)
-      // or 4GB for wasm64.  Use the buffer's byteLength as current allocation.
-      var maxHeap = 2147483648;
-      var ratio = used / maxHeap;
+      var used = Module.HEAP8.buffer.byteLength;
+      var ratio = used / WASM_MAX_HEAP_BYTES;
       if (ratio >= HEAP_WARNING_THRESHOLD && !_heapWarningShown) {
         _heapWarningShown = true;
         var usedMB = (used / (1024 * 1024)).toFixed(0);
-        var maxMB = (maxHeap / (1024 * 1024)).toFixed(0);
+        var maxMB = (WASM_MAX_HEAP_BYTES / (1024 * 1024)).toFixed(0);
         logToConsole('Memory warning: WASM heap at ' + usedMB + 'MB / ' + maxMB + 'MB (' + (ratio * 100).toFixed(0) + '%)', 'warn');
         reportPhase('memory_pressure', 'failed', 'Heap usage at ' + (ratio * 100).toFixed(0) + '%');
       }
-      // Reset warning once usage drops below threshold
-      if (ratio < HEAP_WARNING_THRESHOLD - 0.05) {
+      // Reset warning once usage drops below threshold with hysteresis
+      if (ratio < HEAP_WARNING_THRESHOLD - HEAP_WARNING_HYSTERESIS) {
         _heapWarningShown = false;
       }
     }
