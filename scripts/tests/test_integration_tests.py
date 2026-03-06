@@ -65,6 +65,52 @@ class IntegrationTestsScriptTests(unittest.TestCase):
                 shutil.rmtree(test_dir)
             shutil.rmtree(temp_dir)
 
+    def test_partial_marker_in_log_line_does_not_trigger_parser(self):
+        repo_root = Path(__file__).resolve().parents[2]
+        integration_tests_data = repo_root / "scripts" / "data" / "integration_tests"
+        test_dir = integration_tests_data / "test_partial_marker_regression"
+
+        temp_dir = Path(tempfile.mkdtemp())
+        try:
+            example_suite = self._prepare_example_suite(temp_dir)
+
+            openmw_mock = temp_dir / "openmw_mock.py"
+            openmw_mock.write_text(
+                '#!/usr/bin/env python3\n'
+                'print("INFO TEST_START 1\twrong_prefix")\n'
+                'print("Quit requested by a Lua script")\n'
+            )
+            openmw_mock.chmod(0o755)
+
+            test_dir.mkdir(parents=True, exist_ok=True)
+            (test_dir / "openmw.cfg").write_text("")
+
+            result = subprocess.run(
+                [
+                    "python3",
+                    str(repo_root / "scripts" / "integration_tests.py"),
+                    str(example_suite),
+                    "--omw",
+                    str(openmw_mock),
+                    "--workdir",
+                    str(temp_dir / "out"),
+                ],
+                cwd=repo_root,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            self.assertEqual(result.returncode, 0)
+            self.assertNotIn("malformed TEST_START line", result.stdout)
+            self.assertNotIn("Traceback", result.stdout)
+            self.assertNotIn("Traceback", result.stderr)
+        finally:
+            if test_dir.exists():
+                shutil.rmtree(test_dir)
+            shutil.rmtree(temp_dir)
+
+
     def test_orphan_test_ok_line_is_reported_without_traceback(self):
         repo_root = Path(__file__).resolve().parents[2]
         integration_tests_data = repo_root / "scripts" / "data" / "integration_tests"

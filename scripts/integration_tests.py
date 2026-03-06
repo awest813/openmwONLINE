@@ -10,18 +10,22 @@ import time
 
 from pathlib import Path
 
-parser = argparse.ArgumentParser(description="OpenMW integration tests.")
-parser.add_argument(
-    "example_suite",
-    type=str,
-    help="path to openmw example suite (use 'git clone https://gitlab.com/OpenMW/example-suite/' to get it)",
-)
-parser.add_argument("--omw", type=str, default="openmw", help="path to openmw binary")
-parser.add_argument(
-    "--workdir", type=str, default="integration_tests_output", help="directory for temporary files and logs"
-)
-parser.add_argument("--verbose", action='store_true', help="print all openmw output")
-args = parser.parse_args()
+def parse_args():
+    parser = argparse.ArgumentParser(description="OpenMW integration tests.")
+    parser.add_argument(
+        "example_suite",
+        type=str,
+        help="path to openmw example suite (use 'git clone https://gitlab.com/OpenMW/example-suite/' to get it)",
+    )
+    parser.add_argument("--omw", type=str, default="openmw", help="path to openmw binary")
+    parser.add_argument(
+        "--workdir", type=str, default="integration_tests_output", help="directory for temporary files and logs"
+    )
+    parser.add_argument("--verbose", action="store_true", help="print all openmw output")
+    return parser.parse_args()
+
+
+args = parse_args()
 
 example_suite_dir = Path(args.example_suite).resolve()
 
@@ -49,7 +53,9 @@ time_str = datetime.datetime.now().strftime("%Y-%m-%d-%H.%M.%S")
 
 
 def parse_test_line(line, marker, expected_fields):
-    payload = line.split(marker, maxsplit=1)[1].strip()
+    if not line.startswith(f"{marker} "):
+        raise ValueError(f"malformed {marker} line: {line.strip()}")
+    payload = line[len(marker) :].strip()
     fields = payload.split("\t", maxsplit=expected_fields - 1)
     if len(fields) != expected_fields:
         raise ValueError(f"malformed {marker} line: {line.strip()}")
@@ -113,49 +119,63 @@ def run_test(test_name):
         failed_tests = list()
         test_start = None
         try:
-            for line in process.stdout:
-                if args.verbose:
-                    sys.stdout.write(line)
-                else:
-                    stdout_lines.append(line)
-                if "Quit requested by a Lua script" in line:
-                    quit_requested = True
-                elif "TEST_START" in line:
-                    test_start = time.time()
-                    number, name = parse_test_line(line, "TEST_START", 2)
-                    running_test_number = int(number)
-                    running_test_name = name
-                    count += 1
-                    print(f"[ RUN      ] {running_test_name}")
-                elif "TEST_OK" in line:
-                    if test_start is None or running_test_number is None:
-                        fatal_errors.append(f"orphan TEST_OK line: {line.strip()}")
-                        continue
-                    duration = (time.time() - test_start) * 1000
-                    number, _ = parse_test_line(line, "TEST_OK", 2)
-                    if running_test_number != int(number):
-                        fatal_errors.append(
-                            f"mismatched test id: expected {running_test_number}, got {number}"
-                        )
-                        continue
-                    print(f"[       OK ] {running_test_name} ({duration:.3f} ms)")
-                elif "TEST_FAILED" in line:
-                    if test_start is None or running_test_number is None:
-                        fatal_errors.append(f"orphan TEST_FAILED line: {line.strip()}")
-                        continue
-                    duration = (time.time() - test_start) * 1000
-                    number, _, error = parse_test_line(line, "TEST_FAILED", 3)
-                    if running_test_number != int(number):
-                        fatal_errors.append(
-                            f"mismatched test id: expected {running_test_number}, got {number}"
-                        )
-                        continue
-                    print(error)
-                    print(f"[  FAILED  ] {running_test_name} ({duration:.3f} ms)")
-                    failed_tests.append(running_test_name)
+            if process.stdout is None:
+                fatal_errors.append("openmw output pipe is unavailable")
+            else:
+                for line in process.stdout:
+                    if args.verbose:
+                        sys.stdout.write(line)
+                    else:
+                        stdout_lines.append(line)
+                    if "Quit requested by a Lua script" in line:
+                        quit_requested = True
+                    elif line.startswith("TEST_START"):
+                        test_start = time.time()
+                        number, name = parse_test_line(line, "TEST_START", 2)
+                        running_test_number = int(number)
+                        running_test_name = name
+                        count += 1
+                        print(f"[ RUN      ] {running_test_name}")
+                    elif line.startswith("TEST_OK"):
+                        if test_start is None or running_test_number is None:
+                            fatal_errors.append(f"orphan TEST_OK line: {line.strip()}")
+                            continue
+                        duration = (time.time() - test_start) * 1000
+                        number, _ = parse_test_line(line, "TEST_OK", 2)
+                        if running_test_number != int(number):
+                            fatal_errors.append(
+                                f"mismatched test id: expected {running_test_number}, got {number}"
+                            )
+                            continue
+                        print(f"[       OK ] {running_test_name} ({duration:.3f} ms)")
+                        running_test_number = None
+                        running_test_name = None
+                        test_start = None
+                    elif line.startswith("TEST_FAILED"):
+                        if test_start is None or running_test_number is None:
+                            fatal_errors.append(f"orphan TEST_FAILED line: {line.strip()}")
+                            continue
+                        duration = (time.time() - test_start) * 1000
+                        number, _, error = parse_test_line(line, "TEST_FAILED", 3)
+                        if running_test_number != int(number):
+                            fatal_errors.append(
+                                f"mismatched test id: expected {running_test_number}, got {number}"
+                            )
+                            continue
+                        print(error)
+                        print(f"[  FAILED  ] {running_test_name} ({duration:.3f} ms)")
+                        failed_tests.append(running_test_name)
+                        running_test_number = None
+                        running_test_name = None
+                        test_start = None
         except (ValueError, IndexError) as err:
             fatal_errors.append(str(err))
-        process.wait(5)
+        try:
+            process.wait(5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait()
+            fatal_errors.append("openmw did not terminate within timeout")
         if not quit_requested:
             fatal_errors.append("unexpected termination")
         if process.returncode != 0:
@@ -176,12 +196,16 @@ def run_test(test_name):
     return len(failed_tests) == 0 and not fatal_errors
 
 
-status = 0
-for entry in tests_dir.glob("test_*"):
-    if entry.is_dir():
-        if not run_test(entry.name):
+def main():
+    status = 0
+    for entry in tests_dir.glob("test_*"):
+        if entry.is_dir() and not run_test(entry.name):
             status = -1
-if status == 0:
-    shutil.rmtree(config_dir, ignore_errors=True)
-    shutil.rmtree(userdata_dir, ignore_errors=True)
-exit(status)
+    if status == 0:
+        shutil.rmtree(config_dir, ignore_errors=True)
+        shutil.rmtree(userdata_dir, ignore_errors=True)
+    return status
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
