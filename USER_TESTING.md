@@ -17,6 +17,20 @@ for catching bugs before a wider release.
 
 ---
 
+
+## Automated smoke coverage (browser CI)
+
+The browser smoke harness automates a focused subset of this checklist for rapid regression detection:
+
+- **Phase 1 — Engine startup**: validates initialization reaches the ready-for-data state.
+- **Phase 2 — Data loading**: validates data import flow success and upload progress callbacks.
+- **Phase 3 — Rendering and main menu**: validates canvas activation and a main-menu-ready marker in the smoke harness.
+- **Phase 5 — New game / save / load**: validates one save/load round-trip path through browser persistence.
+
+Manual testing remains required for full gameplay, visual correctness, and performance validation.
+
+---
+
 ## Serving locally
 
 A helper script is included at `scripts/serve_wasm.py`. It starts a
