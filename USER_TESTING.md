@@ -25,7 +25,9 @@ The browser smoke harness automates a focused subset of this checklist for rapid
 - **Phase 1 — Engine startup**: validates initialization reaches the ready-for-data state.
 - **Phase 2 — Data loading**: validates data import flow success and upload progress callbacks.
 - **Phase 3 — Rendering and main menu**: validates canvas activation and a main-menu-ready marker in the smoke harness.
-- **Phase 5 — New game / save / load**: validates one save/load round-trip path through browser persistence.
+- **Phase 4 — New game progression**: validates click-to-play, new game start, character creation reachability, world entry, and in-world scene markers (terrain/objects/sky/NPC visibility markers in the smoke harness).
+- **Phase 5 — Save/load and reload persistence**: validates repeated save/load cycles and save survival across a page reload.
+- **Machine-readable phase markers**: every run emits structured `WASM_PHASE` entries for startup, data import, rendering/main-menu, world-entry progression, input/pointer-lock path, save/load, and persistence sync.
 
 Manual testing remains required for full gameplay, visual correctness, and performance validation.
 
