@@ -201,7 +201,7 @@ namespace
     {
         std::ostringstream escaped;
         escaped << '"';
-        for (char c : input)
+        for (unsigned char c : input)
         {
             switch (c)
             {
@@ -210,7 +210,20 @@ namespace
                 case '\n': escaped << "\\n";  break;
                 case '\r': escaped << "\\r";  break;
                 case '\t': escaped << "\\t";  break;
-                default:   escaped << c;      break;
+                case '\0': escaped << "\\0";  break;
+                default:
+                    if (c < 0x20)
+                    {
+                        // Escape remaining ASCII control characters as \uXXXX
+                        escaped << "\\u00";
+                        escaped << "0123456789abcdef"[c >> 4];
+                        escaped << "0123456789abcdef"[c & 0xf];
+                    }
+                    else
+                    {
+                        escaped << static_cast<char>(c);
+                    }
+                    break;
             }
         }
         escaped << '"';
@@ -331,6 +344,14 @@ namespace
         )");
 #endif
 
+        // The IDBFS mount and initial sync-from-storage are handled in the HTML
+        // shell's Module.preRun callback using addRunDependency/removeRunDependency,
+        // which guarantees that the persistent filesystem is fully populated BEFORE
+        // main() runs.  Here we only need to:
+        //   1. Create any XDG subdirectories that were not in the stored image
+        //      (first run, or a new subdirectory added in a later build).
+        //   2. Set HOME and XDG environment variables so OpenMW finds its paths.
+        //   3. Register the periodic background sync and page-lifecycle hooks.
         std::string persistenceScript = R"(
             if (typeof FS === 'undefined' || typeof IDBFS === 'undefined') {
                 console.error('Emscripten FS/IDBFS APIs are unavailable; persistent storage disabled.');
@@ -341,6 +362,7 @@ namespace
                 const localRoot = homeRoot + '/.local';
                 const dataRoot = __OPENMW_DATA_PATH__;
 
+                // Ensure subdirectories exist (safe no-op if already created by preRun sync).
                 if (!FS.analyzePath(persistentRoot).exists)
                     FS.mkdir(persistentRoot);
                 if (!FS.analyzePath(homeRoot).exists)
@@ -351,18 +373,6 @@ namespace
                     FS.mkdir(localRoot);
                 if (!FS.analyzePath(dataRoot).exists)
                     FS.mkdir(dataRoot);
-
-                try {
-                    FS.mount(IDBFS, {}, persistentRoot);
-                } catch (error) {
-                    if (!error.message || !error.message.includes('already mounted'))
-                        console.error('Failed to mount IDBFS at', persistentRoot, error);
-                }
-
-                FS.syncfs(true, function(error) {
-                    if (error)
-                        console.error('Initial IDBFS sync failed', error);
-                });
 
                 var syncPersistentStorage = function() {
                     var state = (typeof globalThis !== 'undefined')
@@ -423,19 +433,26 @@ namespace
             }
         )";
 
-        const std::string intervalToken = "__OPENMW_SYNC_INTERVAL_MS__";
-        persistenceScript.replace(
-            persistenceScript.find(intervalToken), intervalToken.size(), std::to_string(periodicSyncIntervalMs));
-        const std::string rootToken = "__OPENMW_PERSISTENT_ROOT__";
-        persistenceScript.replace(
-            persistenceScript.find(rootToken), rootToken.size(), toJavaScriptStringLiteral(persistentRootPath));
-        const std::string homeToken = "__OPENMW_HOME_PATH__";
-        persistenceScript.replace(persistenceScript.find(homeToken), homeToken.size(), toJavaScriptStringLiteral(homePath));
-        const std::string configToken = "__OPENMW_CONFIG_PATH__";
-        persistenceScript.replace(
-            persistenceScript.find(configToken), configToken.size(), toJavaScriptStringLiteral(configPath));
-        const std::string dataToken = "__OPENMW_DATA_PATH__";
-        persistenceScript.replace(persistenceScript.find(dataToken), dataToken.size(), toJavaScriptStringLiteral(dataPath));
+        // Replace each placeholder token in the script template.  Guard against
+        // missing tokens to avoid std::string::replace() throwing std::out_of_range
+        // if the script template is accidentally edited.
+        const auto replaceScriptToken = [](std::string& script, std::string_view token,
+                                            std::string_view value) {
+            const auto pos = script.find(token);
+            if (pos == std::string::npos)
+            {
+                Log(Debug::Error) << "WASM: Missing template token '" << token
+                                  << "' in persistence script — persistent storage may be misconfigured";
+                return;
+            }
+            script.replace(pos, token.size(), value);
+        };
+
+        replaceScriptToken(persistenceScript, "__OPENMW_SYNC_INTERVAL_MS__", std::to_string(periodicSyncIntervalMs));
+        replaceScriptToken(persistenceScript, "__OPENMW_PERSISTENT_ROOT__", toJavaScriptStringLiteral(persistentRootPath));
+        replaceScriptToken(persistenceScript, "__OPENMW_HOME_PATH__", toJavaScriptStringLiteral(homePath));
+        replaceScriptToken(persistenceScript, "__OPENMW_CONFIG_PATH__", toJavaScriptStringLiteral(configPath));
+        replaceScriptToken(persistenceScript, "__OPENMW_DATA_PATH__", toJavaScriptStringLiteral(dataPath));
         emscripten_run_script(persistenceScript.c_str());
 
         setenv("HOME", homePath.c_str(), 1);

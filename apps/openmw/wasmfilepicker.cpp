@@ -309,10 +309,14 @@ namespace OMW::WasmFilePicker
                             function onWindowFocus() {
                                 if (focusTimerId !== null)
                                     clearTimeout(focusTimerId);
+                                // Use a 500ms delay so that the 'change' event (which fires
+                                // when files are actually selected) has time to settle before
+                                // we treat the window-focus return as a user cancellation.
+                                // A 0ms delay races with the 'change' event on some browsers.
                                 focusTimerId = setTimeout(function() {
                                     if (!settled)
                                         resolveOnce(null);
-                                }, 0);
+                                }, 500);
                             }
 
                             input.addEventListener('change', function() {
@@ -629,18 +633,24 @@ namespace OMW::WasmFilePicker
         // line into the expected enabled/disabled representation.
         const auto setLineState = [&content](std::string_view activeLine, bool enabled) {
             const std::string commentedLine = std::string("# ") + std::string(activeLine);
-            const auto desired = enabled ? std::string(activeLine) : commentedLine;
 
-            auto pos = content.find(activeLine);
+            // Search for the commented form first.  If we searched for activeLine first,
+            // it would also match the substring inside commentedLine (e.g. searching for
+            // "content=Tribunal.esm" would hit inside "# content=Tribunal.esm" at offset 2,
+            // and the subsequent replace would be a silent no-op leaving the comment intact).
+            auto pos = content.find(commentedLine);
             if (pos != std::string::npos)
             {
-                content.replace(pos, activeLine.size(), desired);
+                if (enabled)
+                    content.replace(pos, commentedLine.size(), std::string(activeLine));
+                // else: already commented out; nothing to do
                 return;
             }
 
-            pos = content.find(commentedLine);
-            if (pos != std::string::npos)
-                content.replace(pos, commentedLine.size(), desired);
+            pos = content.find(activeLine);
+            if (pos != std::string::npos && !enabled)
+                content.replace(pos, activeLine.size(), commentedLine);
+            // else: already active; nothing to do
         };
 
         setLineState("content=Tribunal.esm", hasTribunal);
