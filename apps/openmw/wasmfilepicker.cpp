@@ -3,6 +3,7 @@
 #include "wasmfilepicker.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <fstream>
 #include <sstream>
 #include <string_view>
@@ -21,6 +22,15 @@ namespace
 
 extern "C"
 {
+    EMSCRIPTEN_KEEPALIVE
+    void openmw_wasm_notify_upload_started()
+    {
+        sDataReady = false;
+        sUploadedFileCount = 0;
+        sUploadedByteCount = 0;
+        Log(Debug::Info) << "WASM: Starting game data upload flow";
+    }
+
     EMSCRIPTEN_KEEPALIVE
     void openmw_wasm_notify_data_ready()
     {
@@ -185,6 +195,14 @@ namespace OMW::WasmFilePicker
                         }
                     }
 
+                    function resetUploadStats(stats) {
+                        stats.totalFiles = 0;
+                        stats.totalBytes = 0;
+                        stats.files = 0;
+                        stats.bytes = 0;
+                        globalThis.__openmwReportProgress(0, 0);
+                    }
+
                     globalThis.__openmwUploadFile = function(relativePath, data) {
                         var normalizedPath = normalizeRelativePath(relativePath);
                         if (!normalizedPath)
@@ -202,6 +220,10 @@ namespace OMW::WasmFilePicker
 
                     globalThis.__openmwNotifyDataReady = function() {
                         _openmw_wasm_notify_data_ready();
+                    };
+
+                    globalThis.__openmwNotifyUploadStarted = function() {
+                        _openmw_wasm_notify_upload_started();
                     };
 
                     globalThis.__openmwReportProgress = function(fileCount, totalBytes) {
@@ -375,11 +397,8 @@ namespace OMW::WasmFilePicker
 
                     globalThis.__openmwPickDataDirectory = async function() {
                         var stats = globalThis.__openmwUploadStats;
-                        stats.totalFiles = 0;
-                        stats.totalBytes = 0;
-                        stats.files = 0;
-                        stats.bytes = 0;
-                        globalThis.__openmwReportProgress(0, 0);
+                        resetUploadStats(stats);
+                        globalThis.__openmwNotifyUploadStarted();
 
                         var capabilities = getPickerCapabilities();
                         if (!capabilities.supported) {
@@ -394,97 +413,107 @@ namespace OMW::WasmFilePicker
                         var fileList = null;
                         globalThis.__openmwSetLastPickResult('in-progress', '');
 
-                        if (typeof globalThis.__openmwOnUploadPhase === 'function')
-                            globalThis.__openmwOnUploadPhase('scanning');
+                        try {
+                            if (typeof globalThis.__openmwOnUploadPhase === 'function')
+                                globalThis.__openmwOnUploadPhase('scanning');
 
-                        if (capabilities.directoryPicker) {
-                            var dirHandle;
-                            try {
-                                dirHandle = await window.showDirectoryPicker({ mode: 'read' });
-                            } catch (e) {
-                                if (e.name === 'AbortError') {
-                                    console.log('Directory picker cancelled by user');
+                            if (capabilities.directoryPicker) {
+                                var dirHandle;
+                                try {
+                                    dirHandle = await window.showDirectoryPicker({ mode: 'read' });
+                                } catch (e) {
+                                    if (e.name === 'AbortError') {
+                                        console.log('Directory picker cancelled by user');
+                                        globalThis.__openmwSetLastPickResult('cancelled', 'Directory selection was cancelled.');
+                                        return false;
+                                    }
+                                    console.error('Directory picker error:', e);
+                                    throw e;
+                                }
+
+                                console.log('Selected directory:', dirHandle.name);
+                                fileList = await enumerateFiles(dirHandle, '');
+                            } else {
+                                console.log('showDirectoryPicker unavailable; using directory-upload fallback input.');
+                                try {
+                                    fileList = await pickFilesViaInput();
+                                } catch (e) {
+                                    console.error('Directory upload fallback failed:', e);
+                                    throw e;
+                                }
+
+                                if (!fileList) {
+                                    console.log('Directory upload fallback cancelled by user');
                                     globalThis.__openmwSetLastPickResult('cancelled', 'Directory selection was cancelled.');
                                     return false;
                                 }
-                                console.error('Directory picker error:', e);
-                                throw e;
                             }
 
-                            console.log('Selected directory:', dirHandle.name);
-                            fileList = await enumerateFiles(dirHandle, '');
-                        } else {
-                            console.log('showDirectoryPicker unavailable; using directory-upload fallback input.');
-                            try {
-                                fileList = await pickFilesViaInput();
-                            } catch (e) {
-                                console.error('Directory upload fallback failed:', e);
-                                throw e;
-                            }
-
-                            if (!fileList) {
-                                console.log('Directory upload fallback cancelled by user');
-                                globalThis.__openmwSetLastPickResult('cancelled', 'Directory selection was cancelled.');
+                            if (!fileList || !fileList.length) {
+                                var emptySelectionMessage = 'No files were selected. Please choose the Morrowind Data Files folder.';
+                                console.warn(emptySelectionMessage);
+                                globalThis.__openmwSetLastPickResult('empty-selection', emptySelectionMessage);
                                 return false;
                             }
+
+                            if (!hasRequiredBaseFiles(fileList)) {
+                                var validationMessage =
+                                    'Selected folder is missing required base content (Morrowind.esm). '
+                                    + 'Please choose the Morrowind Data Files directory.';
+                                console.warn(validationMessage);
+                                globalThis.__openmwSetLastPickResult('validation-failed', validationMessage);
+                                return false;
+                            }
+
+                            var totalBytes = fileList.reduce(function(sum, f) { return sum + f.size; }, 0);
+                            stats.totalFiles = fileList.length;
+                            stats.totalBytes = totalBytes;
+                            stats.files = 0;
+                            stats.bytes = 0;
+
+                            console.log('Found', fileList.length, 'files (' + (totalBytes / (1024*1024)).toFixed(1) + ' MB)');
+
+                            try {
+                                clearDataMountDirectory();
+                            } catch (clearError) {
+                                console.error('Failed to clear existing uploaded data:', clearError);
+                                throw new Error(
+                                    'Failed to reset previous uploaded data: '
+                                    + (clearError && clearError.message ? clearError.message : String(clearError))
+                                );
+                            }
+
+                            if (typeof globalThis.__openmwOnUploadPhase === 'function')
+                                globalThis.__openmwOnUploadPhase('uploading');
+
+                            for (var i = 0; i < fileList.length; i++) {
+                                var uploadedFile = await fileList[i].openFile();
+                                await uploadFileChunked(uploadedFile, fileList[i].path);
+                                stats.files++;
+                                stats.bytes += fileList[i].size;
+
+                                if (typeof globalThis.__openmwOnUploadProgress === 'function')
+                                    globalThis.__openmwOnUploadProgress(stats.files, stats.totalFiles, stats.bytes, stats.totalBytes);
+
+                                globalThis.__openmwReportProgress(stats.files, stats.bytes);
+
+                                if ((i + 1) % 50 === 0)
+                                    await new Promise(function(r) { setTimeout(r, 0); });
+                            }
+
+                            console.log('Upload complete:', stats.files, 'files,', (stats.bytes / (1024*1024)).toFixed(1), 'MB');
+                            globalThis.__openmwSetLastPickResult('success', 'Game data loaded successfully.');
+                            globalThis.__openmwNotifyDataReady();
+                            return true;
+                        } catch (uploadError) {
+                            var uploadMessage = uploadError && uploadError.message
+                                ? uploadError.message
+                                : String(uploadError);
+                            console.error('Directory import failed:', uploadError);
+                            globalThis.__openmwSetLastPickResult('error', uploadMessage);
+                            resetUploadStats(stats);
+                            throw new Error(uploadMessage);
                         }
-
-                        if (!fileList || !fileList.length) {
-                            var emptySelectionMessage = 'No files were selected. Please choose the Morrowind Data Files folder.';
-                            console.warn(emptySelectionMessage);
-                            globalThis.__openmwSetLastPickResult('empty-selection', emptySelectionMessage);
-                            return false;
-                        }
-
-                        if (!hasRequiredBaseFiles(fileList)) {
-                            var validationMessage =
-                                'Selected folder is missing required base content (Morrowind.esm). '
-                                + 'Please choose the Morrowind Data Files directory.';
-                            console.warn(validationMessage);
-                            globalThis.__openmwSetLastPickResult('validation-failed', validationMessage);
-                            return false;
-                        }
-
-                        var totalBytes = fileList.reduce(function(sum, f) { return sum + f.size; }, 0);
-                        stats.totalFiles = fileList.length;
-                        stats.totalBytes = totalBytes;
-                        stats.files = 0;
-                        stats.bytes = 0;
-
-                        console.log('Found', fileList.length, 'files (' + (totalBytes / (1024*1024)).toFixed(1) + ' MB)');
-
-                        try {
-                            clearDataMountDirectory();
-                        } catch (clearError) {
-                            console.error('Failed to clear existing uploaded data:', clearError);
-                            throw new Error(
-                                'Failed to reset previous uploaded data: '
-                                + (clearError && clearError.message ? clearError.message : String(clearError))
-                            );
-                        }
-
-                        if (typeof globalThis.__openmwOnUploadPhase === 'function')
-                            globalThis.__openmwOnUploadPhase('uploading');
-
-                        for (var i = 0; i < fileList.length; i++) {
-                            var uploadedFile = await fileList[i].openFile();
-                            await uploadFileChunked(uploadedFile, fileList[i].path);
-                            stats.files++;
-                            stats.bytes += fileList[i].size;
-
-                            if (typeof globalThis.__openmwOnUploadProgress === 'function')
-                                globalThis.__openmwOnUploadProgress(stats.files, stats.totalFiles, stats.bytes, stats.totalBytes);
-
-                            globalThis.__openmwReportProgress(stats.files, stats.bytes);
-
-                            if ((i + 1) % 50 === 0)
-                                await new Promise(function(r) { setTimeout(r, 0); });
-                        }
-
-                        console.log('Upload complete:', stats.files, 'files,', (stats.bytes / (1024*1024)).toFixed(1), 'MB');
-                        globalThis.__openmwSetLastPickResult('success', 'Game data loaded successfully.');
-                        globalThis.__openmwNotifyDataReady();
-                        return true;
                     };
                 }
 
@@ -571,10 +600,7 @@ namespace OMW::WasmFilePicker
         const bool hasBloodmoon = checkExpansion(sDataMountPath, "Bloodmoon.esm");
 
         if (!hasTribunal && !hasBloodmoon)
-        {
             Log(Debug::Info) << "WASM: No expansion ESMs detected in uploaded data";
-            return;
-        }
 
         // Locate the config file written by bootstrapWasmConfigFile().
         const char* cfgHome = std::getenv("XDG_CONFIG_HOME");
@@ -599,29 +625,33 @@ namespace OMW::WasmFilePicker
         in.close();
         std::string content = buf.str();
 
-        // Uncomment entries for detected expansions.  The commented lines were
-        // written by bootstrapWasmConfigFile() with exactly these tokens.
-        // Each token appears at most once in the auto-generated config, so a
-        // single find-and-replace per entry is sufficient.
-        const auto uncomment = [&content](std::string_view commentedLine, std::string_view activeLine) {
-            auto pos = content.find(commentedLine);
+        // Keep expansion entries deterministic on every upload by forcing each
+        // line into the expected enabled/disabled representation.
+        const auto setLineState = [&content](std::string_view activeLine, bool enabled) {
+            const std::string commentedLine = std::string("# ") + std::string(activeLine);
+            const auto desired = enabled ? std::string(activeLine) : commentedLine;
+
+            auto pos = content.find(activeLine);
             if (pos != std::string::npos)
-                content.replace(pos, commentedLine.size(), activeLine);
+            {
+                content.replace(pos, activeLine.size(), desired);
+                return;
+            }
+
+            pos = content.find(commentedLine);
+            if (pos != std::string::npos)
+                content.replace(pos, commentedLine.size(), desired);
         };
 
-        if (hasTribunal)
-        {
-            uncomment("# content=Tribunal.esm", "content=Tribunal.esm");
-            uncomment("# fallback-archive=Tribunal.bsa", "fallback-archive=Tribunal.bsa");
-            Log(Debug::Info) << "WASM: Enabling Tribunal expansion in config";
-        }
+        setLineState("content=Tribunal.esm", hasTribunal);
+        setLineState("fallback-archive=Tribunal.bsa", hasTribunal);
+        Log(Debug::Info) << "WASM: " << (hasTribunal ? "Enabling" : "Disabling")
+                         << " Tribunal expansion in config";
 
-        if (hasBloodmoon)
-        {
-            uncomment("# content=Bloodmoon.esm", "content=Bloodmoon.esm");
-            uncomment("# fallback-archive=Bloodmoon.bsa", "fallback-archive=Bloodmoon.bsa");
-            Log(Debug::Info) << "WASM: Enabling Bloodmoon expansion in config";
-        }
+        setLineState("content=Bloodmoon.esm", hasBloodmoon);
+        setLineState("fallback-archive=Bloodmoon.bsa", hasBloodmoon);
+        Log(Debug::Info) << "WASM: " << (hasBloodmoon ? "Enabling" : "Disabling")
+                         << " Bloodmoon expansion in config";
 
         std::ofstream out(cfgFile);
         if (!out.is_open())
