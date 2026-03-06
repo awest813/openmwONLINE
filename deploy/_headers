@@ -1,0 +1,31 @@
+# Cloudflare Pages / Netlify _headers file — OpenMW WASM pthread build
+#
+# Copy this file into the root of your published directory (the same folder
+# as openmw.html) for hosts that support the Netlify _headers format:
+#   - Cloudflare Pages
+#   - Netlify (alternative to netlify.toml)
+#
+# For the NON-PTHREAD (single-threaded) build you do NOT need this file at all.
+# The non-pthread build works without cross-origin isolation headers and can be
+# hosted on GitHub Pages, any S3 bucket, or any other static file host.
+
+/*
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: require-corp
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: SAMEORIGIN
+
+/openmw.html
+  Cache-Control: no-cache, no-store, must-revalidate
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: require-corp
+
+/*.wasm
+  Cache-Control: public, max-age=31536000, immutable
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: require-corp
+
+/*.data
+  Cache-Control: public, max-age=31536000, immutable
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: require-corp

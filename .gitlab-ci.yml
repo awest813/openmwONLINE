@@ -1323,6 +1323,8 @@ Emscripten_WASM:
         - components/**/*
         - files/wasm/**/*
         - extern/CMakeLists.txt
+        - deploy/**/*
+        - scripts/package_wasm.sh
     - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_REF_PROTECTED == 'true'
     - when: manual
       allow_failure: true
@@ -1340,18 +1342,23 @@ Emscripten_WASM:
     - export DEBIAN_FRONTEND=noninteractive
     - apt-get update && apt-get install -y --no-install-recommends
         git cmake make python3 wget unzip xz-utils bzip2
-        build-essential autoconf automake libtool pkg-config
+        build-essential autoconf automake libtool pkg-config zip
     - CI/before_script.wasm.sh
   script:
     - source "$EMSDK_DIR/emsdk_env.sh"
     - cd "$BUILD_DIR"
     - emmake make -j$(nproc)
+    - cd "$CI_PROJECT_DIR"
+    - scripts/package_wasm.sh --build-dir "$BUILD_DIR" --out-dir "$BUILD_DIR"
   artifacts:
+    name: "openmw-wasm-no-threads"
     paths:
       - build-wasm/openmw.html
       - build-wasm/openmw.js
       - build-wasm/openmw.wasm
       - build-wasm/openmw.data
+      - build-wasm/openmw-wasm-no-threads.zip
+      - build-wasm/openmw-wasm-no-threads.zip.sha256
     expire_in: 1 week
   timeout: 3h
 

@@ -85,7 +85,22 @@ cmake -DOPENMW_EXPERIMENTAL_WASM=ON -DOPENMW_EXPERIMENTAL_WASM_PTHREADS=OFF ...
 The full dependency build and CMake configuration is automated by
 `CI/before_script.wasm.sh`. The CI job (`Emscripten_WASM` in
 `.gitlab-ci.yml`) produces the `openmw.html`, `openmw.js`, and `openmw.wasm`
-artifacts.
+artifacts and packages them into `openmw-wasm-no-threads.zip` — a
+self-contained archive with ready-to-use nginx, Netlify, Vercel, and
+Cloudflare Pages configs.
+
+### Deploying
+
+See **[DEPLOYMENT.md](DEPLOYMENT.md)** for complete hosting recipes covering:
+
+- Local dev (Python)
+- nginx (self-hosted)
+- Netlify (drag-and-drop or CLI)
+- Cloudflare Pages
+- Vercel
+- GitHub Pages (non-pthread build only)
+
+The `deploy/` directory contains ready-to-use server configs for each target.
 
 ### Serving locally
 
@@ -231,6 +246,7 @@ Contributing
 * [Performance roadmap](PERFORMANCE_ROADMAP.md)
 * [WASM technical roadmap](WASM_ROADMAP.md)
 * [Browser testing guide](USER_TESTING.md)
+* [Deployment guide](DEPLOYMENT.md)
 
 ---
 

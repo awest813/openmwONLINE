@@ -1,0 +1,31 @@
+{
+  "comment": "Vercel headers configuration — OpenMW WASM non-pthread (single-threaded) build. Drop this file in the root of your Vercel project. The non-pthread build does not require COOP/COEP headers. For the pthread build, use the full vercel.json from the pthread artifact package.",
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options",        "value": "SAMEORIGIN" }
+      ]
+    },
+    {
+      "source": "/openmw.html",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+      ]
+    },
+    {
+      "source": "/:file.wasm",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" },
+        { "key": "Content-Type",  "value": "application/wasm" }
+      ]
+    },
+    {
+      "source": "/:file.data",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    }
+  ]
+}

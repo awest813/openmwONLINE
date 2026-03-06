@@ -34,6 +34,7 @@ without installing any software.
 | HDR/ripple fallback matrix + graceful degradation | ✅ Complete |
 | WASM performance defaults (culling, draw distance) | ✅ Complete |
 | Nav mesh thread auto-detection | ✅ Complete |
+| Hosting & deployment configs | ✅ Complete |
 | End-to-end browser testing | ⏳ In progress |
 | Performance profiling & optimization | ⏳ In progress |
 
@@ -51,8 +52,10 @@ without installing any software.
    resource cache tuning and actor collision batching are next).
 3. **Pthread validation** — Verify the pthread/SharedArrayBuffer path works on
    a properly configured cross-origin isolated host.
-4. **Hosting & deployment** — Document (or automate) the required server headers
-   (`COOP`/`COEP`) and produce a deployable artifact package.
+4. **Hosting & deployment** — ✅ Ready-to-use deployment configs and a
+   deployable ZIP artifact are now provided.  See [DEPLOYMENT.md](DEPLOYMENT.md)
+   for nginx, Netlify, Vercel, Cloudflare Pages, and GitHub Pages recipes.
+   The CI job produces `openmw-wasm-no-threads.zip` with embedded deploy configs.
 5. **Mod/extension compatibility** — Verify common mods work through the browser
    file picker and IDBFS pipeline.
 
