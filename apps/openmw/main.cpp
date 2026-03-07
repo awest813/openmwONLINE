@@ -374,6 +374,13 @@ namespace
                 if (!FS.analyzePath(dataRoot).exists)
                     FS.mkdir(dataRoot);
 
+                // If the HTML shell has already registered lifecycle sync listeners and
+                // started the periodic sync, defer to its more capable coalesced
+                // implementation.  Overwriting __openmwSyncPersistentStorage or starting a
+                // second setInterval would create two independent sync paths that can call
+                // FS.syncfs() simultaneously and corrupt IndexedDB save data.
+                var _shellAlreadyRegistered = typeof window !== 'undefined' && !!window.__openmwPersistentSyncRegistered;
+
                 var syncPersistentStorage = function() {
                     var state = (typeof globalThis !== 'undefined')
                         ? (globalThis.__openmwPersistentSyncState = globalThis.__openmwPersistentSyncState || {})
@@ -415,7 +422,7 @@ namespace
                     }, periodicSyncIntervalMs);
                 };
 
-                if (typeof globalThis !== 'undefined')
+                if (typeof globalThis !== 'undefined' && !_shellAlreadyRegistered)
                     globalThis.__openmwSyncPersistentStorage = syncPersistentStorage;
 
                 if (typeof window !== 'undefined' && !window.__openmwPersistentSyncRegistered) {
@@ -429,7 +436,8 @@ namespace
                     window.__openmwPersistentSyncRegistered = true;
                 }
 
-                schedulePeriodicPersistentSync();
+                if (!_shellAlreadyRegistered)
+                    schedulePeriodicPersistentSync();
             }
         )";
 

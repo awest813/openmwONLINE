@@ -704,6 +704,14 @@
       syncPersistentStorage('freeze');
     });
 
+    // Signal to the C++ persistence bootstrap (injected later via
+    // emscripten_run_script in initializeWasmPersistentStorage) that the shell
+    // has already registered these page-lifecycle event listeners and started the
+    // periodic sync timer.  Without this flag the C++ script would add a second
+    // set of listeners that call a separate, simpler sync function, enabling
+    // simultaneous FS.syncfs() calls which can corrupt IndexedDB save data.
+    window.__openmwPersistentSyncRegistered = true;
+
     // ----------------------------------------------------------------
     // WebGL context loss / restore handling
     // ----------------------------------------------------------------

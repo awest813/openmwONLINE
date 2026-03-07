@@ -109,6 +109,68 @@ class WasmShellTests(unittest.TestCase):
             msg="Expected onAbort to trigger a final sync",
         )
 
+    def test_shell_sets_persistent_sync_registered_flag(self):
+        """The HTML shell must set window.__openmwPersistentSyncRegistered = true after
+        registering lifecycle event listeners so that the C++ persistence bootstrap
+        script (injected by initializeWasmPersistentStorage via emscripten_run_script)
+        does not add a second set of duplicate sync handlers.  Duplicate handlers can
+        trigger simultaneous FS.syncfs() calls which corrupt IndexedDB save data."""
+        self.assertIn(
+            "window.__openmwPersistentSyncRegistered = true",
+            self.shell_html,
+            msg="Expected shell to set window.__openmwPersistentSyncRegistered = true "
+                "after registering lifecycle event listeners",
+        )
+        # The flag must be set AFTER the freeze listener (the last lifecycle listener)
+        # and BEFORE the WebGL context-loss block so it takes effect before main() runs.
+        freeze_pos = self.shell_html.find("addEventListener('freeze'")
+        flag_pos = self.shell_html.find("window.__openmwPersistentSyncRegistered = true")
+        webgl_pos = self.shell_html.find("webglcontextlost")
+        self.assertNotEqual(freeze_pos, -1, "Expected freeze event listener in shell")
+        self.assertNotEqual(flag_pos, -1, "Expected __openmwPersistentSyncRegistered flag assignment in shell")
+        self.assertNotEqual(webgl_pos, -1, "Expected webglcontextlost handler in shell")
+        self.assertLess(
+            freeze_pos,
+            flag_pos,
+            msg="__openmwPersistentSyncRegistered must be set after the freeze listener",
+        )
+        self.assertLess(
+            flag_pos,
+            webgl_pos,
+            msg="__openmwPersistentSyncRegistered must be set before the WebGL context-loss block",
+        )
+
+    def test_cpp_persistence_script_guards_against_duplicate_sync(self):
+        """The C++ persistence bootstrap script (in main.cpp) must check
+        _shellAlreadyRegistered before overwriting __openmwSyncPersistentStorage and
+        before starting the periodic sync timer, so that the HTML shell's superior
+        coalesced implementation is preserved when running with the standard shell."""
+        repo_root = Path(__file__).resolve().parents[2]
+        main_cpp = (repo_root / "apps" / "openmw" / "main.cpp").read_text(encoding="utf-8")
+
+        self.assertIn(
+            "_shellAlreadyRegistered",
+            main_cpp,
+            msg="Expected _shellAlreadyRegistered guard variable in main.cpp persistence script",
+        )
+        self.assertIn(
+            "window.__openmwPersistentSyncRegistered",
+            main_cpp,
+            msg="Expected main.cpp persistence script to read window.__openmwPersistentSyncRegistered",
+        )
+        # The assignment to __openmwSyncPersistentStorage must be guarded.
+        self.assertRegex(
+            main_cpp,
+            r"_shellAlreadyRegistered[\s\S]{0,200}__openmwSyncPersistentStorage\s*=\s*syncPersistentStorage",
+            msg="Expected __openmwSyncPersistentStorage assignment to be guarded by _shellAlreadyRegistered",
+        )
+        # schedulePeriodicPersistentSync must be guarded too.
+        self.assertRegex(
+            main_cpp,
+            r"_shellAlreadyRegistered[\s\S]{0,200}schedulePeriodicPersistentSync\(\)",
+            msg="Expected schedulePeriodicPersistentSync() to be guarded by _shellAlreadyRegistered",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
