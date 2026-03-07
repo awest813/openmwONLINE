@@ -42,6 +42,9 @@ without installing any software.
 | Long-frame detection in WASM main loop | ✅ Complete |
 | Settings/Lua flush interval reduced + IDBFS sync | ✅ Complete |
 | Proactive IDBFS sync before cell-transition loads | ✅ Complete |
+| Web Audio context auto-resume (tab-background stall fix) | ✅ Complete |
+| IndexedDB quota exceeded user warning | ✅ Complete |
+| Save-game long-write WASM warning | ✅ Complete |
 | End-to-end browser testing | ⏳ In progress |
 | Performance profiling & optimization | ⏳ In progress |
 

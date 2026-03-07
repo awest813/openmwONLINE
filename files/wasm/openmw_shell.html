@@ -349,6 +349,9 @@
       var c = document.getElementById('canvas');
       c.focus();
       if (c.requestPointerLock) c.requestPointerLock();
+      // Re-activate Web Audio if the browser suspended it before the first user
+      // gesture (autoplay policy) or while the tab was backgrounded.
+      resumeAudioContext();
     });
 
     // Re-show the click-to-play overlay whenever pointer lock is released so the
@@ -481,6 +484,21 @@
         'https://gitlab.com/OpenMW/openmw/-/issues/new?issue[labels]=wasm,bug' +
         '&issue[description]=' + issueBody;
       errorPanel.classList.add('visible');
+    }
+
+    // Non-fatal storage-quota warning — shown when IDBFS sync fails with a
+    // QuotaExceededError.  Unlike showError() (which is for fatal conditions),
+    // this leaves the game running while alerting the player that new saves
+    // are being silently dropped and instructing them to free browser storage.
+    function showStorageQuotaWarning() {
+      var msg = 'Browser storage quota exceeded — new saves are not being persisted to '
+        + 'IndexedDB. Progress since your last successful save is at risk. '
+        + 'To fix: clear site data for this origin in your browser settings, then reload.';
+      logToConsole(msg, 'error');
+      reportPhase('storage_quota', 'failed', 'IndexedDB quota exceeded — saves at risk');
+      // Show the HUD toolbar so the player sees the warning immediately without
+      // needing to open the developer console.
+      hudToolbar.classList.add('visible');
     }
 
     // ----------------------------------------------------------------
@@ -660,6 +678,15 @@
         if (err) {
           console.error('OpenMW WASM: IDBFS sync failed (' + (reason || 'unknown') + '):', err);
           logToConsole('IDBFS sync failed: ' + err, 'error');
+          // Detect quota exhaustion and surface a visible, actionable warning to
+          // the player.  A QuotaExceededError means saves are being silently
+          // dropped; without an on-screen prompt the player will not notice until
+          // they reload and discover their progress is gone.
+          var isQuota = (err && err.name === 'QuotaExceededError')
+                     || (err && err.code === 22); // DOMException QUOTA_EXCEEDED_ERR
+          if (isQuota) {
+            showStorageQuotaWarning();
+          }
         }
         settleSync('queued');
       });
@@ -720,6 +747,11 @@
     document.addEventListener('visibilitychange', function() {
       if (document.visibilityState === 'hidden') {
         syncPersistentStorage('visibilitychange');
+      } else {
+        // The tab has become visible again.  The browser may have suspended the
+        // Web Audio context while the tab was in the background; resume it so
+        // that in-game audio continues without the player needing to interact.
+        resumeAudioContext();
       }
     });
 
@@ -773,6 +805,37 @@
         }
       }, false);
     })();
+
+    // ----------------------------------------------------------------
+    // Web Audio context auto-resume
+    // ----------------------------------------------------------------
+    // Browsers automatically suspend the Web Audio AudioContext when the tab
+    // is hidden or when the autoplay policy has not yet been satisfied by a
+    // user gesture.  Emscripten's OpenAL port routes all audio through a
+    // single AudioContext stored at AL.currentCtx.ctx; if that context stays
+    // suspended the in-game audio is silent for the rest of the session —
+    // a hard blocker for any long playthrough.
+    //
+    // resumeAudioContext() is called from two trusted entry points:
+    //   1. The click-to-play overlay click (always a user gesture).
+    //   2. visibilitychange when the tab becomes visible again.
+    function resumeAudioContext() {
+      try {
+        if (typeof AL !== 'undefined' && AL.currentCtx && AL.currentCtx.ctx) {
+          var ctx = AL.currentCtx.ctx;
+          if (ctx.state === 'suspended') {
+            ctx.resume().then(function() {
+              logToConsole('Web Audio context resumed after suspension', 'info');
+            }).catch(function(e) {
+              logToConsole('Web Audio context resume failed: ' + e.message, 'warn');
+            });
+          }
+        }
+      } catch (e) {
+        // Non-critical: the game is still playable without audio.
+        console.warn('OpenMW WASM: Audio context resume error:', e);
+      }
+    }
 
     // ----------------------------------------------------------------
     // WASM heap memory monitoring

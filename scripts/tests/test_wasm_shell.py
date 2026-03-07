@@ -11,6 +11,7 @@ class WasmShellTests(unittest.TestCase):
         cls.wasm_picker_cpp = (repo_root / "apps" / "openmw" / "wasmfilepicker.cpp").read_text(encoding="utf-8")
         cls.engine_cpp = (repo_root / "apps" / "openmw" / "engine.cpp").read_text(encoding="utf-8")
         cls.loadingscreen_cpp = (repo_root / "apps" / "openmw" / "mwgui" / "loadingscreen.cpp").read_text(encoding="utf-8")
+        cls.statemanager_cpp = (repo_root / "apps" / "openmw" / "mwstate" / "statemanagerimp.cpp").read_text(encoding="utf-8")
 
     def test_successful_data_upload_reveals_canvas(self):
         self.assertIn("function showCanvas()", self.shell_html)
@@ -338,6 +339,110 @@ class WasmShellTests(unittest.TestCase):
             self.loadingscreen_cpp,
             r"void LoadingScreen::loadingOn\(\)[\s\S]{0,900}emscripten_run_script[\s\S]{0,200}__openmwSyncPersistentStorage",
             msg="Expected emscripten_run_script(__openmwSyncPersistentStorage) in LoadingScreen::loadingOn()",
+        )
+
+
+    # ------------------------------------------------------------------
+    # Remaining crash/stall vector fixes (this PR)
+    # ------------------------------------------------------------------
+
+    def test_audio_context_auto_resume(self):
+        """resumeAudioContext() must exist and be called from both the
+        click-to-play handler (user gesture satisfies the browser's autoplay
+        policy) and the visibilitychange handler (resumes the AudioContext
+        suspended by the browser when the tab was in the background), so that
+        in-game audio is never permanently silenced during a long playthrough."""
+        self.assertIn(
+            "function resumeAudioContext()",
+            self.shell_html,
+            msg="Expected resumeAudioContext() function in shell HTML",
+        )
+        # Must check and resume via AL.currentCtx.ctx (Emscripten OpenAL path)
+        self.assertIn(
+            "AL.currentCtx.ctx",
+            self.shell_html,
+            msg="Expected AL.currentCtx.ctx reference in resumeAudioContext()",
+        )
+        self.assertIn(
+            "ctx.resume()",
+            self.shell_html,
+            msg="Expected ctx.resume() call in resumeAudioContext()",
+        )
+        # Must be called from the click-to-play handler (after requestPointerLock)
+        self.assertRegex(
+            self.shell_html,
+            r"requestPointerLock[\s\S]{0,300}resumeAudioContext\(\)",
+            msg="Expected resumeAudioContext() to be called in the click-to-play click handler",
+        )
+        # Must be called from the visible branch of visibilitychange (i.e. the
+        # else block that runs when the tab becomes visible, not the hidden branch)
+        self.assertRegex(
+            self.shell_html,
+            r"visibilityState === 'hidden'[\s\S]{0,200}}\s*else\s*\{[\s\S]{0,300}resumeAudioContext\(\)",
+            msg="Expected resumeAudioContext() to be called in the else (visible) branch of visibilitychange",
+        )
+
+    def test_storage_quota_exceeded_warning(self):
+        """When IDBFS sync fails with a QuotaExceededError the shell must
+        surface a visible, actionable warning to the player — revealing the
+        HUD toolbar — rather than silently dropping saves and logging only to
+        the developer console."""
+        self.assertIn(
+            "function showStorageQuotaWarning()",
+            self.shell_html,
+            msg="Expected showStorageQuotaWarning() function in shell HTML",
+        )
+        # Quota detection must check for QuotaExceededError by name
+        self.assertIn(
+            "QuotaExceededError",
+            self.shell_html,
+            msg="Expected QuotaExceededError name check in IDBFS sync error handler",
+        )
+        # QuotaExceededError detection must be inside the sync error callback
+        self.assertRegex(
+            self.shell_html,
+            r"IDBFS sync failed[\s\S]{0,500}QuotaExceededError",
+            msg="Expected QuotaExceededError detection within the IDBFS sync failed error handler",
+        )
+        # showStorageQuotaWarning must be called when quota error is detected
+        self.assertRegex(
+            self.shell_html,
+            r"QuotaExceededError[\s\S]{0,300}showStorageQuotaWarning\(\)",
+            msg="Expected showStorageQuotaWarning() call when QuotaExceededError is detected",
+        )
+        # Warning function must reveal the HUD toolbar
+        self.assertRegex(
+            self.shell_html,
+            r"function showStorageQuotaWarning\(\)[\s\S]{0,600}hudToolbar\.classList\.add\('visible'\)",
+            msg="Expected showStorageQuotaWarning() to reveal the HUD toolbar",
+        )
+
+    def test_wasm_save_duration_warning(self):
+        """In WASM builds saveGame() must log a Warning when the write takes
+        more than 2 s so that late-game save stalls are visible in bug reports.
+        Large save files can block the main thread long enough to trigger the
+        browser's 'Page Unresponsive' dialog."""
+        self.assertIn(
+            "__EMSCRIPTEN__",
+            self.statemanager_cpp,
+            msg="Expected __EMSCRIPTEN__ guard in statemanagerimp.cpp",
+        )
+        self.assertIn(
+            "saveMs",
+            self.statemanager_cpp,
+            msg="Expected saveMs duration variable in statemanagerimp.cpp WASM block",
+        )
+        self.assertRegex(
+            self.statemanager_cpp,
+            r"saveMs[\s\S]{0,300}Page Unresponsive",
+            msg="Expected WASM save-duration warning mentioning 'Page Unresponsive' in statemanagerimp.cpp",
+        )
+        # The warning must be inside the EMSCRIPTEN block that also calls the
+        # IDBFS sync, to keep all WASM-specific post-save logic together.
+        self.assertRegex(
+            self.statemanager_cpp,
+            r"saveMs[\s\S]{0,600}__openmwSyncPersistentStorage",
+            msg="Expected saveMs warning and IDBFS sync to be in the same __EMSCRIPTEN__ block",
         )
 
 
