@@ -99,6 +99,18 @@ namespace SceneUtil
         return mSourceGeometry;
     }
 
+    void RigGeometry::compileGLObjects(osg::RenderInfo& renderInfo) const
+    {
+        // Pre-upload geometry data to VRAM before the first draw call.
+        // Compiling mGeometry[0] uploads the shared static arrays (texture coordinates, index
+        // buffers) that are shallow-copied from the source geometry, as well as allocating the
+        // dynamic VBOs (vertex positions, normals, tangents) in bind-pose form.  The dynamic
+        // data will be overwritten by the CPU skinning pass on the first update traversal, but
+        // having the VBOs already resident on the GPU avoids the allocation stall on first draw.
+        if (mGeometry[0])
+            mGeometry[0]->compileGLObjects(renderInfo);
+    }
+
     bool RigGeometry::initFromParentSkeleton(osg::NodeVisitor* nv)
     {
         const osg::NodePath& path = nv->getNodePath();

@@ -203,6 +203,8 @@ namespace MWSound
         /// and get an average loudness value (scale [0,1]) at the current time position.
         /// If the actor is not saying anything, returns 0.
 
+        float getSaySoundLoudnessIfActive(const MWWorld::ConstPtr& reference) const override;
+
         Stream* playTrack(const DecoderPtr& decoder, Type type) override;
         ///< Play a 2D audio track, using a custom decoder
 

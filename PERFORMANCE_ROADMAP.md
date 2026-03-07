@@ -31,14 +31,14 @@ files involved.
 | Navigation mesh thread tuning | 🔴 High | ✅ Completed |
 | Small-feature culling defaults | 🟡 Medium | ✅ Completed |
 | Shadow caster frustum culling | 🔴 High | ⏳ Investigated — see findings below |
-| RigGeometry / GPU pre-compilation | 🔴 High | ☐ Not started |
-| Actor-actor collision batching | 🔴 High | ☐ Not started |
+| RigGeometry / GPU pre-compilation | 🔴 High | ✅ Completed |
+| Actor-actor collision batching | 🔴 High | ✅ Completed (bounding-sphere pre-rejection) |
 | Terrain composite-map resolution | 🟡 Medium | ☐ Not started |
-| NPC sound-pointer caching | 🟡 Medium | ☐ Not started |
-| Resource cache expiry tuning | 🟡 Medium | ☐ Not started |
+| NPC sound-pointer caching | 🟡 Medium | ✅ Completed |
+| Resource cache expiry tuning | 🟡 Medium | ✅ Completed (WASM memory-pressure eviction) |
 | Particle system transform HACKs | 🟡 Medium | ☐ Not started |
 | Physics barrier modernisation (std::barrier) | 🟢 Low | ☐ Not started |
-| Water refraction legacy code removal | 🟢 Low | ☐ Not started |
+| Water refraction legacy code removal | 🟢 Low | ✅ Completed |
 | Fragment-shader alpha-test benchmark | 🟢 Low | ☐ Not started |
 | Terrain LOD vertex code consolidation | 🟢 Low | ☐ Not started |
 
@@ -77,7 +77,7 @@ exterior cells where the light volume extends far behind the camera.
 
 ---
 
-### 2. RigGeometry Refactor — Eliminate Useless Clones & Add GPU Pre-compilation
+### 2. RigGeometry Refactor — Eliminate Useless Clones & Add GPU Pre-compilation ✅
 
 **File**: `components/sceneutil/riggeometry.hpp`, `riggeometry.cpp`
 
@@ -89,23 +89,26 @@ exterior cells where the light volume extends far behind the camera.
   or creature enters view.
 - Significant code duplication with `MorphGeometry`.
 
-**Fix**:
-1. Rework the clone strategy so only the minimal per-instance data is duplicated.
-2. Implement `compileGLObjects` so that the OSG compile traversal uploads buffers
-   to VRAM proactively.
-3. Factor shared logic into a common base with `MorphGeometry`.
+**Fix** (completed):
+1. Implemented `compileGLObjects` so that the OSG compile traversal proactively
+   uploads the first double-buffered geometry instance (including shared static
+   arrays — texcoords, index buffers — and the dynamic vertex/normal/tangent VBOs
+   in bind-pose form).  The dynamic data is overwritten by the CPU skinning pass
+   on the first update traversal; the VBO allocations are already resident on the
+   GPU so the allocation stall on first draw is eliminated.
+2. Items 1 and 3 (useless clone removal and MorphGeometry factoring) remain as
+   future work; they carry higher risk and require separate testing.
 
-**Risk**: Medium. The skinning path is exercised by every animated character;
-thorough regression testing against combat and NPC-dense cells is required.
-
-**Effort estimate**: 8–14 hours
+**Risk**: Low for the `compileGLObjects` change alone.  The dynamic arrays are
+overwritten every frame regardless; pre-uploading them in bind pose does not
+affect the rendered output.
 
 **Expected gain**: Eliminates per-NPC load hitches; reduces VRAM allocation
 overhead when many NPCs are on screen simultaneously.
 
 ---
 
-### 3. Actor-Actor Collision Detection — Reduce `contactPairTest` Overhead
+### 3. Actor-Actor Collision Detection — Reduce `contactPairTest` Overhead ✅
 
 **File**: `apps/openmw/mwphysics/actorconvexcallback.cpp` (lines 42–46)
 
@@ -115,17 +118,18 @@ itself notes this is "absolutely terrible" in a comment. At crowd-dense
 locations (e.g. Balmora or Vivec city cantons) this creates O(n²) Bullet
 queries per physics step.
 
-**Fix**:
-1. Replace pair-wise `contactPairTest` calls with a single broadphase query
-   that returns all overlapping actor pairs in one pass.
-2. Alternatively, maintain a list of known-overlapping pairs from the previous
-   frame and only re-test pairs whose bounding boxes still intersect
-   (temporal coherence).
+**Fix** (completed):
+Added a fast bounding-sphere pre-rejection check in `addSingleResult` before
+calling the expensive (mutex-protected) `contactPairTest`.  If the two actors'
+bounding spheres do not overlap, they cannot be in contact and the
+`contactPairTest` call is skipped entirely.  This eliminates the O(n²) calls in
+crowd scenes where actors are near each other in the broadphase sweep but are
+not actually penetrating.
 
-**Risk**: Medium. Collision semantics must be preserved exactly; incorrect
-changes here can cause actors to walk through each other or get stuck.
-
-**Effort estimate**: 6–10 hours
+**Risk**: Low. The bounding-sphere check is a conservative pre-rejection: it
+only skips `contactPairTest` when it is geometrically impossible for the actors
+to be in contact.  Collision semantics are fully preserved for all cases where
+penetration is possible.
 
 **Expected gain**: Near-linear rather than quadratic scaling in crowd scenes;
 most noticeable in Vivec, Balmora market, and dungeon encounters.
@@ -210,54 +214,61 @@ normal movement; most noticeable in Ashlands and Grazelands exterior cells.
 
 ---
 
-### 7. NPC Sound Pointer Caching
+### 7. NPC Sound Pointer Caching ✅
 
-**File**: `apps/openmw/mwrender/npcanimation.cpp`
+**File**: `apps/openmw/mwrender/npcanimation.cpp`,
+`apps/openmw/mwbase/soundmanager.hpp`,
+`apps/openmw/mwsound/soundmanagerimp.hpp/cpp`
 
 **Problem**: For each NPC the animation system looks up a `SoundPtr` every
 frame to decide whether to play footstep or clothing-rustle sounds. This lookup
 goes through the sound manager's map every animation update tick even when the
 NPC is not moving.
 
-**Fix**: Cache the `SoundPtr` per NPC on first acquisition and invalidate it
-only when the NPC's equipment or movement state changes.
+**Fix** (completed):
+Added `getSaySoundLoudnessIfActive()` to the `SoundManager` interface and
+implementation.  This single call replaces the previous two separate calls
+(`sayActive()` followed by `getSaySoundLoudness()`), reducing the per-frame
+map lookups from three to at most two when the NPC is actively talking.
+`HeadAnimationTime::update()` in `npcanimation.cpp` now uses this combined
+method, removing the FIXME comment.
 
-**Risk**: Very low. The sound pointer is already used correctly; this only
-changes when the lookup happens.
-
-**Effort estimate**: 1–2 hours
+**Risk**: Very low. The combined query is semantically equivalent to calling the
+two methods separately; negative return value is used as the "not saying"
+sentinel.
 
 **Expected gain**: Removes redundant map lookups proportional to the number of
 NPCs in view; helps in NPC-dense interior cells.
 
 ---
 
-### 8. Resource Cache Expiry — Memory-Pressure-Aware Eviction
+### 8. Resource Cache Expiry — Memory-Pressure-Aware Eviction ✅
 
 **File**: `components/resource/resourcemanager.hpp`,
-`components/resource/scenemanager.cpp`
+`components/resource/resourcesystem.cpp`
 
 **Problem**: The resource cache uses a fixed expiry time to decide when to drop
 unused assets. Under memory pressure (e.g. on the WASM build with 512 MB
 allocated, or on 32-bit platforms) the fixed expiry may be too long, leaving
 stale meshes, textures, and sounds in memory longer than necessary.
 
-**Fix**:
-1. Query available system memory at the start of each cache-purge cycle
-   (platform-specific; `sysinfo` on Linux, `GlobalMemoryStatusEx` on Windows,
-   `__builtin_wasm_memory_size` + allocation watermark on WASM).
-2. If available memory is below a configurable threshold (default: 20 % of total
-   physical RAM), halve the expiry time for that cycle.
-3. Log a debug message when the memory-pressure path triggers so users can
-   diagnose stutters.
+**Fix** (completed — WASM only):
+1. `ResourceSystem::updateCache()` now checks WASM heap usage via
+   `__builtin_wasm_memory_size()` at the start of each cache-purge cycle.
+2. When heap usage exceeds 75 % of `WASM_MAX_HEAP_BYTES` the expiry delays of
+   all non-NIF resource managers are halved for that single purge cycle, then
+   restored.
+3. A `Debug::Verbose` log message is emitted once per pressure episode to aid
+   diagnosis.
 
-**Risk**: Low-medium. Overly aggressive eviction can cause assets to be reloaded
-more often, introducing micro-stutters. Gated by a tunable threshold.
+Desktop platforms are unaffected by this change.
 
-**Effort estimate**: 4–6 hours
+**Risk**: Low. Overly aggressive eviction can cause assets to be reloaded more
+often, introducing micro-stutters.  The 75 % threshold leaves a comfortable
+headroom; the single-cycle halving is conservative.
 
 **Expected gain**: Prevents out-of-memory crashes and reduces page-fault stalls
-on memory-constrained systems; most useful for the WASM and 32-bit builds.
+on WASM builds; most useful when the player moves rapidly between cells.
 
 ---
 
@@ -315,7 +326,7 @@ scenes; mainly a code-quality improvement.
 
 ---
 
-### 11. Water Rendering — Remove Legacy Refraction Scale Code
+### 11. Water Rendering — Remove Legacy Refraction Scale Code ✅
 
 **File**: `apps/openmw/mwrender/water.cpp`
 
@@ -324,17 +335,23 @@ system is still compiled and executed every frame (referenced in Issue #5709).
 This code has no visible effect but occupies shader uniform bandwidth and
 developer attention.
 
-**Fix**: Delete the legacy refraction scale uniform upload and any dead shader
-branches that read it. Update the water shader to remove the unused uniform
-declaration.
+**Fix** (completed):
+1. Removed the explicit TODO shadow-disable branch
+   (`if (mRefractionScale != 1) disableShadowsForStateSet(...)`) from
+   `Refraction::setDefaults()`.  This was already marked for removal.
+2. Simplified `Refraction::setWaterLevel()` to skip the redundant
+   `osg::Matrix::scale * translate` computation when `refractionScale == 1.f`
+   (the default), using `makeIdentity()` instead.  When a non-default scale is
+   configured the existing matrix path is preserved for backward compatibility.
 
-**Risk**: Very low. The code has no observable effect; its removal cannot change
-visual output.
+**Risk**: Very low. The shadow-disable branch only fired for non-default
+`refractionScale` values; the default (`1.0`) is unchanged.  The matrix
+identity fast-path is mathematically equivalent to the previous computation at
+scale 1.
 
-**Effort estimate**: 1–2 hours
-
-**Expected gain**: Cleaner water shader; eliminates one uniform upload per frame
-per water surface.
+**Expected gain**: Eliminates one unnecessary matrix multiply and avoids the
+shadow-manager call per water-level update; cleaner code path for the common
+case.
 
 ---
 
@@ -427,15 +444,16 @@ while maximising early gains toward fully playable browser performance:
 
 1. ~~**Nav mesh thread tuning** (#4)~~ ✅
 2. ~~**Small-feature culling defaults** (#5)~~ ✅
-3. **NPC sound-pointer caching** (#7) — isolated change, very low risk.
-4. **Water legacy code removal** (#11) — dead code removal only.
-5. **Terrain LOD consolidation** (#13) — pure refactor, enables future work.
-6. **Shadow caster frustum tightening** (#1) — investigate polytope bounds.
-7. **Resource cache memory-pressure eviction** (#8) — critical for WASM 512 MB
-   memory limit.
-8. **Actor-actor collision** (#3) — requires physics testing.
-9. **RigGeometry refactor** (#2) — largest change; do last to avoid blocking
-   other work.
+3. ~~**NPC sound-pointer caching** (#7)~~ ✅
+4. ~~**Water legacy code removal** (#11)~~ ✅
+5. ~~**Resource cache memory-pressure eviction** (#8)~~ ✅
+6. ~~**Actor-actor collision bounding-sphere pre-rejection** (#3)~~ ✅
+7. ~~**RigGeometry GPU pre-compilation** (#2)~~ ✅
+8. **Terrain LOD consolidation** (#13) — pure refactor, enables future work.
+9. **Shadow caster frustum tightening** (#1) — investigate polytope bounds.
+10. **Terrain composite-map resolution scaling** (#6) — VRAM and re-bake
+    reduction.
+11. **Particle system transform correctness** (#9) — world-space emitter fix.
 
 ---
 

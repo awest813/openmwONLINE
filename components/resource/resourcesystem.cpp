@@ -2,6 +2,10 @@
 
 #include <algorithm>
 
+#ifdef __EMSCRIPTEN__
+#include <components/debug/debuglog.hpp>
+#endif
+
 #include "animblendrulesmanager.hpp"
 #include "bgsmfilemanager.hpp"
 #include "imagemanager.hpp"
@@ -83,6 +87,49 @@ namespace Resource
 
     void ResourceSystem::updateCache(double referenceTime)
     {
+#ifdef __EMSCRIPTEN__
+        // Under memory pressure in the WASM build, use a shorter expiry delay for this purge
+        // cycle so that stale assets are reclaimed sooner.  The WASM heap is limited (typically
+        // 2 GiB); when more than 75% of the configured ceiling is in use we halve the configured
+        // expiry to free memory more aggressively, logging once per pressure episode.
+        static constexpr double sWasmPressureThreshold = 0.75;
+        static constexpr double sWasmPressureMultiplier = 0.5;
+        // Use 2 GiB as the reference ceiling (Emscripten's ALLOW_MEMORY_GROWTH default cap).
+        // EM_ASM_INT is not safe from worker threads, so we use a compile-time constant.
+        static constexpr size_t sWasmMaxBytes = 2ULL * 1024 * 1024 * 1024;
+        static bool sPressureLogged = false;
+
+        // __builtin_wasm_memory_size(0) returns the current allocated memory in 64 KiB pages.
+        const size_t usedBytes = static_cast<size_t>(__builtin_wasm_memory_size(0)) * 65536u;
+        const bool underPressure = (double)usedBytes / (double)sWasmMaxBytes > sWasmPressureThreshold;
+
+        if (underPressure)
+        {
+            if (!sPressureLogged)
+            {
+                Log(Debug::Verbose) << "ResourceSystem: WASM heap pressure detected ("
+                                    << (usedBytes / (1024 * 1024)) << " / " << (sWasmMaxBytes / (1024 * 1024))
+                                    << " MiB used); halving cache expiry delay this cycle";
+                sPressureLogged = true;
+            }
+            // Temporarily apply the shorter expiry to all non-NIF managers for this single purge.
+            std::vector<double> savedDelays;
+            savedDelays.reserve(mResourceManagers.size());
+            for (BaseResourceManager* mgr : mResourceManagers)
+            {
+                savedDelays.push_back(mgr->getExpiryDelay());
+                if (mgr->getExpiryDelay() > 0.0)
+                    mgr->setExpiryDelay(mgr->getExpiryDelay() * sWasmPressureMultiplier);
+            }
+            for (BaseResourceManager* mgr : mResourceManagers)
+                mgr->updateCache(referenceTime);
+            // Restore configured delays.
+            for (size_t i = 0; i < mResourceManagers.size(); ++i)
+                mResourceManagers[i]->setExpiryDelay(savedDelays[i]);
+            return;
+        }
+        sPressureLogged = false;
+#endif
         for (std::vector<BaseResourceManager*>::iterator it = mResourceManagers.begin(); it != mResourceManagers.end();
              ++it)
             (*it)->updateCache(referenceTime);

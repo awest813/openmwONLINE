@@ -345,6 +345,23 @@ namespace MWSound
         return 0.0f;
     }
 
+    float SoundManager::getSaySoundLoudnessIfActive(const MWWorld::ConstPtr& ptr) const
+    {
+        // Check the queue first (sound may not have started playing yet).
+        // A queued sound means the NPC has started speaking; return 0.0f (loudness unknown
+        // but non-negative so the caller treats it as the "speaking" state).
+        SaySoundMap::const_iterator snditer = mSaySoundsQueue.find(ptr.mRef);
+        if (snditer != mSaySoundsQueue.end() && mOutput->isStreamPlaying(snditer->second.mStream.get()))
+            return 0.0f;
+
+        // Check active sounds and return loudness in a single lookup.
+        snditer = mActiveSaySounds.find(ptr.mRef);
+        if (snditer != mActiveSaySounds.end() && mOutput->isStreamPlaying(snditer->second.mStream.get()))
+            return mOutput->getStreamLoudness(snditer->second.mStream.get());
+
+        return -1.0f; // not saying
+    }
+
     void SoundManager::say(VFS::Path::NormalizedView filename)
     {
         if (!mOutput->isInitialized())

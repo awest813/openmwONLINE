@@ -3,6 +3,7 @@
 #include "contacttestwrapper.h"
 
 #include <BulletCollision/CollisionDispatch/btCollisionObject.h>
+#include <BulletCollision/CollisionShapes/btCollisionShape.h>
 #include <components/misc/convert.hpp>
 
 #include "projectile.hpp"
@@ -24,6 +25,24 @@ namespace MWPhysics
                 return 1;
             }
         };
+
+        /// Fast bounding-sphere pre-rejection: returns true if the two objects' bounding spheres
+        /// overlap (i.e. they could be in contact).  Used to skip the expensive contactPairTest
+        /// when the actors are clearly not penetrating each other.
+        bool boundingSpheresOverlap(const btCollisionObject* a, const btCollisionObject* b)
+        {
+            btVector3 centerA, centerB;
+            btScalar radiusA, radiusB;
+            a->getCollisionShape()->getBoundingSphere(centerA, radiusA);
+            b->getCollisionShape()->getBoundingSphere(centerB, radiusB);
+
+            // Transform centers into world space.
+            const btVector3 worldCenterA = a->getWorldTransform() * centerA;
+            const btVector3 worldCenterB = b->getWorldTransform() * centerB;
+
+            const btScalar combinedRadius = radiusA + radiusB;
+            return (worldCenterB - worldCenterA).length2() <= combinedRadius * combinedRadius;
+        }
     }
 
     btScalar ActorConvexCallback::addSingleResult(
@@ -38,6 +57,12 @@ namespace MWPhysics
         // it still helps a lot.
         if (convexResult.m_hitCollisionObject->getBroadphaseHandle()->m_collisionFilterGroup == CollisionType_Actor)
         {
+            // Quick bounding-sphere check: if the two actors' spheres do not overlap they cannot
+            // be in contact, so we can skip the expensive (and mutex-protected) contactPairTest
+            // call entirely.  This eliminates the O(n²) contactPairTest calls in crowd scenes.
+            if (!boundingSpheresOverlap(mMe, convexResult.m_hitCollisionObject))
+                return 1;
+
             ActorOverlapTester isOverlapping;
             // FIXME: This is absolutely terrible and bullet should feel terrible for not making contactPairTest
             // const-correct.

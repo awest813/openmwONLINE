@@ -264,9 +264,6 @@ namespace MWRender
 
             camera->addChild(mClipCullNode);
             camera->setNodeMask(Mask_RenderToTexture);
-
-            if (Settings::water().mRefractionScale != 1) // TODO: to be removed with issue #5709
-                SceneUtil::ShadowManager::instance().disableShadowsForStateSet(*camera->getOrCreateStateSet());
         }
 
         void apply(osg::Camera* camera) override
@@ -287,8 +284,12 @@ namespace MWRender
         {
             const float refractionScale = Settings::water().mRefractionScale;
 
-            mViewMatrix = osg::Matrix::scale(1, 1, refractionScale)
-                * osg::Matrix::translate(0, 0, (1.0 - refractionScale) * waterLevel);
+            // Avoid unnecessary matrix multiplication when scale is 1 (the common case).
+            if (refractionScale != 1.f)
+                mViewMatrix = osg::Matrix::scale(1, 1, refractionScale)
+                    * osg::Matrix::translate(0, 0, (1.0 - refractionScale) * waterLevel);
+            else
+                mViewMatrix.makeIdentity();
 
             mClipCullNode->setPlane(osg::Plane(osg::Vec3d(0, 0, -1), osg::Vec3d(0, 0, waterLevel)));
         }
