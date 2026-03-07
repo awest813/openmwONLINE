@@ -240,6 +240,7 @@
        target="_blank" rel="noopener">Report Issue</a>
     <a href="USER_TESTING.md" target="_blank" rel="noopener">Testing Guide</a>
     <span id="hud-fps"></span>
+    <span id="hud-mem" title="WASM heap usage"></span>
   </div>
 
   <!-- Console overlay -->
@@ -312,6 +313,36 @@
       clickToPlay.classList.remove('hidden');
       reportPhase('rendering_main_menu', 'passed', 'Canvas is visible and awaiting click-to-play');
     }
+
+    // ----------------------------------------------------------------
+    // Canvas resize — keep the canvas pixel dimensions in sync with its
+    // CSS display size.  Without this, a browser window resize stretches
+    // the rendered image because the canvas bitmap stays at the original
+    // SDL-set dimensions while the CSS layout dimensions change.
+    // ----------------------------------------------------------------
+    (function() {
+      var canvas = document.getElementById('canvas');
+      function syncCanvasSize() {
+        var dpr = window.devicePixelRatio || 1;
+        var w = Math.round(canvas.clientWidth  * dpr);
+        var h = Math.round(canvas.clientHeight * dpr);
+        if (w === 0 || h === 0) return;
+        if (canvas.width !== w || canvas.height !== h) {
+          canvas.width  = w;
+          canvas.height = h;
+          // Notify SDL / Emscripten of the new surface size so that the
+          // renderer and input system stay in sync.
+          if (typeof Module !== 'undefined' && Module._SDL_SetVideoMode_called) {
+            try { Module.setCanvasSize(w, h); } catch (e) { /* not yet initialised */ }
+          }
+        }
+      }
+      if (typeof ResizeObserver !== 'undefined') {
+        new ResizeObserver(syncCanvasSize).observe(canvas);
+      } else {
+        window.addEventListener('resize', syncCanvasSize);
+      }
+    })();
 
     clickToPlay.addEventListener('click', function() {
       clickToPlay.classList.add('hidden');
@@ -747,24 +778,46 @@
     // WASM heap memory monitoring
     // ----------------------------------------------------------------
     var HEAP_WARNING_THRESHOLD = 0.85; // warn at 85% of max
+    var HEAP_CRITICAL_THRESHOLD = 0.92; // trigger emergency sync + aggressive warning at 92%
     var HEAP_WARNING_HYSTERESIS = 0.05; // clear warning once usage drops 5% below threshold
     var WASM_MAX_HEAP_BYTES = 2147483648; // 2 GB (wasm32 limit)
     var _heapWarningShown = false;
+    var _heapCriticalShown = false;
 
     function checkHeapUsage() {
       if (typeof Module === 'undefined' || !Module.HEAP8) return;
       var used = Module.HEAP8.buffer.byteLength;
       var ratio = used / WASM_MAX_HEAP_BYTES;
-      if (ratio >= HEAP_WARNING_THRESHOLD && !_heapWarningShown) {
-        _heapWarningShown = true;
-        var usedMB = (used / (1024 * 1024)).toFixed(0);
-        var maxMB = (WASM_MAX_HEAP_BYTES / (1024 * 1024)).toFixed(0);
-        logToConsole('Memory warning: WASM heap at ' + usedMB + 'MB / ' + maxMB + 'MB (' + (ratio * 100).toFixed(0) + '%)', 'warn');
-        reportPhase('memory_pressure', 'failed', 'Heap usage at ' + (ratio * 100).toFixed(0) + '%');
+      var pct = (ratio * 100).toFixed(0);
+      var usedMB = (used / (1024 * 1024)).toFixed(0);
+      var maxMB = (WASM_MAX_HEAP_BYTES / (1024 * 1024)).toFixed(0);
+
+      // Update HUD memory display
+      var memEl = document.getElementById('hud-mem');
+      if (memEl) {
+        memEl.textContent = usedMB + 'MB / ' + maxMB + 'MB (' + pct + '%)';
+        memEl.style.color = ratio >= HEAP_CRITICAL_THRESHOLD ? '#ff6b6b'
+                          : ratio >= HEAP_WARNING_THRESHOLD  ? '#ffd93d'
+                          : '#666';
       }
-      // Reset warning once usage drops below threshold with hysteresis
+
+      if (ratio >= HEAP_CRITICAL_THRESHOLD && !_heapCriticalShown) {
+        _heapCriticalShown = true;
+        logToConsole('CRITICAL memory pressure: WASM heap at ' + usedMB + 'MB / ' + maxMB + 'MB (' + pct + '%) — flushing saves to disk', 'error');
+        reportPhase('memory_critical', 'failed', 'Heap at ' + pct + '%');
+        // Flush saves immediately so progress is not lost if the browser OOM-kills the tab.
+        syncPersistentStorage('memory-critical');
+        // Show the HUD toolbar so the user sees the warning immediately.
+        hudToolbar.classList.add('visible');
+      } else if (ratio >= HEAP_WARNING_THRESHOLD && !_heapWarningShown) {
+        _heapWarningShown = true;
+        logToConsole('Memory warning: WASM heap at ' + usedMB + 'MB / ' + maxMB + 'MB (' + pct + '%)', 'warn');
+        reportPhase('memory_pressure', 'failed', 'Heap usage at ' + pct + '%');
+      }
+      // Reset warnings once usage drops below threshold with hysteresis
       if (ratio < HEAP_WARNING_THRESHOLD - HEAP_WARNING_HYSTERESIS) {
         _heapWarningShown = false;
+        _heapCriticalShown = false;
       }
     }
 

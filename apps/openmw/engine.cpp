@@ -1100,6 +1100,24 @@ void OMW::Engine::go()
     // textures and meshes sooner as the player moves between cells.
     if (Settings::cells().mCacheExpiryDelay > 2.0f)
         Settings::cells().mCacheExpiryDelay.set(2.0f);
+    // Disable object paging in browser builds.  Object paging places thousands of
+    // static-mesh imposters for non-active cells into the scene, significantly
+    // increasing draw-call count and VRAM usage.  At the capped 4096-unit viewing
+    // distance the visual benefit is negligible while the memory cost is
+    // substantial.  Users who want the feature can re-enable it in settings.cfg.
+    Settings::terrain().mObjectPaging.set(false);
+    Settings::terrain().mObjectPagingActiveGrid.set(false);
+    // Lower the composite-map resolution to 256.  The default (512) creates 1 MB
+    // textures per terrain chunk; 256 reduces that to 256 KB, which is
+    // visually acceptable at the capped viewing distance and helps on devices
+    // with limited GPU memory.  Only relevant when the user enables distant terrain.
+    if (Settings::terrain().mCompositeMapResolution.get() > 256)
+        Settings::terrain().mCompositeMapResolution.set(256);
+    // Cap the frame-rate limit to 60 fps.  requestAnimationFrame already provides
+    // vsync at ~60 fps; the desktop default of 300 fps wastes CPU cycles and
+    // increases battery drain.  Users can raise this via settings.cfg if desired.
+    if (Settings::video().mFramerateLimit.get() > 60.f)
+        Settings::video().mFramerateLimit.set(60.f);
 #endif
 
     MWClass::registerClasses();

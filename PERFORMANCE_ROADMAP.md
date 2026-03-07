@@ -33,9 +33,13 @@ files involved.
 | Shadow caster frustum culling | 🔴 High | ⏳ Investigated — see findings below |
 | RigGeometry / GPU pre-compilation | 🔴 High | ✅ Completed |
 | Actor-actor collision batching | 🔴 High | ✅ Completed (bounding-sphere pre-rejection) |
-| Terrain composite-map resolution | 🟡 Medium | ☐ Not started |
+| Terrain composite-map resolution | 🟡 Medium | ✅ Completed (WASM cap to 256; object paging disabled) |
 | NPC sound-pointer caching | 🟡 Medium | ✅ Completed |
 | Resource cache expiry tuning | 🟡 Medium | ✅ Completed (WASM memory-pressure eviction) |
+| Object paging default (WASM) | 🔴 High | ✅ Completed (disabled by default in browser builds) |
+| Frame-rate cap (WASM) | 🟡 Medium | ✅ Completed (capped at 60 fps in browser builds) |
+| Critical memory threshold + HUD | 🔴 High | ✅ Completed (92% → IDBFS sync + HUD warning) |
+| Canvas resize observer | 🟡 Medium | ✅ Completed (ResizeObserver + window resize fallback) |
 | Particle system transform HACKs | 🟡 Medium | ☐ Not started |
 | Physics barrier modernisation (std::barrier) | 🟢 Low | ☐ Not started |
 | Water refraction legacy code removal | 🟢 Low | ✅ Completed |
@@ -189,28 +193,33 @@ with many small props, directly improving browser frame rates.
 
 ---
 
-### 6. Terrain Composite Map Resolution — Smarter Default Scaling
+### 6. Terrain Composite Map Resolution — WASM Cap ✅
 
-**File**: `apps/openmw/mwrender/renderingmanager.cpp`, `components/terrain/`
+**File**: `apps/openmw/engine.cpp`
 
 **Problem**: `terrain/composite_map_resolution` controls the texture resolution
-of baked terrain composites. A high resolution value forces the GPU to maintain
-large textures even for distant terrain chunks that would never be seen at that
-detail level.
+of baked terrain composites. The default (512) creates ~1 MB textures per
+terrain chunk, putting unnecessary pressure on the WASM GPU memory budget.
 
-**Fix**:
-1. Apply a resolution scale-down for LOD chunks beyond a configurable distance.
-2. Ensure the composite map is regenerated only when the camera has moved far
-   enough to warrant an update (hysteresis to avoid repeated re-bakes on
-   micro-movement).
+**Fix** (completed):
+1. In the WASM performance defaults block (`engine.cpp`), the composite map
+   resolution is capped to 256 (256 KB per chunk vs 1 MB) if the user has not
+   set a lower value.
+2. Object paging (`terrain/object paging`) is disabled by default in WASM
+   builds. Object paging places thousands of static-mesh imposters for
+   non-active cells into the scene, significantly increasing draw-call count
+   and VRAM usage; at the capped 4096-unit viewing distance the visual benefit
+   is negligible. Both `object paging` and `object paging active grid` are
+   disabled.
+3. The frame-rate limit is capped at 60 fps in the WASM build.
+   `requestAnimationFrame` already delivers vsync; the desktop default of 300
+   was wasting CPU cycles and battery power in the browser.
 
-**Risk**: Low-medium. Visual regression is possible if the scale-down is too
-aggressive; add a setting to disable the distance scaling.
+**Risk**: Low. All three values are user-overridable in `settings.cfg`.
 
-**Effort estimate**: 4–6 hours
-
-**Expected gain**: Reduced VRAM consumption and fewer terrain re-bakes during
-normal movement; most noticeable in Ashlands and Grazelands exterior cells.
+**Expected gain**: 10–30 % reduction in GPU memory for exterior terrain; large
+reduction in draw calls (object paging disabled); lower CPU/battery use from
+the framerate cap.
 
 ---
 
@@ -449,10 +458,9 @@ while maximising early gains toward fully playable browser performance:
 5. ~~**Resource cache memory-pressure eviction** (#8)~~ ✅
 6. ~~**Actor-actor collision bounding-sphere pre-rejection** (#3)~~ ✅
 7. ~~**RigGeometry GPU pre-compilation** (#2)~~ ✅
-8. **Terrain LOD consolidation** (#13) — pure refactor, enables future work.
-9. **Shadow caster frustum tightening** (#1) — investigate polytope bounds.
-10. **Terrain composite-map resolution scaling** (#6) — VRAM and re-bake
-    reduction.
+8. ~~**Terrain composite-map resolution / object paging / framerate cap** (#6)~~ ✅
+9. **Terrain LOD consolidation** (#13) — pure refactor, enables future work.
+10. **Shadow caster frustum tightening** (#1) — investigate polytope bounds.
 11. **Particle system transform correctness** (#9) — world-space emitter fix.
 
 ---
