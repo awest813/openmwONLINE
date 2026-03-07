@@ -869,7 +869,29 @@
         setStatus('Loading saved data...');
         reportPhase('persistence_sync', 'running', 'Initial IDBFS populate started');
 
+        // Safety timeout: if FS.syncfs(true) never invokes its callback (e.g.
+        // due to IndexedDB corruption, browser quota rejection, or a browser
+        // bug), the addRunDependency would stall the engine forever.  After
+        // 30 s we remove the dependency so the engine can still start — the
+        // player will begin with a fresh session rather than hanging forever.
+        var _preRunSyncSettled = false;
+        var _preRunSyncTimeout = setTimeout(function() {
+          if (_preRunSyncSettled) return;
+          _preRunSyncSettled = true;
+          reportPhase('persistence_sync', 'failed', 'Initial IDBFS sync timed out after 30 s');
+          console.error('OpenMW WASM: Initial IDBFS sync timed out — starting without saved data.');
+          logToConsole(
+            'Warning: Save data could not be loaded from browser storage (storage timed out). ' +
+            'Starting a fresh session. If you have saves, try reloading the page.',
+            'warn'
+          );
+          Module.removeRunDependency('idbfs-initial-sync');
+        }, 30000);
+
         FS.syncfs(true, function(err) {
+          if (_preRunSyncSettled) return;
+          _preRunSyncSettled = true;
+          clearTimeout(_preRunSyncTimeout);
           if (err) {
             reportPhase('persistence_sync', 'failed', 'Initial IDBFS sync failed: ' + err);
             console.error('OpenMW WASM: Initial IDBFS sync failed:', err);

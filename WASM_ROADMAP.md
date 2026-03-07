@@ -38,6 +38,10 @@ without installing any software.
 | Hosting & deployment configs | ✅ Complete |
 | Critical memory threshold + IDBFS emergency sync | ✅ Complete |
 | Canvas resize observer (responsive layout) | ✅ Complete |
+| preRun IDBFS sync timeout (startup hang fix) | ✅ Complete |
+| Long-frame detection in WASM main loop | ✅ Complete |
+| Settings/Lua flush interval reduced + IDBFS sync | ✅ Complete |
+| Proactive IDBFS sync before cell-transition loads | ✅ Complete |
 | End-to-end browser testing | ⏳ In progress |
 | Performance profiling & optimization | ⏳ In progress |
 
@@ -361,9 +365,71 @@ Startup warns in the browser console if these are missing.
     stretched or blurry rendering. Falls back to a `window.resize` listener on
     older browsers that lack `ResizeObserver`.
 
+### 13. Crash / Stall Vector Fixes
+
+The following targeted fixes address the remaining vectors that could prevent a
+reliable start-to-finish Morrowind playthrough in the browser:
+
+#### preRun IDBFS sync timeout (`files/wasm/openmw_shell.html`)
+
+The `Module.preRun` callback uses `addRunDependency('idbfs-initial-sync')` to
+defer `main()` until the initial `FS.syncfs(true, cb)` completes.  If the
+callback never fires — due to IndexedDB corruption, browser storage quota
+exhaustion, or a browser bug — the engine would stall forever at "Loading saved
+data..." with no recovery path.
+
+**Fix**: a 30-second safety timeout (`_preRunSyncTimeout`) is set before
+`FS.syncfs`.  If it fires before the callback, it:
+1. Logs an error and a user-visible console warning.
+2. Reports the `persistence_sync` phase as failed.
+3. Calls `Module.removeRunDependency` so the engine can still start (the
+   player begins with a fresh session instead of hanging forever).
+
+A `_preRunSyncSettled` guard prevents the timeout and the normal callback from
+both removing the dependency (double-remove would throw).
+
+#### Long-frame detection in WASM main loop (`apps/openmw/engine.cpp`)
+
+Cell transitions, new-game loads, and large BSA reads happen synchronously on
+the main thread in WASM.  Frames exceeding ~10 s risk triggering the browser's
+"Page Unresponsive" dialog and tab termination.  Previously there was no way
+to see these stalls in the engine log.
+
+**Fix**: `runWasmMainLoop` measures wall-clock time per frame
+(`frameWallStart` / `frameWallMs`).  Any frame exceeding **2 s** emits a
+`Debug::Warning` with the measured duration, so testers and developers can
+identify cell-transition stalls in bug reports.
+
+#### Settings / Lua flush interval reduced + IDBFS sync (`apps/openmw/engine.cpp`)
+
+The periodic settings + Lua permanent storage flush interval was 18 000 frames
+(~5 minutes at 60 fps).  If the browser crashed or the tab was killed in that
+window, up to 5 minutes of keybinding and mod-script state changes could be
+lost.
+
+**Fix**:
+- Interval reduced to **1 800 frames** (~30 s at 60 fps).
+- An `emscripten_run_script` IDBFS sync is triggered immediately after each
+  flush so the written data propagates to IndexedDB without waiting for the
+  next periodic sync cycle (up to 30 s later).
+
+#### Proactive IDBFS sync on loading-screen activation (`apps/openmw/mwgui/loadingscreen.cpp`)
+
+When `LoadingScreen::loadingOn()` is called — for both cell transitions and
+the initial new-game load — the engine is about to perform several seconds of
+synchronous CPU work.  Any saves or progress from the current session that have
+been written to the virtual FS but not yet propagated to IndexedDB are at risk
+if the browser OOM-kills the tab during the load.
+
+**Fix**: `loadingOn()` calls `__openmwSyncPersistentStorage()` via
+`emscripten_run_script` in WASM builds before beginning the load work.  This
+gives the browser a chance to commit the current FS state to IndexedDB before
+the blocking phase starts.  Only the outermost `loadingOn()` call triggers the
+sync (the existing early-out for nested calls is preserved).
+
 ---
 
-## Original Planning Reference
+
 
 The sections below document the original porting plan for historical context.
 Most items are now implemented (see the status table above).
