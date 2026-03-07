@@ -80,6 +80,50 @@ class WasmShellTests(unittest.TestCase):
         self.assertIn("WASM_MAX_HEAP_BYTES", self.shell_html)
         self.assertIn("function startHeapMonitor()", self.shell_html)
 
+    def test_heap_critical_threshold_triggers_sync(self):
+        """At the critical memory threshold (>92% heap) the shell must flush
+        saves to IndexedDB immediately and reveal the HUD toolbar so the
+        user is aware of the risk of OOM tab termination."""
+        self.assertIn("HEAP_CRITICAL_THRESHOLD", self.shell_html)
+        self.assertIn("_heapCriticalShown", self.shell_html)
+        # Critical branch must call syncPersistentStorage
+        self.assertRegex(
+            self.shell_html,
+            r"HEAP_CRITICAL_THRESHOLD[\s\S]{0,600}syncPersistentStorage\(",
+            msg="Expected critical memory branch to call syncPersistentStorage()",
+        )
+        # Critical branch must reveal the HUD toolbar
+        self.assertRegex(
+            self.shell_html,
+            r"HEAP_CRITICAL_THRESHOLD[\s\S]{0,600}hudToolbar\.classList\.add\('visible'\)",
+            msg="Expected critical memory branch to show the HUD toolbar",
+        )
+
+    def test_hud_toolbar_has_memory_display_element(self):
+        """The HUD toolbar must contain a dedicated element for showing live
+        heap-memory usage so testers can monitor memory pressure at a glance."""
+        self.assertIn('id="hud-mem"', self.shell_html)
+        self.assertRegex(
+            self.shell_html,
+            r"getElementById\(['\"]hud-mem['\"]",
+            msg="Expected checkHeapUsage() to look up the hud-mem element",
+        )
+
+    def test_canvas_resize_observer_is_installed(self):
+        """A ResizeObserver (with a window-resize fallback) must be set up on
+        the canvas so that the canvas pixel dimensions stay in sync with the
+        CSS display size when the browser window is resized, preventing
+        stretched or blurry rendering."""
+        self.assertIn("syncCanvasSize", self.shell_html)
+        self.assertIn("ResizeObserver", self.shell_html)
+        self.assertIn("window.addEventListener('resize', syncCanvasSize)", self.shell_html)
+        # The observer must target the canvas element
+        self.assertRegex(
+            self.shell_html,
+            r"new ResizeObserver\(syncCanvasSize\)\.observe\(canvas\)",
+            msg="Expected ResizeObserver to observe the canvas element",
+        )
+
     def test_runtime_init_starts_periodic_sync_and_heap_monitor(self):
         self.assertRegex(
             self.shell_html,

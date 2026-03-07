@@ -33,8 +33,11 @@ without installing any software.
 | Expansion auto-detection (Tribunal / Bloodmoon) | ✅ Complete |
 | HDR/ripple fallback matrix + graceful degradation | ✅ Complete |
 | WASM performance defaults (culling, draw distance) | ✅ Complete |
+| WASM performance defaults (object paging, composite map, framerate) | ✅ Complete |
 | Nav mesh thread auto-detection | ✅ Complete |
 | Hosting & deployment configs | ✅ Complete |
+| Critical memory threshold + IDBFS emergency sync | ✅ Complete |
+| Canvas resize observer (responsive layout) | ✅ Complete |
 | End-to-end browser testing | ⏳ In progress |
 | Performance profiling & optimization | ⏳ In progress |
 
@@ -185,6 +188,17 @@ pre-fetches ports, runs `build_wasm_deps.sh`, and configures CMake.
 - Reverse-z depth buffer disabled.
 - Fixed-function (FFP) lighting marked unsupported; engine falls back to
   `PerObjectUniform` or `SingleUBO` shader-based lighting.
+- Small-feature culling pixel size raised from 2.0 to 4.0 (fewer draw calls
+  for small props at the capped viewing distance).
+- Resource cache expiry delay capped at 2 s (textures/meshes reclaimed sooner
+  under the limited WASM heap).
+- Object paging and object paging active grid both disabled (eliminates
+  thousands of static-mesh imposters that cost VRAM and draw calls without
+  visual benefit at the 4096-unit draw distance).
+- Terrain composite-map resolution capped at 256 (256 KB per chunk vs 1 MB at
+  the desktop default of 512; only relevant when distant terrain is enabled).
+- Frame-rate limit capped at 60 fps (requestAnimationFrame already provides
+  ~60 fps vsync; the desktop 300 fps cap wastes CPU and battery).
 
 #### WebGL 2.0 compatibility guards
 | Feature | Action |
@@ -330,11 +344,22 @@ Startup warns in the browser console if these are missing.
   - **Error panel** — shown on engine abort or data-load failure; pre-fills a
     GitLab issue description with the last 50 log lines and browser UA string.
   - **In-game HUD toolbar** (toggled with `Ctrl+\``) with Copy Log, Report
-    Issue, and Testing Guide links, plus a live **FPS counter**.
+    Issue, and Testing Guide links, plus a live **FPS counter** and live
+    **memory usage display** (`hud-mem`) coloured green/yellow/red based on
+    heap pressure.
   - `onRuntimeInitialized` logs browser UA and `SharedArrayBuffer` availability
     so testers can see thread mode at a glance.
   - `Module.onAbort` hook surfaces engine crashes as a user-visible error panel
     rather than a silent hang.
+  - **Critical memory threshold (92 % heap)** — triggers an emergency IDBFS
+    flush to protect save progress and auto-shows the HUD toolbar so the user
+    is alerted immediately.  The warning threshold (85 %) logs to the console
+    and marks the memory_pressure phase; the critical threshold goes further by
+    also calling `syncPersistentStorage('memory-critical')`.
+  - **Canvas `ResizeObserver`** — keeps the canvas pixel dimensions in sync
+    with its CSS display size when the browser window is resized, preventing
+    stretched or blurry rendering. Falls back to a `window.resize` listener on
+    older browsers that lack `ResizeObserver`.
 
 ---
 
