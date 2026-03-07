@@ -260,6 +260,13 @@ void OMW::Engine::shutdownAfterMainLoop()
 void OMW::Engine::runWasmMainLoop(void* arg)
 {
     auto* engine = static_cast<Engine*>(arg);
+
+    // Track wall-clock time so we can detect frames that take too long.
+    // A frame exceeding 2 s almost certainly means a cell-transition load
+    // or large asset parse blocked the main thread.  Log a warning so the
+    // user knows what is happening and can report the stall.
+    const auto frameWallStart = std::chrono::steady_clock::now();
+
     if (!engine->runMainLoopIteration(*engine->mWasmTimeManager, *engine->mWasmFrameRateLimiter, engine->mWasmStats.get()))
     {
         engine->shutdownAfterMainLoop();
@@ -267,18 +274,34 @@ void OMW::Engine::runWasmMainLoop(void* arg)
         return;
     }
 
+    const auto frameWallMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - frameWallStart).count();
+    if (frameWallMs > 2000)
+    {
+        Log(Debug::Warning) << "WASM: Long frame detected — " << frameWallMs
+            << " ms (cell transition or asset load). "
+            "Browser may show 'Page Unresponsive' if this repeats. "
+            "Frame times > 10 s risk tab termination.";
+    }
+
     // Periodically flush user settings and Lua permanent storage to the virtual
     // filesystem so that the background IDBFS sync (in the HTML shell) picks
     // them up.  This protects keybindings, video prefs, and mod-script state
     // against tab closure or browser crashes between explicit saves.
-    // ~18 000 frames ≈ 5 minutes at 60 fps (approximate; varies with framerate).
+    // ~1 800 frames ≈ 30 s at 60 fps (was 18 000 / ~5 min — reduced to limit
+    // the data-loss window in the event of an unexpected tab crash).
     static unsigned int sFrameCounter = 0;
-    static constexpr unsigned int kSettingsFlushInterval = 18000;
+    static constexpr unsigned int kSettingsFlushInterval = 1800;
     if (++sFrameCounter >= kSettingsFlushInterval)
     {
         sFrameCounter = 0;
         Settings::Manager::saveUser(engine->mCfgMgr.getUserConfigPath() / "settings.cfg");
         engine->mLuaManager->savePermanentStorage(engine->mCfgMgr.getUserConfigPath());
+        // Trigger an IDBFS sync immediately after writing so the flushed
+        // settings survive a sudden browser crash or tab close.
+        emscripten_run_script(
+            "if (typeof globalThis.__openmwSyncPersistentStorage === 'function')"
+            "  globalThis.__openmwSyncPersistentStorage();");
     }
 }
 #endif

@@ -2,6 +2,10 @@
 
 #include <array>
 
+#ifdef __EMSCRIPTEN__
+#    include <emscripten.h>
+#endif
+
 #include <osgViewer/Viewer>
 
 #include <osg/Texture2D>
@@ -148,6 +152,17 @@ namespace MWGui
             return;
 
         mLoadingOnTime = mTimer.time_m();
+
+#ifdef __EMSCRIPTEN__
+        // Cell transitions and new-game loads can block the main thread for
+        // several seconds.  Flush saves to IndexedDB *before* entering the
+        // load so that any progress made since the last explicit save is
+        // protected against an unexpected browser crash or OOM tab kill during
+        // the potentially long synchronous loading phase.
+        emscripten_run_script(
+            "if (typeof globalThis.__openmwSyncPersistentStorage === 'function')"
+            "  globalThis.__openmwSyncPersistentStorage();");
+#endif
 
         // Assign dummy bounding sphere callback to avoid the bounding sphere of the entire scene being recomputed after
         // each frame of loading We are already using node masks to avoid the scene from being updated/rendered, but

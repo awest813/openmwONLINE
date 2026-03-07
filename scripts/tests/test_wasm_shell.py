@@ -9,6 +9,8 @@ class WasmShellTests(unittest.TestCase):
         repo_root = Path(__file__).resolve().parents[2]
         cls.shell_html = (repo_root / "files" / "wasm" / "openmw_shell.html").read_text(encoding="utf-8")
         cls.wasm_picker_cpp = (repo_root / "apps" / "openmw" / "wasmfilepicker.cpp").read_text(encoding="utf-8")
+        cls.engine_cpp = (repo_root / "apps" / "openmw" / "engine.cpp").read_text(encoding="utf-8")
+        cls.loadingscreen_cpp = (repo_root / "apps" / "openmw" / "mwgui" / "loadingscreen.cpp").read_text(encoding="utf-8")
 
     def test_successful_data_upload_reveals_canvas(self):
         self.assertIn("function showCanvas()", self.shell_html)
@@ -213,6 +215,129 @@ class WasmShellTests(unittest.TestCase):
             main_cpp,
             r"_shellAlreadyRegistered[\s\S]{0,200}schedulePeriodicPersistentSync\(\)",
             msg="Expected schedulePeriodicPersistentSync() to be guarded by _shellAlreadyRegistered",
+        )
+
+    # ------------------------------------------------------------------
+    # New crash/stall vector fixes
+    # ------------------------------------------------------------------
+
+    def test_prerun_idbfs_sync_has_timeout(self):
+        """The preRun IDBFS sync must have a safety timeout so that a
+        corrupted or unresponsive IndexedDB cannot stall the engine
+        startup indefinitely.  The timeout must:
+          - be declared before the FS.syncfs call,
+          - call Module.removeRunDependency on expiry, and
+          - be cancelled (clearTimeout) when the callback fires normally.
+        """
+        self.assertIn(
+            "_preRunSyncTimeout",
+            self.shell_html,
+            msg="Expected a _preRunSyncTimeout variable in the preRun IDBFS sync block",
+        )
+        self.assertIn(
+            "_preRunSyncSettled",
+            self.shell_html,
+            msg="Expected _preRunSyncSettled guard to prevent double-removal of run dependency",
+        )
+        # Timeout must remove the run dependency on expiry
+        self.assertRegex(
+            self.shell_html,
+            r"_preRunSyncTimeout[\s\S]{0,600}removeRunDependency\(",
+            msg="Expected _preRunSyncTimeout handler to call removeRunDependency()",
+        )
+        # Normal callback must cancel the timeout
+        self.assertRegex(
+            self.shell_html,
+            r"clearTimeout\(_preRunSyncTimeout\)",
+            msg="Expected FS.syncfs callback to clearTimeout(_preRunSyncTimeout)",
+        )
+
+    def test_wasm_long_frame_detection(self):
+        """runWasmMainLoop must measure wall-clock time per frame and log a
+        warning when a frame exceeds 2 s, so that cell-transition stalls are
+        visible in the engine log and bug reports."""
+        self.assertIn(
+            "frameWallStart",
+            self.engine_cpp,
+            msg="Expected frameWallStart timing variable in runWasmMainLoop",
+        )
+        self.assertIn(
+            "frameWallMs",
+            self.engine_cpp,
+            msg="Expected frameWallMs duration variable in runWasmMainLoop",
+        )
+        self.assertIn(
+            "Long frame detected",
+            self.engine_cpp,
+            msg="Expected 'Long frame detected' warning message in runWasmMainLoop",
+        )
+        # Warning must include the measured frame time
+        self.assertRegex(
+            self.engine_cpp,
+            r"frameWallMs[\s\S]{0,200}Long frame detected",
+            msg="Expected long-frame warning to include the measured frameWallMs value",
+        )
+
+    def test_wasm_settings_flush_interval_reduced(self):
+        """The WASM settings-flush interval must be at most 1 800 frames
+        (~30 s at 60 fps) to reduce the data-loss window when the browser
+        crashes between explicit saves (was 18 000 / ~5 min)."""
+        # Extract kSettingsFlushInterval value from the C++ source.
+        match = re.search(
+            r"kSettingsFlushInterval\s*=\s*(\d+)",
+            self.engine_cpp,
+        )
+        self.assertIsNotNone(
+            match,
+            msg="Expected kSettingsFlushInterval constant in engine.cpp",
+        )
+        interval = int(match.group(1))
+        self.assertLessEqual(
+            interval,
+            1800,
+            msg=f"kSettingsFlushInterval ({interval}) must be <= 1800 frames (~30 s) to limit data-loss risk",
+        )
+
+    def test_wasm_settings_flush_triggers_idbfs_sync(self):
+        """After writing settings and Lua storage, runWasmMainLoop must
+        trigger an IDBFS sync so the flushed data propagates to IndexedDB
+        immediately (not only on the next periodic sync interval)."""
+        # The flush block saves permanent storage, then immediately calls the
+        # IDBFS sync.  Use savePermanentStorage as an intermediate anchor so
+        # the pattern is specific to the flush block rather than matching any
+        # other occurrence of __openmwSyncPersistentStorage in engine.cpp.
+        self.assertRegex(
+            self.engine_cpp,
+            r"savePermanentStorage[\s\S]{0,300}__openmwSyncPersistentStorage",
+            msg="Expected IDBFS sync trigger immediately after savePermanentStorage in runWasmMainLoop",
+        )
+
+    def test_loading_screen_triggers_idbfs_sync_on_load_start(self):
+        """loadingOn() must trigger an IDBFS sync in WASM builds before the
+        potentially long cell-transition or new-game load, so that any
+        unsaved progress from the previous session is protected against an
+        OOM tab kill or unexpected browser crash during loading."""
+        self.assertIn(
+            "__EMSCRIPTEN__",
+            self.loadingscreen_cpp,
+            msg="Expected __EMSCRIPTEN__ guard in loadingscreen.cpp",
+        )
+        self.assertIn(
+            "emscripten.h",
+            self.loadingscreen_cpp,
+            msg="Expected emscripten.h include in loadingscreen.cpp",
+        )
+        self.assertIn(
+            "__openmwSyncPersistentStorage",
+            self.loadingscreen_cpp,
+            msg="Expected __openmwSyncPersistentStorage call in loadingscreen.cpp loadingOn()",
+        )
+        # The sync call must appear inside the loadingOn function body, anchored
+        # to the emscripten_run_script call that wraps it.
+        self.assertRegex(
+            self.loadingscreen_cpp,
+            r"void LoadingScreen::loadingOn\(\)[\s\S]{0,900}emscripten_run_script[\s\S]{0,200}__openmwSyncPersistentStorage",
+            msg="Expected emscripten_run_script(__openmwSyncPersistentStorage) in LoadingScreen::loadingOn()",
         )
 
 
