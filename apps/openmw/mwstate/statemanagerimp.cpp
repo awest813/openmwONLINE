@@ -353,6 +353,22 @@ void MWState::StateManager::saveGame(std::string_view description, const Slot* s
                          << "ms";
 
 #ifdef __EMSCRIPTEN__
+        // In browser builds, warn if the save blocked the main thread long enough
+        // to risk triggering the browser's "Page Unresponsive" dialog.  Very large
+        // late-game saves (deep journal, many scripted items) can stall the JS
+        // event loop for several seconds; this log entry makes the cause visible in
+        // bug reports and gives the player an actionable hint.
+        {
+            const auto saveMs
+                = std::chrono::duration_cast<std::chrono::milliseconds>(finish - start).count();
+            if (saveMs > 2000)
+            {
+                Log(Debug::Warning)
+                    << "WASM: Save '" << description << "' took " << saveMs
+                    << " ms — browser may show 'Page Unresponsive' if saves keep growing. "
+                       "Consider using a new save slot to reset the save-file size.";
+            }
+        }
         // Flush the save to IndexedDB immediately so it survives tab closure or crash.
         emscripten_run_script(
             "if (typeof globalThis.__openmwSyncPersistentStorage === 'function')"
