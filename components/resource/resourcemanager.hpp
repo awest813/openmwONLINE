@@ -28,6 +28,7 @@ namespace Resource
         virtual void updateCache(double referenceTime) = 0;
         virtual void clearCache() = 0;
         virtual void setExpiryDelay(double expiryDelay) = 0;
+        virtual double getExpiryDelay() const = 0;
         virtual void reportStats(unsigned int frameNumber, osg::Stats* stats) const = 0;
         virtual void releaseGLObjects(osg::State* state) = 0;
     };

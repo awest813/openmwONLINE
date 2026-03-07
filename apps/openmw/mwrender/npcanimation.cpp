@@ -158,7 +158,12 @@ namespace MWRender
         if (dt == 0.f)
             return;
 
-        if (!MWBase::Environment::get().getSoundManager()->sayActive(mReference))
+        // Use the combined sayActive+loudness query to reduce per-frame sound-manager map lookups.
+        // getSaySoundLoudnessIfActive returns a negative value when the NPC is not speaking,
+        // or the current loudness [0,1] when they are.
+        const float loudness
+            = MWBase::Environment::get().getSoundManager()->getSaySoundLoudnessIfActive(mReference);
+        if (loudness < 0.0f)
         {
             mBlinkTimer += dt;
 
@@ -176,12 +181,9 @@ namespace MWRender
         }
         else
         {
-            // FIXME: would be nice to hold on to the SoundPtr so we don't have to retrieve it every frame
             mValue = mTalkStart
                 + (mTalkStop - mTalkStart)
-                    * std::min(1.f,
-                        MWBase::Environment::get().getSoundManager()->getSaySoundLoudness(mReference)
-                            * 2); // Rescale a bit (most voices are not very loud)
+                    * std::min(1.f, loudness * 2); // Rescale a bit (most voices are not very loud)
         }
     }
 

@@ -148,6 +148,12 @@ namespace MWBase
         /// and get an average loudness value (scale [0,1]) at the current time position.
         /// If the actor is not saying anything, returns 0.
 
+        /// Combined sayActive + loudness query: returns the loudness (scale [0,1]) if the actor
+        /// is currently speaking, otherwise returns a negative value.  This avoids the two
+        /// separate map lookups that calling sayActive() followed by getSaySoundLoudness() would
+        /// require when the actor is actively talking.
+        virtual float getSaySoundLoudnessIfActive(const MWWorld::ConstPtr& reference) const = 0;
+
         virtual SoundStream* playTrack(const MWSound::DecoderPtr& decoder, Type type) = 0;
         ///< Play a 2D audio track, using a custom decoder. The caller is expected to call
         /// stopTrack with the returned handle when done.
