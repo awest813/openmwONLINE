@@ -54,11 +54,14 @@ namespace Bsa
 
             for (const NonSSEFolderRecord& folder : value.mFolders)
             {
-                const std::uint8_t folderNameSize = static_cast<std::uint8_t>(folder.mName.size() + 1);
+                if ((value.mHeader.mFlags & CompressedBSAFile::ArchiveFlag_FolderNames) != 0)
+                {
+                    const std::uint8_t folderNameSize = static_cast<std::uint8_t>(folder.mName.size() + 1);
 
-                stream.write(reinterpret_cast<const char*>(&folderNameSize), sizeof(folderNameSize));
-                stream.write(reinterpret_cast<const char*>(folder.mName.data()), folder.mName.size());
-                stream.put('\0');
+                    stream.write(reinterpret_cast<const char*>(&folderNameSize), sizeof(folderNameSize));
+                    stream.write(reinterpret_cast<const char*>(folder.mName.data()), folder.mName.size());
+                    stream.put('\0');
+                }
 
                 for (const FileRecord& file : folder.mFiles)
                 {
@@ -353,6 +356,70 @@ namespace Bsa
                     .mHash = BSAFile::Hash{ .mLow = 0, .mHigh = 0 },
                     .mNameOffset = 0,
                     .mNameSize = 16,
+                    .mNamesBuffer = &namesBuffer,
+                }));
+        }
+
+        TEST(CompressedBSAFileTest, shouldHandleNoFolderNames)
+        {
+            const std::filesystem::path path = makeOutputPath();
+
+            {
+                std::ofstream stream;
+                stream.exceptions(std::ifstream::failbit | std::ifstream::badbit);
+
+                stream.open(path, std::ios::binary);
+
+                const CompressedBSAFile::Header header{
+                    .mFormat = static_cast<std::uint32_t>(BsaVersion::Compressed),
+                    .mVersion = CompressedBSAFile::Version_TES4,
+                    .mFoldersOffset = sizeof(CompressedBSAFile::Header),
+                    .mFlags = CompressedBSAFile::ArchiveFlag_FileNames,
+                    .mFolderCount = 1,
+                    .mFileCount = 1,
+                    .mFolderNamesLength = 0,
+                    .mFileNamesLength = 9,
+                    .mFileFlags = 0,
+                };
+
+                const FileRecord file{
+                    .mHash = 0xfedcba9876543210,
+                    .mSize = 42,
+                    .mOffset = 0,
+                    .mName = "filename",
+                };
+
+                const NonSSEFolderRecord folder{
+                    .mHash = 0,
+                    .mCount = 1,
+                    .mOffset = 0,
+                    .mName = "",
+                    .mFiles = { file },
+                };
+
+                const Archive archive{
+                    .mHeader = header,
+                    .mFolders = { folder },
+                };
+
+                writeArchive(archive, stream);
+            }
+
+            CompressedBSAFile file;
+            file.open(path);
+
+            std::vector<char> namesBuffer;
+            constexpr std::string_view filePath = "\\filename";
+            namesBuffer.assign(filePath.begin(), filePath.end());
+            namesBuffer.push_back('\0');
+
+            EXPECT_THAT(file.getList(),
+                ElementsAre(BSAFile::FileStruct{
+                    .mFileSize = 42,
+                    .mOffset = 0,
+                    .mHash = BSAFile::Hash{ .mLow = 0, .mHigh = 0 },
+                    .mNameOffset = 0,
+                    .mNameSize = 9,
                     .mNamesBuffer = &namesBuffer,
                 }));
         }
