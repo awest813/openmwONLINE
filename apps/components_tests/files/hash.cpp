@@ -10,6 +10,7 @@
 #include <array>
 #include <fstream>
 #include <sstream>
+#include <streambuf>
 #include <string>
 
 namespace
@@ -37,6 +38,43 @@ namespace
         stream.exceptions(std::ios::failbit | std::ios::badbit);
         EXPECT_THAT(getHash(Files::pathToUnicodeString(fileName), stream),
             ElementsAre(9607679276477937801ull, 16624257681780017498ull));
+    }
+
+    TEST(FilesGetHash, shouldRestoreStreamPosition)
+    {
+        const auto fileName = outputFilePath("fileName");
+        std::string content = "abcdefgh";
+        std::istringstream stream(content);
+        stream.seekg(4);
+        getHash(Files::pathToUnicodeString(fileName), stream);
+        EXPECT_EQ(stream.tellg(), std::streampos(4));
+    }
+
+    struct FailingBuffer : std::streambuf
+    {
+        int_type underflow() override { throw std::runtime_error("Read error"); }
+        std::streamsize xsgetn(char*, std::streamsize) override { throw std::runtime_error("Read error"); }
+    };
+
+    TEST(FilesGetHash, shouldThrowOnReadError)
+    {
+        const std::string fileName = "testFile.txt";
+        FailingBuffer buffer;
+        std::istream stream(&buffer);
+        EXPECT_THROW(
+            {
+                try
+                {
+                    getHash(fileName, stream);
+                }
+                catch (const std::runtime_error& e)
+                {
+                    EXPECT_THAT(e.what(), HasSubstr(fileName));
+                    EXPECT_THAT(e.what(), HasSubstr("Read error"));
+                    throw;
+                }
+            },
+            std::runtime_error);
     }
 
     TEST_P(FilesGetHash, shouldReturnHashForStringStream)
