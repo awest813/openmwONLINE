@@ -68,6 +68,10 @@ namespace Bsa
         if (input.fail())
             fail("Failed to read compressed BSA folder record offset: " + std::generic_category().message(errno));
 
+        // file record blocks
+        if ((mHeader.mFlags & ArchiveFlag_FolderNames) == 0)
+            mHeader.mFolderCount = 1;
+
         struct FlatFolderRecord
         {
             std::uint64_t mHash;
@@ -102,10 +106,6 @@ namespace Bsa
 
             folders.emplace_back(std::move(folder), std::vector<FileRecord>());
         }
-
-        // file record blocks
-        if ((mHeader.mFlags & ArchiveFlag_FolderNames) == 0)
-            mHeader.mFolderCount = 1; // TODO: not tested - unit test necessary
 
         for (auto& [folder, filelist] : folders)
         {
