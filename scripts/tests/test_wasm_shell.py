@@ -445,6 +445,220 @@ class WasmShellTests(unittest.TestCase):
             msg="Expected saveMs warning and IDBFS sync to be in the same __EMSCRIPTEN__ block",
         )
 
+    # ------------------------------------------------------------------
+    # Debug / audit / polish for live user testing
+    # ------------------------------------------------------------------
+
+    def test_fps_counter_raf_patching(self):
+        """The shell must install an FPS counter by patching
+        window.requestAnimationFrame so every frame is counted without
+        requiring Emscripten to expose an explicit frame hook.  The counter
+        must reference the hud-fps element so testers can read it."""
+        self.assertIn(
+            "function recordFrame()",
+            self.shell_html,
+            msg="Expected recordFrame() function in shell HTML",
+        )
+        self.assertIn(
+            "fpsSamples",
+            self.shell_html,
+            msg="Expected fpsSamples array for the sliding 1-second FPS window",
+        )
+        # RAF must be patched to call recordFrame on every animation frame
+        self.assertRegex(
+            self.shell_html,
+            r"window\.requestAnimationFrame\s*=\s*function",
+            msg="Expected window.requestAnimationFrame to be replaced with a wrapper",
+        )
+        # The wrapper must call the original RAF and invoke recordFrame
+        self.assertRegex(
+            self.shell_html,
+            r"_origRAF[\s\S]{0,300}recordFrame\(\)",
+            msg="Expected the RAF wrapper to invoke recordFrame() on each frame",
+        )
+        # The FPS counter must write to the hud-fps element
+        self.assertRegex(
+            self.shell_html,
+            r"hudFps\.textContent\s*=",
+            msg="Expected recordFrame() to update the hudFps element textContent",
+        )
+
+    def test_report_phase_globally_exposed(self):
+        """reportPhase() must be assigned to globalThis.__openmwReportPhase so
+        that the browser smoke-test harness and any external test scripts can
+        inject phase events and read the phase timeline without importing
+        internal shell state."""
+        self.assertIn(
+            "globalThis.__openmwReportPhase = reportPhase",
+            self.shell_html,
+            msg="Expected globalThis.__openmwReportPhase = reportPhase in shell HTML",
+        )
+
+    def test_phase_timeline_globally_exposed(self):
+        """Every reportPhase() call must update globalThis.__openmwPhaseTimeline
+        with a snapshot of the current timeline so that automated test harnesses
+        and browser devtools can inspect the sequence of startup and gameplay
+        phases without subscribing to the openmw:phase CustomEvent."""
+        self.assertIn(
+            "globalThis.__openmwPhaseTimeline = phaseTimeline.slice()",
+            self.shell_html,
+            msg="Expected globalThis.__openmwPhaseTimeline to be updated in reportPhase()",
+        )
+        # The update must happen inside reportPhase() before the CustomEvent dispatch
+        self.assertRegex(
+            self.shell_html,
+            r"function reportPhase\([\s\S]{0,400}__openmwPhaseTimeline\s*=\s*phaseTimeline\.slice\(\)",
+            msg="Expected __openmwPhaseTimeline update inside the reportPhase() body",
+        )
+
+    def test_pointer_lock_error_handler(self):
+        """A pointerlockerror handler must be registered so that when the
+        browser refuses pointer-lock (e.g. missing user gesture or sandboxed
+        iframe) the shell logs the failure and re-shows the click-to-play
+        overlay rather than leaving the game in a broken input state."""
+        self.assertIn(
+            "pointerlockerror",
+            self.shell_html,
+            msg="Expected pointerlockerror event handler in shell HTML",
+        )
+        # The handler must log the failure for tester bug reports
+        self.assertRegex(
+            self.shell_html,
+            r"pointerlockerror[\s\S]{0,400}logToConsole",
+            msg="Expected pointerlockerror handler to call logToConsole()",
+        )
+        # The handler must restore the click-to-play overlay so the player can retry
+        self.assertRegex(
+            self.shell_html,
+            r"pointerlockerror[\s\S]{0,400}classList\.remove\('hidden'\)",
+            msg="Expected pointerlockerror handler to re-show the click-to-play overlay",
+        )
+
+    def test_hud_toolbar_pinned_by_warnings(self):
+        """When a critical memory warning or storage-quota warning makes the
+        HUD toolbar visible, it must stay visible even when the player
+        subsequently presses Ctrl+` to toggle the console overlay.  Without
+        the _hudPinned guard, toggleConsole() would silently hide the HUD
+        and the player would lose sight of the warning mid-session."""
+        self.assertIn(
+            "var _hudPinned = false",
+            self.shell_html,
+            msg="Expected _hudPinned flag variable in shell HTML",
+        )
+        # toggleConsole must check _hudPinned before hiding the HUD
+        self.assertRegex(
+            self.shell_html,
+            r"function toggleConsole\(\)[\s\S]{0,400}_hudPinned",
+            msg="Expected toggleConsole() to check _hudPinned before changing HUD visibility",
+        )
+        # showStorageQuotaWarning must set _hudPinned = true
+        self.assertRegex(
+            self.shell_html,
+            r"function showStorageQuotaWarning\(\)[\s\S]{0,600}_hudPinned\s*=\s*true",
+            msg="Expected showStorageQuotaWarning() to set _hudPinned = true",
+        )
+        # Critical memory branch must also set _hudPinned = true
+        self.assertRegex(
+            self.shell_html,
+            r"HEAP_CRITICAL_THRESHOLD[\s\S]{0,700}_hudPinned\s*=\s*true",
+            msg="Expected critical memory branch to set _hudPinned = true",
+        )
+
+    def test_error_panel_includes_phase_timeline(self):
+        """showError() must embed the phase timeline in the auto-generated
+        GitLab issue URL so that bug reports filed by live testers include
+        structured context about which startup and gameplay phases completed
+        before the crash — making it far easier to reproduce and triage.
+        The number of entries to include must be controlled by a named constant
+        (MAX_PHASE_TIMELINE_REPORT_ENTRIES) rather than a bare magic number."""
+        # A named constant must govern the number of entries in the report
+        self.assertIn(
+            "MAX_PHASE_TIMELINE_REPORT_ENTRIES",
+            self.shell_html,
+            msg="Expected MAX_PHASE_TIMELINE_REPORT_ENTRIES constant in shell HTML",
+        )
+        # showError() must reference phaseTimeline when building the issue body
+        self.assertRegex(
+            self.shell_html,
+            r"function showError\([\s\S]{0,800}phaseTimeline",
+            msg="Expected showError() to include phaseTimeline in the error report body",
+        )
+        # showError() must use the named constant
+        self.assertRegex(
+            self.shell_html,
+            r"function showError\([\s\S]{0,800}MAX_PHASE_TIMELINE_REPORT_ENTRIES",
+            msg="Expected showError() to slice phaseTimeline using MAX_PHASE_TIMELINE_REPORT_ENTRIES",
+        )
+        # The timeline section heading must appear in the report template
+        self.assertIn(
+            "Phase timeline",
+            self.shell_html,
+            msg="Expected 'Phase timeline' section heading in the error report template",
+        )
+
+    def test_status_element_has_aria_live(self):
+        """The #status element must carry role='status' and aria-live='polite'
+        so that assistive technologies announce status updates (engine ready,
+        data loaded, errors) without requiring the user to focus the element."""
+        self.assertIn(
+            'aria-live="polite"',
+            self.shell_html,
+            msg="Expected aria-live=\"polite\" on the #status element for accessibility",
+        )
+        self.assertIn(
+            'role="status"',
+            self.shell_html,
+            msg="Expected role=\"status\" on the #status element for semantic markup",
+        )
+        # Both attributes must be on the same element as id="status"
+        self.assertRegex(
+            self.shell_html,
+            r'id="status"[^>]*aria-live="polite"|aria-live="polite"[^>]*id="status"',
+            msg="Expected aria-live=\"polite\" to be on the element with id=\"status\"",
+        )
+        self.assertRegex(
+            self.shell_html,
+            r'id="status"[^>]*role="status"|role="status"[^>]*id="status"',
+            msg="Expected role=\"status\" to be on the element with id=\"status\"",
+        )
+
+    def test_wasm_performance_defaults_cover_all_settings(self):
+        """The WASM build must override all heavyweight default settings so that
+        first-time testers start with a playable frame rate rather than having to
+        manually tune settings.cfg.  Required overrides:
+          - shadows disabled (most expensive single setting)
+          - viewing distance capped at 4096 (limits scene complexity)
+          - MSAA disabled (WebGL MSAA is slow on mobile GPUs)
+          - reverse-Z disabled (WebGL extension rarely available)
+          - small-feature culling pixel size >= 4.0
+          - cache expiry delay capped at 2.0 s
+          - object paging disabled (saves draw calls & VRAM)
+          - composite-map resolution capped at 256
+          - frame-rate limit capped at 60 fps
+        """
+        # All overrides must be inside an __EMSCRIPTEN__ guard
+        self.assertIn(
+            "__EMSCRIPTEN__",
+            self.engine_cpp,
+            msg="Expected __EMSCRIPTEN__ guard in engine.cpp",
+        )
+        for symbol in (
+            "mEnableShadows",
+            "mViewingDistance",
+            "mAntialiasing",
+            "mReverseZ",
+            "mSmallFeatureCullingPixelSize",
+            "mCacheExpiryDelay",
+            "mObjectPaging",
+            "mCompositeMapResolution",
+            "mFramerateLimit",
+        ):
+            self.assertIn(
+                symbol,
+                self.engine_cpp,
+                msg=f"Expected WASM performance default for {symbol} in engine.cpp",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
