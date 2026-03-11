@@ -198,7 +198,7 @@
     <div id="progress-container" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
       <div id="progress-bar"></div>
     </div>
-    <div id="status">Initializing engine...</div>
+    <div id="status" role="status" aria-live="polite">Initializing engine...</div>
     <div id="data-picker-section">
       <button id="pick-data-btn" onclick="pickDataDirectory()">
         Select Morrowind Data Folder
@@ -271,6 +271,9 @@
     // Collect all log lines for "Copy Log"
     var logLines = [];
     var phaseTimeline = [];
+    // Number of the most-recent phase-timeline entries included in auto-generated
+    // bug reports — enough context to diagnose most crashes without bloating the URL.
+    var MAX_PHASE_TIMELINE_REPORT_ENTRIES = 15;
 
     function reportPhase(phase, status, details) {
       var entry = {
@@ -397,9 +400,19 @@
       consoleOutput.scrollTop = consoleOutput.scrollHeight;
     }
 
+    // When a critical warning (memory pressure or storage quota) makes the HUD
+    // toolbar visible, it must stay visible regardless of the console toggle.
+    // Without this guard, pressing Ctrl+` to close the console would silently
+    // hide the HUD toolbar and the player would lose sight of the warning.
+    var _hudPinned = false;
+
     function toggleConsole() {
       var visible = consoleOverlay.classList.toggle('visible');
-      hudToolbar.classList.toggle('visible', visible);
+      // Only synchronise HUD toolbar visibility with the console if no critical
+      // warning has pinned it open.
+      if (!_hudPinned) {
+        hudToolbar.classList.toggle('visible', visible);
+      }
     }
 
     document.addEventListener('keydown', function(e) {
@@ -474,11 +487,21 @@
       reportPhase('runtime_error', 'failed', msg);
       setStatus(msg, true);
       errorMessage.textContent = msg;
+      // Include the phase timeline so testers and developers can see exactly
+      // which startup / gameplay phases completed before the crash, making
+      // it much easier to reproduce and triage the issue from the report alone.
+      var timelineSection = phaseTimeline.length
+        ? '\n\n**Phase timeline:**\n' + phaseTimeline.slice(-MAX_PHASE_TIMELINE_REPORT_ENTRIES).map(function(e) {
+            return '- `' + e.phase + '` → ' + e.status
+              + (e.details ? ' (' + e.details + ')' : '');
+          }).join('\n')
+        : '';
       var issueBody = encodeURIComponent(
         '**Browser:** ' + navigator.userAgent + '\n' +
         '**Error:** ' + msg + '\n\n' +
         '**Steps to reproduce:**\n1. \n\n' +
-        '**Console log:**\n```\n' + logLines.slice(-50).join('\n') + '\n```'
+        '**Console log:**\n```\n' + logLines.slice(-50).join('\n') + '\n```' +
+        timelineSection
       );
       reportErrorLink.href =
         'https://gitlab.com/OpenMW/openmw/-/issues/new?issue[labels]=wasm,bug' +
@@ -496,8 +519,8 @@
         + 'To fix: clear site data for this origin in your browser settings, then reload.';
       logToConsole(msg, 'error');
       reportPhase('storage_quota', 'failed', 'IndexedDB quota exceeded — saves at risk');
-      // Show the HUD toolbar so the player sees the warning immediately without
-      // needing to open the developer console.
+      // Pin the HUD open (persists through console toggle) and make it visible.
+      _hudPinned = true;
       hudToolbar.classList.add('visible');
     }
 
@@ -870,7 +893,8 @@
         reportPhase('memory_critical', 'failed', 'Heap at ' + pct + '%');
         // Flush saves immediately so progress is not lost if the browser OOM-kills the tab.
         syncPersistentStorage('memory-critical');
-        // Show the HUD toolbar so the user sees the warning immediately.
+        // Pin HUD open (persists through console toggle) so the warning stays visible.
+        _hudPinned = true;
         hudToolbar.classList.add('visible');
       } else if (ratio >= HEAP_WARNING_THRESHOLD && !_heapWarningShown) {
         _heapWarningShown = true;
