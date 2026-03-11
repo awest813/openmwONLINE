@@ -254,56 +254,86 @@ void CSVRender::PagedWorldspaceWidget::handleInteractionPress(const WorldspaceHi
 void CSVRender::PagedWorldspaceWidget::referenceableDataChanged(
     const QModelIndex& topLeft, const QModelIndex& bottomRight)
 {
+    bool modified = false;
     for (std::map<CSMWorld::CellCoordinates, Cell*>::iterator iter(mCells.begin()); iter != mCells.end(); ++iter)
         if (iter->second->referenceableDataChanged(topLeft, bottomRight))
-            flagAsModified();
+            modified = true;
+
+    if (modified)
+        flagAsModified();
 }
 
 void CSVRender::PagedWorldspaceWidget::referenceableAboutToBeRemoved(const QModelIndex& parent, int start, int end)
 {
+    bool modified = false;
     for (std::map<CSMWorld::CellCoordinates, Cell*>::iterator iter(mCells.begin()); iter != mCells.end(); ++iter)
         if (iter->second->referenceableAboutToBeRemoved(parent, start, end))
-            flagAsModified();
+            modified = true;
+
+    if (modified)
+        flagAsModified();
 }
 
 void CSVRender::PagedWorldspaceWidget::referenceableAdded(const QModelIndex& parent, int start, int end)
 {
+    if (mCells.empty())
+        return;
+
     CSMWorld::IdTable& referenceables = dynamic_cast<CSMWorld::IdTable&>(
         *mDocument.getData().getTableModel(CSMWorld::UniversalId::Type_Referenceables));
 
+    QModelIndex topLeft = referenceables.index(start, 0);
+    QModelIndex bottomRight = referenceables.index(end, referenceables.columnCount());
+
+    bool modified = false;
     for (std::map<CSMWorld::CellCoordinates, Cell*>::iterator iter(mCells.begin()); iter != mCells.end(); ++iter)
     {
-        QModelIndex topLeft = referenceables.index(start, 0);
-        QModelIndex bottomRight = referenceables.index(end, referenceables.columnCount());
-
         if (iter->second->referenceableDataChanged(topLeft, bottomRight))
-            flagAsModified();
+            modified = true;
     }
+
+    if (modified)
+        flagAsModified();
 }
 
 void CSVRender::PagedWorldspaceWidget::referenceDataChanged(const QModelIndex& topLeft, const QModelIndex& bottomRight)
 {
+    bool modified = false;
     for (std::map<CSMWorld::CellCoordinates, Cell*>::iterator iter(mCells.begin()); iter != mCells.end(); ++iter)
         if (iter->second->referenceDataChanged(topLeft, bottomRight))
-            flagAsModified();
+            modified = true;
+
+    if (modified)
+        flagAsModified();
 }
 
 void CSVRender::PagedWorldspaceWidget::referenceAboutToBeRemoved(const QModelIndex& parent, int start, int end)
 {
+    bool modified = false;
     for (std::map<CSMWorld::CellCoordinates, Cell*>::iterator iter(mCells.begin()); iter != mCells.end(); ++iter)
         if (iter->second->referenceAboutToBeRemoved(parent, start, end))
-            flagAsModified();
+            modified = true;
+
+    if (modified)
+        flagAsModified();
 }
 
 void CSVRender::PagedWorldspaceWidget::referenceAdded(const QModelIndex& parent, int start, int end)
 {
+    bool modified = false;
     for (std::map<CSMWorld::CellCoordinates, Cell*>::iterator iter(mCells.begin()); iter != mCells.end(); ++iter)
         if (iter->second->referenceAdded(parent, start, end))
-            flagAsModified();
+            modified = true;
+
+    if (modified)
+        flagAsModified();
 }
 
 void CSVRender::PagedWorldspaceWidget::pathgridDataChanged(const QModelIndex& topLeft, const QModelIndex& bottomRight)
 {
+    if (mCells.empty())
+        return;
+
     const CSMWorld::SubCellCollection<CSMWorld::Pathgrid>& pathgrids = mDocument.getData().getPathgrids();
 
     int rowStart = -1;
@@ -320,127 +350,181 @@ void CSVRender::PagedWorldspaceWidget::pathgridDataChanged(const QModelIndex& to
         rowEnd = bottomRight.row();
     }
 
+    bool modified = false;
+    const auto& records = pathgrids.getRecords();
     for (int row = rowStart; row <= rowEnd; ++row)
     {
-        const CSMWorld::Pathgrid& pathgrid = pathgrids.getRecord(row).get();
+        const CSMWorld::Pathgrid& pathgrid = records[row]->get();
         CSMWorld::CellCoordinates coords = CSMWorld::CellCoordinates(pathgrid.mData.mX, pathgrid.mData.mY);
 
         std::map<CSMWorld::CellCoordinates, Cell*>::iterator searchResult = mCells.find(coords);
         if (searchResult != mCells.end())
         {
             searchResult->second->pathgridModified();
-            flagAsModified();
+            modified = true;
         }
     }
+
+    if (modified)
+        flagAsModified();
 }
 
 void CSVRender::PagedWorldspaceWidget::pathgridAboutToBeRemoved(const QModelIndex& parent, int start, int end)
 {
+    if (mCells.empty())
+        return;
+
     const CSMWorld::SubCellCollection<CSMWorld::Pathgrid>& pathgrids = mDocument.getData().getPathgrids();
 
     if (!parent.isValid())
     {
+        bool modified = false;
+        const auto& records = pathgrids.getRecords();
         // Pathgrid going to be deleted
         for (int row = start; row <= end; ++row)
         {
-            const CSMWorld::Pathgrid& pathgrid = pathgrids.getRecord(row).get();
+            const CSMWorld::Pathgrid& pathgrid = records[row]->get();
             CSMWorld::CellCoordinates coords = CSMWorld::CellCoordinates(pathgrid.mData.mX, pathgrid.mData.mY);
 
             std::map<CSMWorld::CellCoordinates, Cell*>::iterator searchResult = mCells.find(coords);
             if (searchResult != mCells.end())
             {
                 searchResult->second->pathgridRemoved();
-                flagAsModified();
+                modified = true;
             }
         }
+
+        if (modified)
+            flagAsModified();
     }
 }
 
 void CSVRender::PagedWorldspaceWidget::pathgridAdded(const QModelIndex& parent, int start, int end)
 {
+    if (mCells.empty())
+        return;
+
     const CSMWorld::SubCellCollection<CSMWorld::Pathgrid>& pathgrids = mDocument.getData().getPathgrids();
 
     if (!parent.isValid())
     {
+        bool modified = false;
+        const auto& records = pathgrids.getRecords();
         for (int row = start; row <= end; ++row)
         {
-            const CSMWorld::Pathgrid& pathgrid = pathgrids.getRecord(row).get();
+            const CSMWorld::Pathgrid& pathgrid = records[row]->get();
             CSMWorld::CellCoordinates coords = CSMWorld::CellCoordinates(pathgrid.mData.mX, pathgrid.mData.mY);
 
             std::map<CSMWorld::CellCoordinates, Cell*>::iterator searchResult = mCells.find(coords);
             if (searchResult != mCells.end())
             {
                 searchResult->second->pathgridModified();
-                flagAsModified();
+                modified = true;
             }
         }
+
+        if (modified)
+            flagAsModified();
     }
 }
 
 void CSVRender::PagedWorldspaceWidget::landDataChanged(const QModelIndex& topLeft, const QModelIndex& bottomRight)
 {
+    if (mCells.empty())
+        return;
+
+    bool modified = false;
+    const auto& records = mDocument.getData().getLand().getRecords();
     for (int r = topLeft.row(); r <= bottomRight.row(); ++r)
     {
-        const auto& id = mDocument.getData().getLand().getId(r);
+        const CSMWorld::Land& land = records[r]->get();
 
-        auto cellIt = mCells.find(CSMWorld::CellCoordinates::fromId(id.getRefIdString()).first);
+        auto cellIt = mCells.find(CSMWorld::CellCoordinates(land.mX, land.mY));
         if (cellIt != mCells.end())
         {
             cellIt->second->landDataChanged(topLeft, bottomRight);
-            flagAsModified();
+            modified = true;
         }
     }
+
+    if (modified)
+        flagAsModified();
 }
 
 void CSVRender::PagedWorldspaceWidget::landAboutToBeRemoved(const QModelIndex& parent, int start, int end)
 {
+    if (mCells.empty())
+        return;
+
+    bool modified = false;
+    const auto& records = mDocument.getData().getLand().getRecords();
     for (int r = start; r <= end; ++r)
     {
-        const auto& id = mDocument.getData().getLand().getId(r);
+        const CSMWorld::Land& land = records[r]->get();
 
-        auto cellIt = mCells.find(CSMWorld::CellCoordinates::fromId(id.getRefIdString()).first);
+        auto cellIt = mCells.find(CSMWorld::CellCoordinates(land.mX, land.mY));
         if (cellIt != mCells.end())
         {
             cellIt->second->landAboutToBeRemoved(parent, start, end);
-            flagAsModified();
+            modified = true;
         }
     }
+
+    if (modified)
+        flagAsModified();
 }
 
 void CSVRender::PagedWorldspaceWidget::landAdded(const QModelIndex& parent, int start, int end)
 {
+    if (mCells.empty())
+        return;
+
+    bool modified = false;
+    const auto& records = mDocument.getData().getLand().getRecords();
     for (int r = start; r <= end; ++r)
     {
-        const auto& id = mDocument.getData().getLand().getId(r);
+        const CSMWorld::Land& land = records[r]->get();
 
-        auto cellIt = mCells.find(CSMWorld::CellCoordinates::fromId(id.getRefIdString()).first);
+        auto cellIt = mCells.find(CSMWorld::CellCoordinates(land.mX, land.mY));
         if (cellIt != mCells.end())
         {
             cellIt->second->landAdded(parent, start, end);
-            flagAsModified();
+            modified = true;
         }
     }
+
+    if (modified)
+        flagAsModified();
 }
 
 void CSVRender::PagedWorldspaceWidget::landTextureDataChanged(
     const QModelIndex& topLeft, const QModelIndex& bottomRight)
 {
-    for (auto cellIt : mCells)
-        cellIt.second->landTextureChanged(topLeft, bottomRight);
+    if (mCells.empty())
+        return;
+
+    for (const auto& [coords, cell] : mCells)
+        cell->landTextureChanged(topLeft, bottomRight);
     flagAsModified();
 }
 
 void CSVRender::PagedWorldspaceWidget::landTextureAboutToBeRemoved(const QModelIndex& parent, int start, int end)
 {
-    for (auto cellIt : mCells)
-        cellIt.second->landTextureAboutToBeRemoved(parent, start, end);
+    if (mCells.empty())
+        return;
+
+    for (const auto& [coords, cell] : mCells)
+        cell->landTextureAboutToBeRemoved(parent, start, end);
     flagAsModified();
 }
 
 void CSVRender::PagedWorldspaceWidget::landTextureAdded(const QModelIndex& parent, int start, int end)
 {
-    for (auto cellIt : mCells)
-        cellIt.second->landTextureAdded(parent, start, end);
+    if (mCells.empty())
+        return;
+
+    for (const auto& [coords, cell] : mCells)
+        cell->landTextureAdded(parent, start, end);
     flagAsModified();
 }
 

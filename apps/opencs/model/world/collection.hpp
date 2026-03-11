@@ -92,9 +92,9 @@ namespace CSMWorld
         std::map<ESM::RefId, int> mIndex;
         std::vector<Column<ESXRecordT>*> mColumns;
 
-    protected:
         const std::vector<std::unique_ptr<Record<ESXRecordT>>>& getRecords() const;
 
+    protected:
         void reorderRowsImp(const std::vector<int>& indexOrder);
 
         bool reorderRowsImp(int baseIndex, const std::vector<int>& newOrder);
