@@ -241,6 +241,13 @@ namespace ESM
             EXPECT_TRUE(!(b < a));
         }
 
+        TEST(ESMRefIdTest, deserializeThrowsOnInvalidSize)
+        {
+            EXPECT_ERROR(RefId::deserialize("too short"), "Invalid value size to deserialize: 9");
+            EXPECT_ERROR(RefId::deserialize(std::string(sizeof(RefId::Value) + 1, 'a')),
+                "Invalid value size to deserialize: " + std::to_string(sizeof(RefId::Value) + 1));
+        }
+
         struct ESMRefIdToStringTest : TestWithParam<std::pair<RefId, std::string>>
         {
         };
