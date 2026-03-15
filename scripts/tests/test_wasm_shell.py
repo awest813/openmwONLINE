@@ -659,6 +659,99 @@ class WasmShellTests(unittest.TestCase):
                 msg=f"Expected WASM performance default for {symbol} in engine.cpp",
             )
 
+    def test_issue_body_uses_named_log_lines_constant(self):
+        """showError() must use a named constant (MAX_ISSUE_BODY_LOG_LINES) when
+        slicing logLines for the auto-generated GitLab issue URL so that the
+        number of included log lines is self-documenting and easy to adjust
+        without introducing a hard-to-spot magic number."""
+        self.assertIn(
+            "MAX_ISSUE_BODY_LOG_LINES",
+            self.shell_html,
+            msg="Expected MAX_ISSUE_BODY_LOG_LINES constant in shell HTML",
+        )
+        # showError() must use the named constant (not a bare literal) when slicing
+        self.assertRegex(
+            self.shell_html,
+            r"function showError\([\s\S]{0,1000}logLines\.slice\(-MAX_ISSUE_BODY_LOG_LINES\)",
+            msg="Expected showError() to use MAX_ISSUE_BODY_LOG_LINES when slicing logLines",
+        )
+        # The constant must be declared before showError() uses it
+        constant_pos = self.shell_html.find("MAX_ISSUE_BODY_LOG_LINES =")
+        show_error_pos = self.shell_html.find("function showError(")
+        self.assertNotEqual(constant_pos, -1, "Expected MAX_ISSUE_BODY_LOG_LINES assignment in shell HTML")
+        self.assertNotEqual(show_error_pos, -1, "Expected showError() function in shell HTML")
+        self.assertLess(
+            constant_pos,
+            show_error_pos,
+            msg="MAX_ISSUE_BODY_LOG_LINES must be declared before showError()",
+        )
+
+    def test_webgl_capabilities_logged_at_runtime_init(self):
+        """onRuntimeInitialized must probe and log WebGL extension availability
+        (EXT_color_buffer_float, EXT_color_buffer_half_float) so that live
+        testers and automated smoke tests can correlate visual quality with the
+        browser's actual WebGL extension support (USER_TESTING.md Phase 3.5).
+        The probe result must also be reported as a phase entry so it is included
+        in auto-generated GitLab issue timelines."""
+        # Both HDR-relevant extensions must be probed
+        self.assertRegex(
+            self.shell_html,
+            r"onRuntimeInitialized:[\s\S]*?EXT_color_buffer_float",
+            msg="Expected EXT_color_buffer_float capability probe in onRuntimeInitialized",
+        )
+        self.assertRegex(
+            self.shell_html,
+            r"onRuntimeInitialized:[\s\S]*?EXT_color_buffer_half_float",
+            msg="Expected EXT_color_buffer_half_float capability probe in onRuntimeInitialized",
+        )
+        # The probe result must be logged via logToConsole for the in-game overlay
+        self.assertRegex(
+            self.shell_html,
+            r"EXT_color_buffer_float[\s\S]{0,400}logToConsole",
+            msg="Expected WebGL capability probe result to be logged via logToConsole()",
+        )
+        # The probe must emit a reportPhase('webgl_capabilities', ...) entry so the
+        # capability state is captured in the phase timeline and error reports.
+        self.assertRegex(
+            self.shell_html,
+            r"reportPhase\(['\"]webgl_capabilities['\"]",
+            msg="Expected reportPhase('webgl_capabilities', ...) call in WebGL capability probe",
+        )
+
+    def test_file_picker_path_traversal_prevention(self):
+        """The WASM file picker must strip path-traversal components ('..') from
+        every uploaded file path via normalizeRelativePath() so that a malicious
+        or malformed data archive cannot write files outside the designated data
+        mount directory."""
+        self.assertIn(
+            "normalizeRelativePath",
+            self.wasm_picker_cpp,
+            msg="Expected normalizeRelativePath() function in wasmfilepicker.cpp",
+        )
+        # The function body must explicitly skip '..' path components using a
+        # continue statement inside a conditional (not merely mention the string).
+        self.assertRegex(
+            self.wasm_picker_cpp,
+            r"part === '\.\.'[\s\S]{0,50}continue",
+            msg="Expected normalizeRelativePath() to skip '..' components with 'continue'",
+        )
+        # normalizeRelativePath must be called and the sanitised result must be
+        # the path actually used when writing to the VFS — not the raw input.
+        # Both __openmwUploadFile and uploadFileChunked must use the pattern
+        # 'normalizedPath = normalizeRelativePath(...)' before touching mountPath.
+        self.assertRegex(
+            self.wasm_picker_cpp,
+            r"normalizedPath\s*=\s*normalizeRelativePath\(",
+            msg="Expected 'normalizedPath = normalizeRelativePath(...)' pattern in file-writing code",
+        )
+        # The VFS write path must be constructed from the sanitised normalizedPath,
+        # not from the raw relativePath argument.
+        self.assertRegex(
+            self.wasm_picker_cpp,
+            r"mountPath\s*\+\s*['\"/]\/['\"/]\s*\+\s*normalizedPath",
+            msg="Expected VFS write path to be built from normalizedPath (not raw relativePath)",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
