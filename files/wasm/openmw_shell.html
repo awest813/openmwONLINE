@@ -274,6 +274,10 @@
     // Number of the most-recent phase-timeline entries included in auto-generated
     // bug reports — enough context to diagnose most crashes without bloating the URL.
     var MAX_PHASE_TIMELINE_REPORT_ENTRIES = 15;
+    // Number of the most-recent console log lines embedded in the auto-generated
+    // GitLab issue URL.  Enough to capture the immediate run-up to a crash while
+    // keeping the URL within practical browser limits (~8 KB total encoded body).
+    var MAX_ISSUE_BODY_LOG_LINES = 50;
 
     function reportPhase(phase, status, details) {
       var entry = {
@@ -500,7 +504,7 @@
         '**Browser:** ' + navigator.userAgent + '\n' +
         '**Error:** ' + msg + '\n\n' +
         '**Steps to reproduce:**\n1. \n\n' +
-        '**Console log:**\n```\n' + logLines.slice(-50).join('\n') + '\n```' +
+        '**Console log:**\n```\n' + logLines.slice(-MAX_ISSUE_BODY_LOG_LINES).join('\n') + '\n```' +
         timelineSection
       );
       reportErrorLink.href =
@@ -1019,6 +1023,29 @@
         logToConsole('Engine runtime initialized', 'info');
         logToConsole('Browser: ' + navigator.userAgent, 'info');
         logToConsole('SharedArrayBuffer: ' + (typeof SharedArrayBuffer !== 'undefined' ? 'available' : 'unavailable'), 'info');
+
+        // Probe WebGL extension availability and log it so testers can report
+        // the selected HDR/ripple fallback path (USER_TESTING.md Phase 3.5).
+        // We read getSupportedExtensions() rather than calling getExtension() to
+        // avoid side-effects on the active context (which Emscripten already owns).
+        (function() {
+          try {
+            var glCanvas = document.getElementById('canvas');
+            var gl = glCanvas && (glCanvas.getContext('webgl2') || glCanvas.getContext('webgl'));
+            if (gl) {
+              var supportedExts = gl.getSupportedExtensions() || [];
+              var hasFloatColor = supportedExts.indexOf('EXT_color_buffer_float') >= 0;
+              var hasHalfFloat  = supportedExts.indexOf('EXT_color_buffer_half_float') >= 0;
+              var capDetails = 'EXT_color_buffer_float=' + (hasFloatColor ? 'yes' : 'no')
+                             + ' EXT_color_buffer_half_float=' + (hasHalfFloat ? 'yes' : 'no');
+              logToConsole('WASM: WebGL capabilities: ' + capDetails, 'info');
+              reportPhase('webgl_capabilities', 'passed', capDetails);
+            }
+          } catch (e) {
+            // Non-critical; skip capability logging if the context is unavailable.
+          }
+        })();
+
         setStatus('Engine initialized');
         setProgress(100);
 
