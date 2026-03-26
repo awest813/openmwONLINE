@@ -4,6 +4,7 @@ include_directories(SYSTEM ${GMOCK_INCLUDE_DIRS})
 file(GLOB UNITTEST_SRC_FILES
     main.cpp
 
+    fallback/testfallbackvalidate.cpp
     esm/testfixedstring.cpp
     esm/testrefid.cpp
     esm/variant.cpp
