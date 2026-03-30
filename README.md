@@ -28,11 +28,14 @@ Play in Your Browser
 
 1. **Build** the WASM target (see [Building for the browser](#building-for-the-browser) below)
    to produce `openmw.html`, `openmw.js`, and `openmw.wasm`.
-2. **Serve** the build output over HTTP (any static server works for the
-   non-pthread build; `python3 -m http.server` is enough).
-3. **Open** `openmw.html` in Chrome, Edge, or Firefox.
-4. **Select your Morrowind Data Files folder** when prompted.
-5. **Click the canvas** to lock the mouse and start playing.
+2. **Serve** the build output over HTTP from the folder that contains those files.
+   Use `python3 scripts/serve_wasm.py /path/to/build-wasm --port 8080` from the
+   repo root: it **auto-detects** pthread vs single-threaded builds and sets
+   COOP/COEP headers only when needed. For a plain non-pthread folder you can
+   also use `python3 -m http.server 8080 --directory /path/to/build-wasm`.
+3. **Open** `http://localhost:8080/openmw.html` in Chrome, Edge, or Firefox.
+4. **Select your Morrowind Data Files folder** when prompted (the button on the loading screen).
+5. **Click “Click to Play”** on the game view to lock the mouse and start playing.
 
 Your saves and settings are stored in the browser via IndexedDB and survive
 page reloads.
@@ -105,11 +108,15 @@ The `deploy/` directory contains ready-to-use server configs for each target.
 ### Serving locally
 
 ```bash
-# Non-pthread build — any HTTP server works
-python3 -m http.server 8080 --directory /path/to/build/output
-
-# Pthread build — requires cross-origin isolation headers
+# Recommended: auto-detects pthread vs single-threaded from openmw.js
 python3 scripts/serve_wasm.py /path/to/build/output --port 8080
+
+# Override if detection is wrong for your build
+python3 scripts/serve_wasm.py /path/to/build/output --port 8080 --coep on   # pthread
+python3 scripts/serve_wasm.py /path/to/build/output --port 8080 --coep off   # plain static
+
+# Non-pthread only — any HTTP server works without special headers
+python3 -m http.server 8080 --directory /path/to/build/output
 ```
 
 ### Persistent storage

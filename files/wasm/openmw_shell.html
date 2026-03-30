@@ -44,6 +44,15 @@
       display: none;
     }
     #data-picker-section.visible { display: block; }
+    #beginner-steps {
+      text-align: left; max-width: 34rem; margin: 0 auto 1.25rem;
+      padding: 0.85rem 1.1rem; background: rgba(42,42,62,0.85);
+      border-radius: 8px; border: 1px solid #3a3a55;
+      font-size: 0.88rem; color: #b8b8c8; line-height: 1.45;
+    }
+    #beginner-steps ol { margin: 0.35rem 0 0 1.1rem; padding: 0; }
+    #beginner-steps li { margin: 0.25rem 0; }
+    #beginner-steps strong { color: #e0d4b8; font-weight: 600; }
     #pick-data-btn {
       padding: 12px 32px; font-size: 1rem;
       background: #c8a86e; color: #1a1a2e;
@@ -200,12 +209,20 @@
     </div>
     <div id="status" role="status" aria-live="polite">Initializing engine...</div>
     <div id="data-picker-section">
+      <div id="beginner-steps">
+        <strong>First time here?</strong> Follow these steps:
+        <ol>
+          <li>Click the button below and choose your <strong>Data Files</strong> folder (the one with <code>Morrowind.esm</code>).</li>
+          <li>Wait until the upload finishes — large installs can take several minutes.</li>
+          <li>When the game view appears, click <strong>Click to Play</strong> so the browser can capture the mouse.</li>
+        </ol>
+      </div>
       <button id="pick-data-btn" onclick="pickDataDirectory()">
-        Select Morrowind Data Folder
+        Step 1 — Select Morrowind Data Files folder
       </button>
       <p id="data-hint">
-        Select the "Data Files" folder from your Morrowind installation.
-        This typically contains files like Morrowind.esm, Morrowind.bsa, etc.
+        Point at the folder named <strong>Data Files</strong> inside your Morrowind installation
+        (Steam, GOG, or disk). It must contain <code>Morrowind.esm</code> and <code>Morrowind.bsa</code>.
       </p>
       <div id="upload-progress">
         <div id="upload-stats"></div>
@@ -575,7 +592,7 @@
     // ----------------------------------------------------------------
     function resetDataPickerButton(btn) {
       btn.disabled = false;
-      btn.textContent = 'Select Morrowind Data Folder';
+      btn.textContent = 'Step 1 — Select Morrowind Data Files folder';
     }
 
     function getLastPickResult() {

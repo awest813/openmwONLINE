@@ -106,14 +106,18 @@ python3 -m http.server 8080 --directory /path/to/build-wasm
 # Open: http://localhost:8080/openmw.html
 ```
 
-**Pthread build — requires COOP/COEP headers:**
+**Recommended — one command for both build types:**
+
+`serve_wasm.py` inspects `openmw.js` and sends COOP/COEP only for pthread
+builds (SharedArrayBuffer). Single-threaded builds get plain static serving.
 
 ```bash
 python3 scripts/serve_wasm.py /path/to/build-wasm --port 8080
 # Open: http://localhost:8080/openmw.html
 
-# Non-pthread build via the same script (headers disabled):
-python3 scripts/serve_wasm.py /path/to/build-wasm --port 8080 --no-coep
+# Override if needed:
+python3 scripts/serve_wasm.py /path/to/build-wasm --port 8080 --coep on   # force pthread headers
+python3 scripts/serve_wasm.py /path/to/build-wasm --port 8080 --coep off   # same as --no-coep
 ```
 
 The helper script is also bundled in every CI artifact package.
