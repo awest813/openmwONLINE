@@ -23,7 +23,8 @@ jobs:
     - name: Prime ccache
       uses: hendrikmuhs/ccache-action@v1
       with:
-        key: ${{ matrix.os }}-${{ env.BUILD_TYPE }}
+        # github.job + runner arch/os — do not use matrix.os here (no matrix is defined).
+        key: ${{ github.job }}-${{ runner.os }}-${{ runner.arch }}-${{ env.BUILD_TYPE }}
         max-size: 1000M
 
     - name: Configure
@@ -78,7 +79,7 @@ jobs:
     - name: Prime ccache
       uses: hendrikmuhs/ccache-action@v1
       with:
-        key: ${{ matrix.os }}-${{ env.BUILD_TYPE }}
+        key: ${{ github.job }}-${{ runner.os }}-${{ runner.arch }}-${{ env.BUILD_TYPE }}
         max-size: 1000M
 
     - name: Configure
