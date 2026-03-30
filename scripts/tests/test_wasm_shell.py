@@ -23,6 +23,7 @@ class WasmShellTests(unittest.TestCase):
 
     def test_unsuccessful_upload_resets_button_and_handles_status_codes(self):
         self.assertIn("resetDataPickerButton(btn);", self.shell_html)
+        self.assertIn("Step 1 — Select Morrowind Data Files folder", self.shell_html)
         self.assertIn("pickStatus === 'cancelled'", self.shell_html)
         self.assertIn("pickStatus === 'validation-failed'", self.shell_html)
         self.assertIn("pickStatus === 'empty-selection'", self.shell_html)

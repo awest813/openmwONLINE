@@ -125,7 +125,7 @@ else
 THREAD_NOTE="**non-pthread (single-threaded) build** — works with any HTTP server.
 No special headers are required. Background video and multi-threaded physics
 are not available in this build."
-SERVER_CMD="python3 -m http.server 8080"
+SERVER_CMD="python3 serve_wasm.py . --port 8080"
 fi
 
 cat > "$STAGE_DIR/README.md" <<EOREADME
@@ -138,7 +138,7 @@ ${THREAD_NOTE}
 ### Local test server
 
 \`\`\`bash
-# Python local server (included in the archive)
+# Python local server (included in the archive; auto-detects pthread vs non-pthread)
 ${SERVER_CMD}
 # Then open: http://localhost:8080/openmw.html
 \`\`\`

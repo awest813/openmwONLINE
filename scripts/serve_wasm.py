@@ -2,27 +2,34 @@
 """
 OpenMW WASM local test server.
 
-Serves the WASM build output with the HTTP headers required for
-cross-origin isolation (needed by the pthread/SharedArrayBuffer build):
+Can send the HTTP headers required for cross-origin isolation (needed by the
+pthread / SharedArrayBuffer build):
 
     Cross-Origin-Opener-Policy: same-origin
     Cross-Origin-Embedder-Policy: require-corp
 
+By default, COOP/COEP are chosen automatically from openmw.js (pthread vs
+single-threaded). Override with --coep on|off if detection is wrong.
+
 Usage:
-    python3 scripts/serve_wasm.py <build_dir> [--port PORT] [--no-coep]
+    python3 scripts/serve_wasm.py <build_dir> [--port PORT] [--coep MODE]
 
 Arguments:
     build_dir       Directory containing openmw.html, openmw.js, openmw.wasm.
                     Defaults to the current working directory.
     --port PORT     TCP port to listen on (default: 8080).
-    --no-coep       Omit COOP/COEP headers (non-pthread build, any server works).
+    --coep MODE     Cross-origin isolation headers: auto (default), on, or off.
+    --no-coep       Same as --coep off (kept for scripts and muscle memory).
 
 Examples:
-    # Serve a pthread build on port 8080 (COOP/COEP headers enabled)
+    # Auto-detect pthread vs non-pthread from openmw.js (recommended)
     python3 scripts/serve_wasm.py /path/to/build
 
-    # Serve a non-pthread build without isolation headers
-    python3 scripts/serve_wasm.py /path/to/build --no-coep
+    # Force headers on (pthread / SharedArrayBuffer build)
+    python3 scripts/serve_wasm.py /path/to/build --coep on
+
+    # Force headers off (plain static server behaviour)
+    python3 scripts/serve_wasm.py /path/to/build --coep off
 
     # Custom port
     python3 scripts/serve_wasm.py /path/to/build --port 9000
@@ -33,6 +40,12 @@ import http.server
 import os
 import sys
 from functools import partial
+
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+if _SCRIPT_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPT_DIR)
+
+from serve_wasm_detect import detect_pthread_openmw_js
 
 
 # MIME types for WASM and related assets
@@ -74,7 +87,7 @@ class WASMRequestHandler(http.server.SimpleHTTPRequestHandler):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Serve the OpenMW WASM build with cross-origin isolation headers.",
+        description="Serve the OpenMW WASM build with optional cross-origin isolation headers.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
@@ -91,10 +104,15 @@ def main():
         help="TCP port to listen on (default: 8080)",
     )
     parser.add_argument(
+        "--coep",
+        choices=("auto", "on", "off"),
+        default="auto",
+        help="Cross-origin isolation headers: auto (inspect openmw.js), on, or off (default: auto)",
+    )
+    parser.add_argument(
         "--no-coep",
-        dest="cors_headers",
-        action="store_false",
-        help="Disable COOP/COEP headers (use for non-pthread builds)",
+        action="store_true",
+        help="Same as --coep off (non-pthread / plain static server)",
     )
     args = parser.parse_args()
 
@@ -110,21 +128,41 @@ def main():
             file=sys.stderr,
         )
 
+    coep_mode = "off" if args.no_coep else args.coep
+    if coep_mode == "auto":
+        detected = detect_pthread_openmw_js(build_dir)
+        if detected is True:
+            cors_headers = True
+            detect_note = "pthread markers found in openmw.js"
+        elif detected is False:
+            cors_headers = False
+            detect_note = "no pthread markers in openmw.js (single-threaded build)"
+        else:
+            cors_headers = False
+            detect_note = "openmw.js missing or unreadable — defaulting to no COOP/COEP (use --coep on if this is a pthread build)"
+    elif coep_mode == "on":
+        cors_headers = True
+        detect_note = "forced on (--coep on)"
+    else:
+        cors_headers = False
+        detect_note = "forced off (--coep off or --no-coep)"
+
     handler = partial(
         WASMRequestHandler,
-        cors_headers=args.cors_headers,
+        cors_headers=cors_headers,
         directory=build_dir,
     )
 
     url = f"http://localhost:{args.port}/openmw.html"
     headers_note = (
-        "with COOP/COEP headers (pthread build)"
-        if args.cors_headers
-        else "without COOP/COEP headers (non-pthread build)"
+        "with COOP/COEP headers (pthread / SharedArrayBuffer)"
+        if cors_headers
+        else "without COOP/COEP headers (single-threaded or plain server)"
     )
 
     print(f"Serving {build_dir}")
     print(f"  {headers_note}")
+    print(f"  ({detect_note})")
     print(f"  Open: {url}")
     print("  Press Ctrl+C to stop.\n")
 
