@@ -32,6 +32,12 @@ namespace Resource
 
         bool handle(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa) override;
 
+        void addUserStatsLine(std::string_view label, const osg::Vec4f& textColor, const osg::Vec4f& barColor,
+                              const std::string& timeTakenMultiplier, float multiplier, bool average,
+                              bool averageInInverseSpace, const std::string& beginTime, const std::string& endTime,
+                              float maxValue);
+        void removeUserStatsLine(std::string_view label);
+
     private:
         void setUpFonts();
 

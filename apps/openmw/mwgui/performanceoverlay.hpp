@@ -2,6 +2,8 @@
 #define OPENMW_MWGUI_PERFORMANCEOVERLAY_H
 
 #include "windowbase.hpp"
+#include <MyGUI_TextBox.h>
+#include <MyGUI_Widget.h>
 
 namespace MWGui
 {
@@ -24,6 +26,7 @@ namespace MWGui
         MyGUI::TextBox* mCPUDraw;
         MyGUI::TextBox* mGPU;
         MyGUI::TextBox* mTerrain;
+        MyGUI::TextBox* mCombat;
         MyGUI::TextBox* mStatus;
     };
 }

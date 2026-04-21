@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <MyGUI type="Layout">
-  <Widget type="Window" skin="HUD_Box" position="10 10 240 350" name="_Main">
+  <Widget type="Window" skin="HUD_Box" position="10 10 240 380" name="_Main">
     <Property key="Caption" value="OMW Performance Toolkit"/>
     <Widget type="TextBox" skin="SandText" position="10 35 220 20" name="FPS">
         <Property key="Caption" value="FPS: 0.0"/>
@@ -35,7 +35,10 @@
     <Widget type="TextBox" skin="SandText" position="10 285 220 20" name="Terrain">
         <Property key="Caption" value="Terrain: 0 Chunks"/>
     </Widget>
-    <Widget type="TextBox" skin="SandText" position="10 315 220 20" name="Status">
+    <Widget type="TextBox" skin="SandText" position="10 310 220 20" name="Combat">
+        <Property key="Caption" value="Combat: 0 Ticks"/>
+    </Widget>
+    <Widget type="TextBox" skin="SandText" position="10 340 220 20" name="Status">
         <Property key="Caption" value="STATUS: MONITORING"/>
         <Property key="TextAlign" value="Center"/>
     </Widget>

@@ -303,6 +303,7 @@ namespace MWMechanics
             const DetourNavigator::AreaCosts areaCosts = getAreaCosts(actor, navigatorFlags);
             const ESM::Pathgrid* pathgrid = world->getStore().get<ESM::Pathgrid>().search(*actor.getCell()->getCell());
             const auto& pathGridGraph = getPathGridGraph(pathgrid);
+
             mPathFinder.buildPath(actor, vActorPos, vTargetPos, pathGridGraph, agentBounds, navigatorFlags, areaCosts,
                 storage.mAttackRange, PathType::Full);
 

@@ -1,5 +1,5 @@
 #include "performanceoverlay.hpp"
-#include "../../performance_toolkit/toolkit.hpp"
+#include "../../../performance_toolkit/toolkit.hpp"
 #include <iomanip>
 #include <sstream>
 
@@ -18,6 +18,7 @@ namespace MWGui
         getWidget(mCPUCull, "CPU_Cull");
         getWidget(mGPU, "GPU");
         getWidget(mTerrain, "Terrain");
+        getWidget(mCombat, "Combat");
         getWidget(mStatus, "Status");
         
         mMainWidget->setVisible(false);
@@ -77,8 +78,11 @@ namespace MWGui
         ss.str(""); ss << "GPU: " << stats.gpuTime << " ms";
         mGPU->setCaption(ss.str());
 
-        ss.str(""); ss << "Terrain: " << stats.terrainChunks << " Chunks (" << stats.terrainCompositeCount << " Comp)";
+        ss.str(""); ss << "Terrain: " << stats.terrainChunks << " Chk | " << stats.terrainNodes << " N";
         mTerrain->setCaption(ss.str());
+
+        ss.str(""); ss << "Combat: " << stats.combatTicks << " Tick | " << stats.pathfindUpdates << " PF";
+        mCombat->setCaption(ss.str());
 
         // Status Update
         if (toolkit.isBenchmarking())

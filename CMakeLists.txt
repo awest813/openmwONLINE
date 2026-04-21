@@ -406,13 +406,15 @@ if(NOT COLLADA_DOM_VERSION_MINOR)
     set(COLLADA_DOM_VERSION_MINOR 5)
 endif()
 
-if(NOT OPENMW_IS_EMSCRIPTEN)
+option(OPENMW_USE_SYSTEM_COLLADA "Use system collada_dom" ON)
+
+if(NOT OPENMW_IS_EMSCRIPTEN AND OPENMW_USE_SYSTEM_COLLADA)
     find_package(collada_dom 2.5)
 endif()
 
 option(OPENMW_USE_SYSTEM_ICU "Use system ICU library instead of internal. If disabled, requires autotools" ON)
 if(OPENMW_USE_SYSTEM_ICU)
-    find_package(ICU REQUIRED COMPONENTS uc i18n data)
+    find_package(ICU COMPONENTS uc i18n data)
 endif()
 
 option(OPENMW_USE_SYSTEM_YAML_CPP "Use system yaml-cpp library instead of internal." ON)
@@ -423,7 +425,7 @@ else()
 endif()
 option(YAML_CPP_STATIC "Link static build of yaml-cpp into the binaries" ${_yaml_cpp_static_default})
 if (OPENMW_USE_SYSTEM_YAML_CPP)
-    find_package(yaml-cpp REQUIRED)
+    find_package(yaml-cpp)
 endif()
 
 if ((BUILD_COMPONENTS_TESTS OR BUILD_OPENCS_TESTS OR BUILD_OPENMW_TESTS) AND OPENMW_USE_SYSTEM_GOOGLETEST)
@@ -434,7 +436,7 @@ endif()
 add_subdirectory(extern)
 
 if(OPENMW_USE_SYSTEM_LZ4)
-    find_package(LZ4 REQUIRED)
+    find_package(LZ4)
 endif()
 
 # Sound setup
@@ -442,7 +444,7 @@ endif()
 # Require at least ffmpeg 3.2 for now
 SET(FFVER_OK FALSE)
 
-find_package(FFmpeg REQUIRED COMPONENTS AVCODEC AVFORMAT AVUTIL SWSCALE SWRESAMPLE)
+find_package(FFmpeg COMPONENTS AVCODEC AVFORMAT AVUTIL SWSCALE SWRESAMPLE)
 
 if(FFmpeg_FOUND)
     SET(FFVER_OK TRUE)
@@ -477,7 +479,7 @@ if(FFmpeg_FOUND)
 endif()
 
 if(NOT FFmpeg_FOUND)
-    message(FATAL_ERROR "FFmpeg was not found" )
+    message(STATUS "FFmpeg was not found" )
 endif()
 
 if(WIN32)
@@ -631,14 +633,14 @@ if(OPENMW_IS_EMSCRIPTEN)
     set(ZLIB_INCLUDE_DIRS "")
     set(ZLIB_LIBRARIES "")
 else()
-    find_package(SDL2 2.0.20 REQUIRED)
-    find_package(OpenAL REQUIRED)
-    find_package(ZLIB REQUIRED)
+    find_package(SDL2 2.0.20)
+    find_package(OpenAL)
+    find_package(ZLIB)
 endif()
 
 option(USE_LUAJIT "Switch Lua/LuaJit (TRUE is highly recommended)" TRUE)
 if(USE_LUAJIT)
-    find_package(LuaJit REQUIRED)
+    find_package(LuaJit)
     set(LUA_INCLUDE_DIR ${LuaJit_INCLUDE_DIR})
     set(LUA_LIBRARIES ${LuaJit_LIBRARIES})
 else(USE_LUAJIT)

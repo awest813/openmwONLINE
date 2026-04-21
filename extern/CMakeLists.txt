@@ -326,6 +326,16 @@ if (NOT OPENMW_USE_SYSTEM_ICU)
     set(ICU_LIBRARIES ICU::i18n ICU::uc ICU::data PARENT_SCOPE)
 endif()
 
+if(NOT OPENMW_USE_SYSTEM_COLLADA)
+    include(FetchContent)
+    FetchContent_Declare(collada_dom
+        GIT_REPOSITORY https://github.com/rdiankov/collada-dom.git
+        GIT_TAG master
+        SOURCE_DIR fetched/collada_dom
+    )
+    FetchContent_MakeAvailable(collada_dom)
+endif()
+
 if (NOT OPENMW_USE_SYSTEM_LZ4)
     include(FetchContent)
     FetchContent_Declare(lz4

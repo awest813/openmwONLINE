@@ -311,6 +311,21 @@ namespace Resource
         return handled;
     }
 
+    void Profiler::addUserStatsLine(std::string_view label, const osg::Vec4f& textColor, const osg::Vec4f& barColor,
+                                    const std::string& timeTakenMultiplier, float multiplier, bool average,
+                                    bool averageInInverseSpace, const std::string& beginTime, const std::string& endTime,
+                                    float maxValue)
+    {
+        // Proxy to base class or local tracking if needed.
+        osgViewer::StatsHandler::addUserStatsLine(std::string(label), textColor, barColor, timeTakenMultiplier, multiplier, average, averageInInverseSpace, beginTime, endTime, maxValue);
+    }
+
+    void Profiler::removeUserStatsLine(std::string_view label)
+    {
+        // Proxy to base class or local tracking if needed.
+        osgViewer::StatsHandler::removeUserStatsLine(std::string(label));
+    }
+
     StatsHandler::StatsHandler(bool offlineCollect, const VFS::Manager& vfs)
         : mOfflineCollect(offlineCollect)
         , mSwitch(new osg::Switch)

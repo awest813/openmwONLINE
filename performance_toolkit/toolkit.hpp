@@ -5,7 +5,6 @@
 #include <string>
 #include <vector>
 #include <filesystem>
-#include <osg/Timer>
 
 namespace osg { class Stats; }
 
@@ -23,6 +22,8 @@ namespace PerformanceToolkit
         unsigned int terrainNodes;
         unsigned int terrainChunks;
         unsigned int terrainCompositeCount;
+        unsigned int combatTicks;
+        unsigned int pathfindUpdates;
         double cpuCullTime;
         double cpuDrawTime;
         double gpuTime;
@@ -33,6 +34,9 @@ namespace PerformanceToolkit
         float dt;
         unsigned int drawCalls;
         unsigned int visibleObjects;
+        unsigned int terrainNodes;
+        unsigned int terrainChunks;
+        unsigned int terrainCompositeCount;
         double cpuMainTime;
         double cpuCullTime;
         double cpuDrawTime;
@@ -67,6 +71,7 @@ namespace PerformanceToolkit
         void toggleOverlay(bool enable) { mOverlayEnabled = enable; }
         bool isOverlayEnabled() const { return mOverlayEnabled; }
         const LiveStats& getLiveStats() const { return mLiveStats; }
+        LiveStats& getLiveStatsMutable() { return mLiveStats; }
 
     private:
         Toolkit();

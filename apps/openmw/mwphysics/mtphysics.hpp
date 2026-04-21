@@ -17,6 +17,7 @@
 #include <osg/Timer>
 
 #include "components/misc/budgetmeasurement.hpp"
+#include <components/misc/barrier.hpp>
 #include "physicssystem.hpp"
 #include "ptrholder.hpp"
 

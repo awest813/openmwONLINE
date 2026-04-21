@@ -1,5 +1,6 @@
 #include "toolkit.hpp"
 #include "occlusion/occlusion_system.hpp"
+#include "content_scanner/scanner.hpp"
 #include <osg/Stats>
 #include <numeric>
 #include <algorithm>
@@ -19,6 +20,8 @@ namespace PerformanceToolkit
 
     void Toolkit::update(float dt)
     {
+        mLiveStats.combatTicks = 0;
+        mLiveStats.pathfindUpdates = 0;
         OcclusionSystem::getInstance().update();
 
         if (mIsBenchmarking)
@@ -63,6 +66,9 @@ namespace PerformanceToolkit
             fs.gpuTime = gpuTime;
             fs.drawCalls = static_cast<unsigned int>(drawCalls);
             fs.visibleObjects = static_cast<unsigned int>(glPrimitives);
+            fs.terrainNodes = mLiveStats.terrainNodes;
+            fs.terrainChunks = mLiveStats.terrainChunks;
+            fs.terrainCompositeCount = mLiveStats.terrainCompositeCount;
 
             mBenchmarkFrames.push_back(fs);
         }
@@ -74,11 +80,12 @@ namespace PerformanceToolkit
             mLiveStats.drawCalls = static_cast<unsigned int>(drawCalls);
             mLiveStats.visibleObjects = static_cast<unsigned int>(glPrimitives);
             mLiveStats.occludedObjects = OcclusionSystem::getInstance().getOccludedCount();
-            
-            // Phase 2: Mesh & Texture Budgets
-            // In a real run, we'd only do this when the cell changes
-            mLiveStats.triangleCount = 1200000; // Placeholder for demo
-            mLiveStats.textureMemoryMB = 256.4f; // Placeholder for demo
+
+            // Phase 2: Mesh & Texture Budgets (Integrated)
+            auto& scanner = Scanner::getInstance();
+            const auto& cellMetrics = scanner.getCellMetrics();
+            mLiveStats.triangleCount = cellMetrics.triangleCount;
+            mLiveStats.textureMemoryMB = static_cast<float>(cellMetrics.textureMemoryBytes) / (1024.0f * 1024.0f);
 
             mLiveStats.cpuCullTime = cullTime;
             mLiveStats.cpuDrawTime = drawTime;

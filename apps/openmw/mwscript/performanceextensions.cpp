@@ -33,8 +33,8 @@ namespace MWScript
 
         void installOpcodes(Interpreter::Interpreter& interpreter)
         {
-            interpreter.installKnown("toggleperformanceoverlay", new OpTogglePerformanceOverlay);
-            interpreter.installKnown("startbenchmark", new OpStartBenchmark);
+            // interpreter.installKnown("toggleperformanceoverlay", new OpTogglePerformanceOverlay);
+            // interpreter.installKnown("startbenchmark", new OpStartBenchmark);
         }
     }
 }
