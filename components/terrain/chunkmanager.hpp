@@ -72,7 +72,7 @@ namespace Terrain
     }
 
     /// @brief Handles loading and caching of terrain chunks
-    class ChunkManager : public Resource::GenericResourceManager<ChunkKey>, public QuadTreeWorld::ChunkManager
+    class ChunkManager : public Resource::GenericResourceManager<ChunkKey>, public QuadTreeWorld::ChunkManager, public BufferRecycler
     {
     public:
         explicit ChunkManager(Storage* storage, Resource::SceneManager* sceneMgr, TextureManager* textureManager,
@@ -95,6 +95,16 @@ namespace Terrain
         void clearCache() override;
 
         void releaseGLObjects(osg::State* state) override;
+
+        // BufferRecycler implementation
+        void returnVec3Array(osg::ref_ptr<osg::Vec3Array> array) override
+        {
+            mBufferCache.returnVec3Array(array);
+        }
+        void returnVec4ubArray(osg::ref_ptr<osg::Vec4ubArray> array) override
+        {
+            mBufferCache.returnVec4ubArray(array);
+        }
 
     private:
         osg::ref_ptr<osg::Node> createChunk(float size, const osg::Vec2f& center, unsigned char lod,

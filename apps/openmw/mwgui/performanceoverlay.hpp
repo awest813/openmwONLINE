@@ -23,6 +23,7 @@ namespace MWGui
         MyGUI::TextBox* mCPUCull;
         MyGUI::TextBox* mCPUDraw;
         MyGUI::TextBox* mGPU;
+        MyGUI::TextBox* mTerrain;
         MyGUI::TextBox* mStatus;
     };
 }

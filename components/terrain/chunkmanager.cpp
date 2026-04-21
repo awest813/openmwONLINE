@@ -87,6 +87,11 @@ namespace Terrain
     void ChunkManager::reportStats(unsigned int frameNumber, osg::Stats* stats) const
     {
         Resource::reportStats("Terrain Chunk", frameNumber, mCache->getStats(), *stats);
+
+        // Milestone 2 Polish: Accurate cache size
+        auto& toolkit = PerformanceToolkit::Toolkit::getInstance();
+        auto& liveStats = const_cast<PerformanceToolkit::LiveStats&>(toolkit.getLiveStats());
+        liveStats.terrainChunks = static_cast<unsigned int>(mCache->getStats().mSize);
     }
 
     void ChunkManager::clearCache()
@@ -218,17 +223,15 @@ namespace Terrain
 
         if (!templateGeometry)
         {
-            osg::ref_ptr<osg::Vec3Array> positions(new osg::Vec3Array);
-            osg::ref_ptr<osg::Vec3Array> normals(new osg::Vec3Array);
-            osg::ref_ptr<osg::Vec4ubArray> colors(new osg::Vec4ubArray);
-            colors->setNormalize(true);
+            unsigned int numVerts
+                = static_cast<unsigned>((mStorage->getCellVertices(mWorldspace) - 1) * chunkSize / (1 << lod) + 1);
+            size_t totalVerts = numVerts * numVerts;
+
+            osg::ref_ptr<osg::Vec3Array> positions = mBufferCache.takeVec3Array(totalVerts);
+            osg::ref_ptr<osg::Vec3Array> normals = mBufferCache.takeVec3Array(totalVerts);
+            osg::ref_ptr<osg::Vec4ubArray> colors = mBufferCache.takeVec4ubArray(totalVerts);
 
             mStorage->fillVertexBuffers(lod, chunkSize, chunkCenter, mWorldspace, *positions, *normals, *colors);
-
-            osg::ref_ptr<osg::VertexBufferObject> vbo(new osg::VertexBufferObject);
-            positions->setVertexBufferObject(vbo);
-            normals->setVertexBufferObject(vbo);
-            colors->setVertexBufferObject(vbo);
 
             geometry->setVertexArray(positions);
             geometry->setNormalArray(normals, osg::Array::BIND_PER_VERTEX);
@@ -236,23 +239,26 @@ namespace Terrain
         }
         else
         {
-            // Unfortunately we need to copy vertex data because of poor coupling with VertexBufferObject.
-            osg::ref_ptr<osg::Array> positions
-                = static_cast<osg::Array*>(templateGeometry->getVertexArray()->clone(osg::CopyOp::DEEP_COPY_ALL));
-            osg::ref_ptr<osg::Array> normals
-                = static_cast<osg::Array*>(templateGeometry->getNormalArray()->clone(osg::CopyOp::DEEP_COPY_ALL));
-            osg::ref_ptr<osg::Array> colors
-                = static_cast<osg::Array*>(templateGeometry->getColorArray()->clone(osg::CopyOp::DEEP_COPY_ALL));
+            // Milestone 2 Polish: Use recycled arrays for template clones
+            osg::Vec3Array* srcPos = static_cast<osg::Vec3Array*>(templateGeometry->getVertexArray());
+            osg::Vec3Array* srcNorm = static_cast<osg::Vec3Array*>(templateGeometry->getNormalArray());
+            osg::Vec4ubArray* srcColor = static_cast<osg::Vec4ubArray*>(templateGeometry->getColorArray());
 
-            osg::ref_ptr<osg::VertexBufferObject> vbo(new osg::VertexBufferObject);
-            positions->setVertexBufferObject(vbo);
-            normals->setVertexBufferObject(vbo);
-            colors->setVertexBufferObject(vbo);
+            osg::ref_ptr<osg::Vec3Array> positions = mBufferCache.takeVec3Array(srcPos->size());
+            osg::ref_ptr<osg::Vec3Array> normals = mBufferCache.takeVec3Array(srcNorm->size());
+            osg::ref_ptr<osg::Vec4ubArray> colors = mBufferCache.takeVec4ubArray(srcColor->size());
+
+            // Deep copy contents into recycled arrays
+            std::copy(srcPos->begin(), srcPos->end(), positions->begin());
+            std::copy(srcNorm->begin(), srcNorm->end(), normals->begin());
+            std::copy(srcColor->begin(), srcColor->end(), colors->begin());
 
             geometry->setVertexArray(positions);
             geometry->setNormalArray(normals, osg::Array::BIND_PER_VERTEX);
             geometry->setColorArray(colors, osg::Array::BIND_PER_VERTEX);
         }
+
+        geometry->setBufferRecycler(this);
 
         geometry->setUseDisplayList(false);
         geometry->setUseVertexBufferObjects(true);

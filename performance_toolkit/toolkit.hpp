@@ -20,6 +20,9 @@ namespace PerformanceToolkit
         unsigned int occludedObjects;
         unsigned int triangleCount;
         float textureMemoryMB;
+        unsigned int terrainNodes;
+        unsigned int terrainChunks;
+        unsigned int terrainCompositeCount;
         double cpuCullTime;
         double cpuDrawTime;
         double gpuTime;

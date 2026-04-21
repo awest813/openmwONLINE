@@ -24,6 +24,14 @@ namespace Terrain
     class CompositeMap;
     class CompositeMapRenderer;
 
+    class BufferRecycler
+    {
+    public:
+        virtual ~BufferRecycler() = default;
+        virtual void returnVec3Array(osg::ref_ptr<osg::Vec3Array> array) = 0;
+        virtual void returnVec4ubArray(osg::ref_ptr<osg::Vec4ubArray> array) = 0;
+    };
+
     /**
      * Subclass of Geometry that supports built in multi-pass rendering and built in LightListCallback.
      */
@@ -63,6 +71,8 @@ namespace Terrain
         CompositeMap* getCompositeMap() const { return mCompositeMap; }
         void setCompositeMapRenderer(CompositeMapRenderer* renderer) { mCompositeMapRenderer = renderer; }
 
+        void setBufferRecycler(BufferRecycler* recycler) { mBufferRecycler = recycler; }
+
     private:
         osg::BoundingBox mWaterBoundingBox;
         PassVector mPasses;
@@ -72,6 +82,7 @@ namespace Terrain
         osg::ref_ptr<SceneUtil::LightListCallback> mLightListCallback;
         osg::ref_ptr<CompositeMap> mCompositeMap;
         osg::ref_ptr<CompositeMapRenderer> mCompositeMapRenderer;
+        BufferRecycler* mBufferRecycler = nullptr;
     };
 
 }

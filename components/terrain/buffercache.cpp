@@ -244,8 +244,64 @@ namespace Terrain
         }
     }
 
+    osg::ref_ptr<osg::Vec3Array> BufferCache::takeVec3Array(size_t size)
+    {
+        std::lock_guard<std::mutex> lock(mPoolMutex);
+        auto& pool = mVec3Pool[size];
+        if (!pool.empty())
+        {
+            osg::ref_ptr<osg::Vec3Array> array = pool.back();
+            pool.pop_back();
+            return array;
+        }
+        
+        osg::ref_ptr<osg::Vec3Array> array = new osg::Vec3Array;
+        array->resize(size);
+        array->setVertexBufferObject(new osg::VertexBufferObject);
+        return array;
+    }
+
+    void BufferCache::returnVec3Array(osg::ref_ptr<osg::Vec3Array> array)
+    {
+        if (!array) return;
+        std::lock_guard<std::mutex> lock(mPoolMutex);
+        mVec3Pool[array->size()].push_back(array);
+    }
+
+    osg::ref_ptr<osg::Vec4ubArray> BufferCache::takeVec4ubArray(size_t size)
+    {
+        std::lock_guard<std::mutex> lock(mPoolMutex);
+        auto& pool = mVec4ubPool[size];
+        if (!pool.empty())
+        {
+            osg::ref_ptr<osg::Vec4ubArray> array = pool.back();
+            pool.pop_back();
+            return array;
+        }
+
+        osg::ref_ptr<osg::Vec4ubArray> array = new osg::Vec4ubArray;
+        array->setNormalize(true);
+        array->resize(size);
+        array->setVertexBufferObject(new osg::VertexBufferObject);
+        return array;
+    }
+
+    void BufferCache::returnVec4ubArray(osg::ref_ptr<osg::Vec4ubArray> array)
+    {
+        if (!array) return;
+        std::lock_guard<std::mutex> lock(mPoolMutex);
+        mVec4ubPool[array->size()].push_back(array);
+    }
+
     void BufferCache::releaseGLObjects(osg::State* state)
     {
+        {
+            std::lock_guard<std::mutex> lock(mPoolMutex);
+            for (auto& [_, pool] : mVec3Pool)
+                for (auto& arr : pool) arr->releaseGLObjects(state);
+            for (auto& [_, pool] : mVec4ubPool)
+                for (auto& arr : pool) arr->releaseGLObjects(state);
+        }
         {
             std::lock_guard<std::mutex> lock(mIndexBufferMutex);
             for (const auto& [_, indexbuffer] : mIndexBufferMap)

@@ -32,7 +32,10 @@
     <Widget type="TextBox" skin="SandText" position="10 260 220 20" name="GPU">
         <Property key="Caption" value="GPU: 0.0 ms"/>
     </Widget>
-    <Widget type="TextBox" skin="SandText" position="10 290 220 20" name="Status">
+    <Widget type="TextBox" skin="SandText" position="10 285 220 20" name="Terrain">
+        <Property key="Caption" value="Terrain: 0 Chunks"/>
+    </Widget>
+    <Widget type="TextBox" skin="SandText" position="10 315 220 20" name="Status">
         <Property key="Caption" value="STATUS: MONITORING"/>
         <Property key="TextAlign" value="Center"/>
     </Widget>

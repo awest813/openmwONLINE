@@ -230,4 +230,12 @@ namespace Terrain
         ++mWorldUpdateRevision;
     }
 
+    unsigned int ViewDataMap::getTotalNodeCount() const
+    {
+        unsigned int total = 0;
+        for (const ViewData* vd : mUsedViews)
+            total += vd->getNumEntries();
+        return total;
+    }
+
 }

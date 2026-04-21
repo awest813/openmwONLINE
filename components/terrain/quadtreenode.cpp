@@ -111,18 +111,36 @@ namespace Terrain
 
     void QuadTreeNode::traverseNodes(ViewData* vd, const osg::Vec3f& viewPoint, LodCallback* lodCallback)
     {
-        if (!hasValidBounds())
-            return;
-        LodCallback::ReturnValue lodResult = lodCallback->isSufficientDetail(this, distance(viewPoint));
-        if (lodResult == LodCallback::StopTraversal)
-            return;
-        else if (lodResult == LodCallback::Deeper && getNumChildren())
+        // Milestone 2 Polish: Use a pre-allocated stack to avoid per-frame heap allocations
+        static thread_local std::vector<QuadTreeNode*> stack;
+        stack.clear();
+        stack.reserve(128); 
+        
+        stack.push_back(this);
+
+        while (!stack.empty())
         {
-            for (unsigned int i = 0; i < getNumChildren(); ++i)
-                getChild(i)->traverseNodes(vd, viewPoint, lodCallback);
+            QuadTreeNode* node = stack.back();
+            stack.pop_back();
+
+            if (!node->hasValidBounds())
+                continue;
+
+            LodCallback::ReturnValue lodResult = lodCallback->isSufficientDetail(node, node->distance(viewPoint));
+            
+            if (lodResult == LodCallback::StopTraversal)
+                continue;
+            else if (lodResult == LodCallback::Deeper && node->getNumChildren())
+            {
+                // Push children in reverse order to maintain similar traversal order to recursive
+                for (int i = 3; i >= 0; --i)
+                    stack.push_back(node->getChild(i));
+            }
+            else
+            {
+                vd->add(node);
+            }
         }
-        else
-            vd->add(this);
     }
 
     void QuadTreeNode::setBoundingBox(const osg::BoundingBox& boundingBox)

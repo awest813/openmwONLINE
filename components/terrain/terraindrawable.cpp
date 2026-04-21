@@ -12,7 +12,18 @@ namespace Terrain
 
     TerrainDrawable::TerrainDrawable() {}
 
-    TerrainDrawable::~TerrainDrawable() = default;
+    TerrainDrawable::~TerrainDrawable()
+    {
+        if (mBufferRecycler)
+        {
+            if (osg::Vec3Array* pos = static_cast<osg::Vec3Array*>(getVertexArray()))
+                mBufferRecycler->returnVec3Array(pos);
+            if (osg::Vec3Array* norm = static_cast<osg::Vec3Array*>(getNormalArray()))
+                mBufferRecycler->returnVec3Array(norm);
+            if (osg::Vec4ubArray* color = static_cast<osg::Vec4ubArray*>(getColorArray()))
+                mBufferRecycler->returnVec4ubArray(color);
+        }
+    }
 
     TerrainDrawable::TerrainDrawable(const TerrainDrawable& copy, const osg::CopyOp& copyop)
         : osg::Geometry(copy, copyop)

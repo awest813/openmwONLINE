@@ -16,8 +16,8 @@ namespace MWGui
         getWidget(mTriangles, "Triangles");
         getWidget(mVRAM, "VRAM");
         getWidget(mCPUCull, "CPU_Cull");
-        getWidget(mCPUDraw, "CPU_Draw");
         getWidget(mGPU, "GPU");
+        getWidget(mTerrain, "Terrain");
         getWidget(mStatus, "Status");
         
         mMainWidget->setVisible(false);
@@ -76,6 +76,9 @@ namespace MWGui
 
         ss.str(""); ss << "GPU: " << stats.gpuTime << " ms";
         mGPU->setCaption(ss.str());
+
+        ss.str(""); ss << "Terrain: " << stats.terrainChunks << " Chunks (" << stats.terrainCompositeCount << " Comp)";
+        mTerrain->setCaption(ss.str());
 
         // Status Update
         if (toolkit.isBenchmarking())

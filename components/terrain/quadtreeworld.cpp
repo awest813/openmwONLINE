@@ -568,9 +568,18 @@ namespace Terrain
 
     void QuadTreeWorld::reportStats(unsigned int frameNumber, osg::Stats* stats)
     {
+        unsigned int compositeCount = mCompositeMapRenderer ? mCompositeMapRenderer->getCompileSetSize() : 0;
         if (mCompositeMapRenderer)
-            stats->setAttribute(
-                frameNumber, "Composite", static_cast<double>(mCompositeMapRenderer->getCompileSetSize()));
+            stats->setAttribute(frameNumber, "Composite", static_cast<double>(compositeCount));
+
+        // Milestone 2: Report to Performance Toolkit
+        auto& toolkit = PerformanceToolkit::Toolkit::getInstance();
+        auto& liveStats = const_cast<PerformanceToolkit::LiveStats&>(toolkit.getLiveStats());
+        
+        liveStats.terrainCompositeCount = compositeCount;
+        
+        // Count active nodes across all current views
+        liveStats.terrainNodes = mViewDataMap->getTotalNodeCount();
     }
 
     void QuadTreeWorld::loadCell(int x, int y)

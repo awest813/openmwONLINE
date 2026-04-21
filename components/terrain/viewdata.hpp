@@ -115,6 +115,8 @@ namespace Terrain
 
         float getReuseDistance() const { return mReuseDistance; }
 
+        unsigned int getTotalNodeCount() const;
+
     private:
         std::list<ViewData> mViewVector;
 

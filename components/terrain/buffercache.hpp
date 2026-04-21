@@ -23,6 +23,13 @@ namespace Terrain
         /// @note Thread safe.
         osg::ref_ptr<osg::Vec2Array> getUVBuffer(unsigned int numVerts);
 
+        // Milestone 2: Array Recycling
+        osg::ref_ptr<osg::Vec3Array> takeVec3Array(size_t size);
+        void returnVec3Array(osg::ref_ptr<osg::Vec3Array> array);
+        
+        osg::ref_ptr<osg::Vec4ubArray> takeVec4ubArray(size_t size);
+        void returnVec4ubArray(osg::ref_ptr<osg::Vec4ubArray> array);
+
         void clearCache();
 
         void releaseGLObjects(osg::State* state);
@@ -35,6 +42,11 @@ namespace Terrain
 
         std::map<int, osg::ref_ptr<osg::Vec2Array>> mUvBufferMap;
         std::mutex mUvBufferMutex;
+
+        // Milestone 2 Pools
+        std::map<size_t, std::vector<osg::ref_ptr<osg::Vec3Array>>> mVec3Pool;
+        std::map<size_t, std::vector<osg::ref_ptr<osg::Vec4ubArray>>> mVec4ubPool;
+        std::mutex mPoolMutex;
     };
 
 }
