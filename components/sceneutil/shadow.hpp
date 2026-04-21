@@ -44,6 +44,8 @@ namespace SceneUtil
         void enableIndoorMode(const Settings::ShadowsCategory& settings);
 
         void enableOutdoorMode();
+ 
+        void updateMaximumShadowDistance(float distance, float fadeRatio);
 
     protected:
         static ShadowManager* sInstance;

@@ -57,12 +57,11 @@ namespace Terrain
         mMultiPassRoot->setAttributeAndModes(material, osg::StateAttribute::ON);
     }
 
-    osg::ref_ptr<osg::Node> ChunkManager::getChunk(float size, const osg::Vec2f& center, unsigned char lod,
+    osg::ref_ptr<osg::Node> ChunkManager::getChunk(float size, const osg::Vec2f& center,
         unsigned int lodFlags, bool activeGrid, const osg::Vec3f& viewPoint, bool compile)
     {
-        // Override lod with the vertexLodMod adjusted value.
-        // TODO: maybe we can refactor this code by moving all vertexLodMod code into this class.
-        lod = static_cast<unsigned char>(lodFlags >> (4 * 4));
+        // Override lod with the vertexLodMod adjusted value from lodFlags.
+        unsigned char lod = static_cast<unsigned char>(lodFlags >> (4 * 4));
 
         const ChunkKey key{ .mCenter = center, .mLod = lod, .mLodFlags = lodFlags };
         if (osg::ref_ptr<osg::Object> obj = mCache->getRefFromObjectCache(key))

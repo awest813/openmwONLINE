@@ -210,4 +210,13 @@ namespace SceneUtil
             mShadowTechnique->enableShadows();
         mShadowSettings->setCastsShadowTraversalMask(mOutdoorShadowCastingMask);
     }
+ 
+    void ShadowManager::updateMaximumShadowDistance(float distance, float fadeRatio)
+    {
+        if (mEnableShadows && distance > 0)
+        {
+            mShadowSettings->setMaximumShadowMapDistance(distance);
+            mShadowTechnique->setShadowFadeStart(distance * fadeRatio);
+        }
+    }
 }

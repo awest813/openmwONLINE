@@ -16,6 +16,9 @@
 #include "esm4npcanimation.hpp"
 #include "npcanimation.hpp"
 #include "vismask.hpp"
+#include "../../performance_toolkit/diagnostics/visibility_tracker.hpp"
+#include "../../performance_toolkit/occlusion/occlusion_system.hpp"
+#include "../../performance_toolkit/content_scanner/scanner.hpp"
 
 namespace MWRender
 {
@@ -69,6 +72,24 @@ namespace MWRender
         insert->setScale(scaleVec);
 
         ptr.getRefData().setBaseNode(std::move(insert));
+
+        // Diagnostics
+        PerformanceToolkit::VisibilityTracker::attach(ptr.getRefData().getBaseNode(), ptr);
+
+        // Phase 1: Occlusion
+        auto& scanner = PerformanceToolkit::Scanner::getInstance();
+        float score = scanner.scoreOccluderCandidate(ptr.getRefData().getBaseNode());
+        
+        auto audit = scanner.auditNode(ptr.getRefData().getBaseNode());
+
+        if (score > 1000.0f) // Arbitrary threshold for "Big enough to be an occluder"
+        {
+            PerformanceToolkit::OcclusionSystem::getInstance().registerOccluder(ptr.getRefData().getBaseNode());
+        }
+        else if (audit.drawCalls > 2 || audit.triangleCount > 5000) // Only occlude if it's "expensive"
+        {
+            PerformanceToolkit::OcclusionSystem::getInstance().wrapOccludee(cellnode.get(), ptr.getRefData().getBaseNode(), audit.drawCalls);
+        }
     }
 
     void Objects::insertModel(const MWWorld::Ptr& ptr, const std::string& mesh, bool allowLight)
@@ -159,6 +180,10 @@ namespace MWRender
             }
 
             ptr.getRefData().getBaseNode()->getParent(0)->removeChild(ptr.getRefData().getBaseNode());
+            
+            // Phase 1 Audit: Cleanup occlusion tracking
+            PerformanceToolkit::OcclusionSystem::getInstance().unregisterOccluder(ptr.getRefData().getBaseNode());
+            PerformanceToolkit::OcclusionSystem::getInstance().removeOccludee(ptr.getRefData().getBaseNode());
 
             ptr.getRefData().setBaseNode(nullptr);
             return true;

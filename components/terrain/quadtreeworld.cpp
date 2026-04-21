@@ -13,6 +13,7 @@
 #include <components/misc/mathutil.hpp>
 #include <components/resource/resourcesystem.hpp>
 #include <components/sceneutil/positionattitudetransform.hpp>
+#include <components/settings/settings.hpp>
 
 #include "chunkmanager.hpp"
 #include "compositemaprenderer.hpp"
@@ -260,8 +261,8 @@ namespace Terrain
             , mNodeMask(nodeMask)
         {
         }
-        osg::ref_ptr<osg::Node> getChunk(float size, const osg::Vec2f& chunkCenter, unsigned char /*lod*/,
-            unsigned int lodFlags, bool activeGrid, const osg::Vec3f& viewPoint, bool compile)
+        osg::ref_ptr<osg::Node> getChunk(float size, const osg::Vec2f& chunkCenter,
+            unsigned int lodFlags, bool activeGrid, const osg::Vec3f& viewPoint, bool compile) override
         {
             osg::Vec3f center = { chunkCenter.x(), chunkCenter.y(), 0 };
             auto chunkBorder = CellBorder::createBorderGeometry(center.x() - size / 2.f, center.y() - size / 2.f, size,
@@ -279,20 +280,20 @@ namespace Terrain
         unsigned int mNodeMask;
     };
 
-    QuadTreeWorld::QuadTreeWorld(osg::Group* parent, osg::Group* compileRoot, Resource::ResourceSystem* resourceSystem,
         Storage* storage, unsigned int nodeMask, unsigned int preCompileMask, unsigned int borderMask,
-        int compMapResolution, float compMapLevel, float lodFactor, int vertexLodMod, float maxCompGeometrySize,
+        int compMapResolution, float compMapLevel, float lodFactor, float maxCompGeometrySize,
         bool debugChunks, ESM::RefId worldspace, double expiryDelay)
         : TerrainGrid(
             parent, compileRoot, resourceSystem, storage, nodeMask, worldspace, expiryDelay, preCompileMask, borderMask)
         , mViewDataMap(new ViewDataMap)
         , mQuadTreeBuilt(false)
         , mLodFactor(lodFactor)
-        , mVertexLodMod(vertexLodMod)
         , mViewDistance(std::numeric_limits<float>::max())
         , mMinSize(ESM::isEsm4Ext(worldspace) ? 1 / 2.f : 1 / 8.f)
         , mDebugTerrainChunks(debugChunks)
     {
+        mChunkManager->setVertexLodMod(static_cast<int>(Settings::terrain().mVertexLodMod));
+        mChunkManager->setMinSize(mMinSize);
         mChunkManager->setCompositeMapSize(compMapResolution);
         mChunkManager->setCompositeMapLevel(
             ESM::isEsm4Ext(worldspace) ? compMapLevel * 2 /*because cells are twice smaller*/ : compMapLevel);
@@ -303,17 +304,18 @@ namespace Terrain
         {
             mDebugChunkManager = std::make_unique<DebugChunkManager>(
                 mResourceSystem->getSceneManager(), mStorage, borderMask, mWorldspace);
+            mDebugChunkManager->setVertexLodMod(static_cast<int>(Settings::terrain().mVertexLodMod));
+            mDebugChunkManager->setMinSize(mMinSize);
             addChunkManager(mDebugChunkManager.get());
         }
     }
 
     QuadTreeWorld::~QuadTreeWorld() {}
 
-    /// get the level of vertex detail to render this node at, expressed relative to the native resolution of the vertex
-    /// data set, NOT relative to mMinSize as is the case with node LODs.
-    unsigned int getVertexLod(QuadTreeNode* node, int vertexLodMod)
+    unsigned int QuadTreeWorld::ChunkManager::getVertexLod(QuadTreeNode* node) const
     {
-        unsigned int vertexLod = DefaultLodCallback::getNativeLodLevel(node, 1);
+        unsigned int vertexLod = DefaultLodCallback::getNativeLodLevel(node, mMinSize);
+        int vertexLodMod = mVertexLodMod;
         if (vertexLodMod > 0)
         {
             vertexLod = static_cast<unsigned int>(std::max(0, static_cast<int>(vertexLod) - vertexLodMod));
@@ -333,9 +335,9 @@ namespace Terrain
         return vertexLod;
     }
 
-    /// get the flags to use for stitching in the index buffer so that chunks of different LOD connect seamlessly
-    unsigned int getLodFlags(QuadTreeNode* node, unsigned int ourVertexLod, int vertexLodMod, const ViewData* vd)
+    unsigned int QuadTreeWorld::ChunkManager::getLodFlags(QuadTreeNode* node, const ViewData* vd) const
     {
+        unsigned int ourVertexLod = getVertexLod(node);
         unsigned int lodFlags = 0;
         for (unsigned int i = 0; i < 4; ++i)
         {
@@ -349,7 +351,7 @@ namespace Terrain
                 neighbour = neighbour->getParent();
             unsigned int lod = 0;
             if (neighbour)
-                lod = getVertexLod(neighbour, vertexLodMod);
+                lod = getVertexLod(neighbour);
 
             if (lod <= ourVertexLod) // We only need to worry about neighbours less detailed than we are -
                 lod = 0; // neighbours with more detail will do the stitching themselves
@@ -374,9 +376,8 @@ namespace Terrain
         {
             vd->buildNodeIndex();
 
-            unsigned int ourVertexLod = getVertexLod(entry.mNode, mVertexLodMod);
             // have to recompute the lodFlags in case a neighbour has changed LOD.
-            unsigned int lodFlags = getLodFlags(entry.mNode, ourVertexLod, mVertexLodMod, vd);
+            unsigned int lodFlags = mChunkManagers.empty() ? 0 : mChunkManagers.front()->getLodFlags(entry.mNode, vd);
             if (lodFlags != entry.mLodFlags)
             {
                 entry.mRenderingNode = nullptr;
@@ -397,7 +398,6 @@ namespace Terrain
             for (QuadTreeWorld::ChunkManager* m : mChunkManagers)
             {
                 osg::ref_ptr<osg::Node> n = m->getChunk(entry.mNode->getSize(), entry.mNode->getCenter(),
-                    static_cast<unsigned char>(DefaultLodCallback::getNativeLodLevel(entry.mNode, mMinSize)),
                     entry.mLodFlags, activeGrid, vd->getViewPoint(), compile);
                 if (n)
                     pat->addChild(n);

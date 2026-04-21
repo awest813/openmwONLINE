@@ -107,6 +107,7 @@
 #include "loadingscreen.hpp"
 #include "mainmenu.hpp"
 #include "merchantrepair.hpp"
+#include "performanceoverlay.hpp"
 #include "postprocessorhud.hpp"
 #include "quickkeysmenu.hpp"
 #include "recharge.hpp"
@@ -187,6 +188,7 @@ namespace MWGui
         , mContainerWindow(nullptr)
         , mControllerButtonsOverlay(nullptr)
         , mInventoryTabsOverlay(nullptr)
+        , mPerformanceOverlay(nullptr)
         , mTranslationDataStorage(translationDataStorage)
         , mInputBlocker(nullptr)
         , mHudEnabled(true)
@@ -521,6 +523,10 @@ namespace MWGui
         auto inventoryTabsOverlay = std::make_unique<InventoryTabsOverlay>();
         mInventoryTabsOverlay = inventoryTabsOverlay.get();
         mWindows.push_back(std::move(inventoryTabsOverlay));
+
+        auto performanceOverlay = std::make_unique<PerformanceOverlay>();
+        mPerformanceOverlay = performanceOverlay.get();
+        mWindows.push_back(std::move(performanceOverlay));
 
         mControllerTooltipEnabled = Settings::gui().mControllerTooltips;
         mActiveControllerWindows[GM_Inventory] = 1; // Start on Inventory page
@@ -1061,6 +1067,9 @@ namespace MWGui
 
         if (mInventoryTabsOverlay && mInventoryTabsOverlay->isVisible())
             mInventoryTabsOverlay->onFrame(frameDuration);
+
+        if (mPerformanceOverlay)
+            mPerformanceOverlay->onFrame(frameDuration);
 
         if (!gameRunning)
             return;

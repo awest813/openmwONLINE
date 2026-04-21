@@ -2,7 +2,9 @@
 #define OPENMW_MWPHYSICS_MTPHYSICS_H
 
 #include <atomic>
+#include <barrier>
 #include <condition_variable>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <set>
@@ -18,10 +20,7 @@
 #include "physicssystem.hpp"
 #include "ptrholder.hpp"
 
-namespace Misc
-{
-    class Barrier;
-}
+
 
 namespace MWRender
 {
@@ -103,10 +102,17 @@ namespace MWPhysics
         std::vector<LOSRequest> mLOSCache;
         std::set<std::weak_ptr<PtrHolder>, std::owner_less<std::weak_ptr<PtrHolder>>> mUpdateAabb;
 
-        // TODO: use std::experimental::flex_barrier or std::barrier once it becomes a thing
+#if __cplusplus >= 202002L
+        // Modernised to std::barrier (C++20)
+        using Barrier = std::barrier<std::function<void()>>;
+        std::unique_ptr<Barrier> mPreStepBarrier;
+        std::unique_ptr<Barrier> mPostStepBarrier;
+        std::unique_ptr<Barrier> mPostSimBarrier;
+#else
         std::unique_ptr<Misc::Barrier> mPreStepBarrier;
         std::unique_ptr<Misc::Barrier> mPostStepBarrier;
         std::unique_ptr<Misc::Barrier> mPostSimBarrier;
+#endif
 
         LockingPolicy mLockingPolicy;
         unsigned mNumThreads;

@@ -326,6 +326,29 @@ if (NOT OPENMW_USE_SYSTEM_ICU)
     set(ICU_LIBRARIES ICU::i18n ICU::uc ICU::data PARENT_SCOPE)
 endif()
 
+if (NOT OPENMW_USE_SYSTEM_LZ4)
+    include(FetchContent)
+    FetchContent_Declare(lz4
+        URL https://github.com/lz4/lz4/archive/refs/tags/v1.9.4.tar.gz
+        URL_HASH SHA256=0b0e3aa013c7c27771f500249657496db35b5bb2f0144f686ca003f5db97669d
+        SOURCE_DIR fetched/lz4
+    )
+    FetchContent_MakeAvailable(lz4)
+
+    # LZ4 doesn't provide a clean CMake target for the library at the root,
+    # so we define one ourselves from the amalgamation-style sources.
+    add_library(lz4 STATIC
+        ${lz4_SOURCE_DIR}/lib/lz4.c
+        ${lz4_SOURCE_DIR}/lib/lz4hc.c
+        ${lz4_SOURCE_DIR}/lib/lz4frame.c
+    )
+    target_include_directories(lz4 PUBLIC ${lz4_SOURCE_DIR}/lib)
+    add_library(LZ4::LZ4 ALIAS lz4)
+
+    set(LZ4_INCLUDE_DIR ${lz4_SOURCE_DIR}/lib PARENT_SCOPE)
+    set(LZ4_LIBRARY lz4 PARENT_SCOPE)
+endif()
+
 if ((BUILD_COMPONENTS_TESTS OR BUILD_OPENCS_TESTS OR BUILD_OPENMW_TESTS) AND NOT OPENMW_USE_SYSTEM_GOOGLETEST)
 
     include(FetchContent)

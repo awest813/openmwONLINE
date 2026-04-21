@@ -120,6 +120,7 @@ namespace MWGui
     class ItemTransfer;
     class ControllerButtonsOverlay;
     class InventoryTabsOverlay;
+    class PerformanceOverlay;
 
     class WindowManager : public MWBase::WindowManager
     {
@@ -473,6 +474,7 @@ namespace MWGui
         ContainerWindow* mContainerWindow;
         ControllerButtonsOverlay* mControllerButtonsOverlay;
         InventoryTabsOverlay* mInventoryTabsOverlay;
+        PerformanceOverlay* mPerformanceOverlay;
 
         std::vector<std::unique_ptr<WindowBase>> mWindows;
 

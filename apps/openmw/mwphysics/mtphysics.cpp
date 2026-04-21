@@ -441,11 +441,20 @@ namespace MWPhysics
             mLOSCacheExpiry = 0;
         }
 
+#if __cplusplus >= 202002L
+        if (mNumThreads > 0)
+        {
+            mPreStepBarrier = std::make_unique<Barrier>(mNumThreads, [this] { afterPreStep(); });
+            mPostStepBarrier = std::make_unique<Barrier>(mNumThreads, [this] { afterPostStep(); });
+            mPostSimBarrier = std::make_unique<Barrier>(mNumThreads, [this] { afterPostSim(); });
+        }
+#else
         mPreStepBarrier = std::make_unique<Misc::Barrier>(mNumThreads);
 
         mPostStepBarrier = std::make_unique<Misc::Barrier>(mNumThreads);
 
         mPostSimBarrier = std::make_unique<Misc::Barrier>(mNumThreads);
+#endif
     }
 
     PhysicsTaskScheduler::~PhysicsTaskScheduler()
@@ -786,18 +795,40 @@ namespace MWPhysics
     {
         while (mRemainingSteps)
         {
+#if __cplusplus >= 202002L
+            if (mNumThreads > 0)
+                mPreStepBarrier->arrive_and_wait();
+            else
+                afterPreStep();
+#else
             mPreStepBarrier->wait([this] { afterPreStep(); });
+#endif
             int job = 0;
             const Visitors::Move impl{ mPhysicsDt, mCollisionWorld, *mWorldFrameData };
             const Visitors::WithLockedPtr<Visitors::Move, MaybeLock> vis{ impl, mCollisionWorldMutex, mLockingPolicy };
             while ((job = mNextJob.fetch_add(1, std::memory_order_relaxed)) < mNumJobs)
                 std::visit(vis, (*mSimulations)[job]);
 
+#if __cplusplus >= 202002L
+            if (mNumThreads > 0)
+                mPostStepBarrier->arrive_and_wait();
+            else
+                afterPostStep();
+#else
             mPostStepBarrier->wait([this] { afterPostStep(); });
+#endif
         }
 
         refreshLOSCache();
+
+#if __cplusplus >= 202002L
+        if (mNumThreads > 0)
+            mPostSimBarrier->arrive_and_wait();
+        else
+            afterPostSim();
+#else
         mPostSimBarrier->wait([this] { afterPostSim(); });
+#endif
     }
 
     void PhysicsTaskScheduler::updateStats(osg::Timer_t frameStart, unsigned int frameNumber, osg::Stats& stats)

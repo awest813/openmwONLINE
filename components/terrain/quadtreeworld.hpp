@@ -32,7 +32,7 @@ namespace Terrain
     public:
         QuadTreeWorld(osg::Group* parent, osg::Group* compileRoot, Resource::ResourceSystem* resourceSystem,
             Storage* storage, unsigned int nodeMask, unsigned int preCompileMask, unsigned int borderMask,
-            int compMapResolution, float comMapLevel, float lodFactor, int vertexLodMod, float maxCompGeometrySize,
+            int compMapResolution, float comMapLevel, float lodFactor, float maxCompGeometrySize,
             bool debugChunks, ESM::RefId worldspace, double expiryDelay);
 
         ~QuadTreeWorld();
@@ -66,7 +66,7 @@ namespace Terrain
             {
                 mWorldspace = worldspace;
             }
-            virtual osg::ref_ptr<osg::Node> getChunk(float size, const osg::Vec2f& center, unsigned char lod,
+            virtual osg::ref_ptr<osg::Node> getChunk(float size, const osg::Vec2f& center,
                 unsigned int lodFlags, bool activeGrid, const osg::Vec3f& viewPoint, bool compile)
                 = 0;
             virtual unsigned int getNodeMask() { return 0; }
@@ -78,12 +78,23 @@ namespace Terrain
             unsigned int getMaxLodLevel() const { return mMaxLodLevel; }
             void setMaxLodLevel(unsigned int level) { mMaxLodLevel = level; }
 
+            void setVertexLodMod(int mod) { mVertexLodMod = mod; }
+            int getVertexLodMod() const { return mVertexLodMod; }
+
+            void setMinSize(float size) { mMinSize = size; }
+            float getMinSize() const { return mMinSize; }
+
+            unsigned int getVertexLod(QuadTreeNode* node) const;
+            unsigned int getLodFlags(QuadTreeNode* node, const ViewData* vd) const;
+
         protected:
             ESM::RefId mWorldspace = ESM::RefId();
+            int mVertexLodMod = 0;
 
         private:
             float mViewDistance = 0.f;
             unsigned int mMaxLodLevel = ~0u;
+            float mMinSize = 1.0f;
         };
         void addChunkManager(ChunkManager*);
 
@@ -101,7 +112,7 @@ namespace Terrain
         std::mutex mQuadTreeMutex;
         bool mQuadTreeBuilt;
         float mLodFactor;
-        int mVertexLodMod;
+
         float mViewDistance;
         float mMinSize;
         bool mDebugTerrainChunks;

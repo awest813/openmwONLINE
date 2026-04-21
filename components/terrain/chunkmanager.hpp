@@ -78,7 +78,7 @@ namespace Terrain
         explicit ChunkManager(Storage* storage, Resource::SceneManager* sceneMgr, TextureManager* textureManager,
             CompositeMapRenderer* renderer, ESM::RefId worldspace, double expiryDelay);
 
-        osg::ref_ptr<osg::Node> getChunk(float size, const osg::Vec2f& center, unsigned char lod, unsigned int lodFlags,
+        osg::ref_ptr<osg::Node> getChunk(float size, const osg::Vec2f& center, unsigned int lodFlags,
             bool activeGrid, const osg::Vec3f& viewPoint, bool compile) override;
 
         void setCompositeMapSize(unsigned int size) { mCompositeMapSize = size; }

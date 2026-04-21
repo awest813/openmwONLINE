@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<MyGUI type="Layout">
+  <Widget type="Window" skin="HUD_Box" position="10 10 240 350" name="_Main">
+    <Property key="Caption" value="OMW Performance Toolkit"/>
+    <Widget type="TextBox" skin="SandText" position="10 35 220 20" name="FPS">
+        <Property key="Caption" value="FPS: 0.0"/>
+    </Widget>
+    <Widget type="TextBox" skin="SandText" position="10 60 220 20" name="FrameTime">
+        <Property key="Caption" value="Frame: 0.0 ms"/>
+    </Widget>
+    <Widget type="TextBox" skin="SandText" position="10 85 220 20" name="DrawCalls">
+        <Property key="Caption" value="Draw Calls: 0"/>
+    </Widget>
+    <Widget type="TextBox" skin="SandText" position="10 110 220 20" name="Objects">
+        <Property key="Caption" value="Objects: 0"/>
+    </Widget>
+    <Widget type="TextBox" skin="SandText" position="10 135 220 20" name="Occluded">
+        <Property key="Caption" value="Occluded: 0"/>
+    </Widget>
+    <Widget type="TextBox" skin="SandText" position="10 160 220 20" name="Triangles">
+        <Property key="Caption" value="Triangles: 0"/>
+    </Widget>
+    <Widget type="TextBox" skin="SandText" position="10 185 220 20" name="VRAM">
+        <Property key="Caption" value="VRAM: 0.0 MB"/>
+    </Widget>
+    <Widget type="TextBox" skin="SandText" position="10 210 220 20" name="CPU_Cull">
+        <Property key="Caption" value="Cull: 0.0 ms"/>
+    </Widget>
+    <Widget type="TextBox" skin="SandText" position="10 235 220 20" name="CPU_Draw">
+        <Property key="Caption" value="Draw: 0.0 ms"/>
+    </Widget>
+    <Widget type="TextBox" skin="SandText" position="10 260 220 20" name="GPU">
+        <Property key="Caption" value="GPU: 0.0 ms"/>
+    </Widget>
+    <Widget type="TextBox" skin="SandText" position="10 290 220 20" name="Status">
+        <Property key="Caption" value="STATUS: MONITORING"/>
+        <Property key="TextAlign" value="Center"/>
+    </Widget>
+  </Widget>
+</MyGUI>

@@ -1419,6 +1419,12 @@ namespace MWRender
         // disappear. Limit FOV here just for sure, otherwise viewing distance can be too high.
         float distanceMult = std::cos(osg::DegreesToRadians(std::min(fov, 140.f)) / 2.f);
         mTerrain->setViewDistance(mViewDistance * (distanceMult ? 1.f / distanceMult : 1.f));
+ 
+        if (mShadowManager)
+        {
+            float shadowDistance = std::min(mViewDistance, Settings::shadows().mMaximumShadowMapDistance);
+            mShadowManager->updateMaximumShadowDistance(shadowDistance, Settings::shadows().mShadowFadeStart);
+        }
 
         if (mPostProcessor)
         {
@@ -1485,7 +1491,7 @@ namespace MWRender
             const bool debugChunks = Settings::terrain().mDebugChunks;
             auto quadTreeWorld = std::make_unique<Terrain::QuadTreeWorld>(mSceneRoot, mRootNode, mResourceSystem,
                 mTerrainStorage.get(), Mask_Terrain, Mask_PreCompile, Mask_Debug, compMapResolution, compMapLevel,
-                lodFactor, vertexLodMod, maxCompGeometrySize, debugChunks, worldspace, expiryDelay);
+                lodFactor, maxCompGeometrySize, debugChunks, worldspace, expiryDelay);
             if (Settings::terrain().mObjectPaging)
             {
                 newChunkMgr.mObjectPaging

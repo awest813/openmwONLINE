@@ -58,6 +58,7 @@ if(OPENMW_EXPERIMENTAL_WASM)
     set(OPENMW_USE_SYSTEM_MYGUI OFF CACHE BOOL "" FORCE)
     set(OPENMW_USE_SYSTEM_RECASTNAVIGATION OFF CACHE BOOL "" FORCE)
     set(OPENMW_USE_SYSTEM_SQLITE3 OFF CACHE BOOL "" FORCE)
+    set(OPENMW_USE_SYSTEM_LZ4 OFF CACHE BOOL "" FORCE)
     set(OPENMW_USE_SYSTEM_YAML_CPP OFF CACHE BOOL "" FORCE)
     set(USE_SYSTEM_TINYXML OFF CACHE BOOL "" FORCE)
 
@@ -244,6 +245,7 @@ endif()
 option(RECASTNAVIGATION_STATIC "Build recastnavigation static libraries" ${_recastnavigation_static_default})
 
 option(OPENMW_USE_SYSTEM_SQLITE3 "Use system provided SQLite3 library" ON)
+option(OPENMW_USE_SYSTEM_LZ4 "Use system provided LZ4 library" ON)
 
 option(OPENMW_USE_SYSTEM_BENCHMARK "Use system Google Benchmark library." OFF)
 option(OPENMW_USE_SYSTEM_GOOGLETEST "Use system Google Test library." OFF)
@@ -364,7 +366,8 @@ else()
     find_package(OpenGL REQUIRED)
 endif()
 
-find_package(LZ4 REQUIRED)
+
+# find_package(LZ4 REQUIRED)  # Moved after add_subdirectory(extern)
 
 if (USE_QT)
     find_package(QT REQUIRED COMPONENTS Core NAMES Qt6)
@@ -429,6 +432,10 @@ if ((BUILD_COMPONENTS_TESTS OR BUILD_OPENCS_TESTS OR BUILD_OPENMW_TESTS) AND OPE
 endif()
 
 add_subdirectory(extern)
+
+if(OPENMW_USE_SYSTEM_LZ4)
+    find_package(LZ4 REQUIRED)
+endif()
 
 # Sound setup
 

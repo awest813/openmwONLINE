@@ -41,6 +41,7 @@ namespace MWWorld
         mChanged = refData.mChanged;
         mDeletedByContentFile = refData.mDeletedByContentFile;
         mFlags = refData.mFlags;
+        mVisibilityState = refData.mVisibilityState;
         mPhysicsPostponed = refData.mPhysicsPostponed;
 
         mAnimationState = refData.mAnimationState;
@@ -60,6 +61,7 @@ namespace MWWorld
         : mBaseNode(nullptr)
         , mCustomData(nullptr)
         , mFlags(0)
+        , mVisibilityState(0)
         , mDeletedByContentFile(false)
         , mEnabled(true)
         , mPhysicsPostponed(false)
@@ -77,6 +79,7 @@ namespace MWWorld
         , mPosition(cellRef.mPos)
         , mCustomData(nullptr)
         , mFlags(0) // Loading from ESM/ESP files -> assume unchanged
+        , mVisibilityState(0)
         , mDeletedByContentFile(false)
         , mEnabled(true)
         , mPhysicsPostponed(false)
@@ -89,6 +92,7 @@ namespace MWWorld
         , mPosition(ref.mPos)
         , mCustomData(nullptr)
         , mFlags(0)
+        , mVisibilityState(0)
         , mDeletedByContentFile(ref.mFlags & ESM4::Rec_Deleted)
         , mEnabled(!(ref.mFlags & ESM4::Rec_Disabled))
         , mPhysicsPostponed(false)
@@ -101,6 +105,7 @@ namespace MWWorld
         , mPosition(ref.mPos)
         , mCustomData(nullptr)
         , mFlags(0)
+        , mVisibilityState(0)
         , mDeletedByContentFile(ref.mFlags & ESM4::Rec_Deleted)
         , mEnabled(!(ref.mFlags & ESM4::Rec_Disabled))
         , mPhysicsPostponed(false)
@@ -114,6 +119,7 @@ namespace MWWorld
         , mAnimationState(objectState.mAnimationState)
         , mCustomData(nullptr)
         , mFlags(objectState.mFlags) // Loading from a savegame -> assume changed
+        , mVisibilityState(0)
         , mDeletedByContentFile(deletedByContentFile)
         , mEnabled(objectState.mEnabled != 0)
         , mPhysicsPostponed(false)

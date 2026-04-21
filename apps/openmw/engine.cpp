@@ -1,4 +1,5 @@
 #include "engine.hpp"
+#include <performance_toolkit/toolkit.hpp>
 
 #include <cerrno>
 #include <chrono>
@@ -437,6 +438,8 @@ bool OMW::Engine::frame(unsigned frameNumber, float frametime)
             ScopedProfile<UserStatsType::Gui> profile(frameStart, frameNumber, *timer, *stats);
             mWindowManager->update(frametime);
         }
+
+        PerformanceToolkit::Toolkit::getInstance().update(frametime);
     }
     catch (const std::exception& e)
     {
@@ -461,6 +464,7 @@ bool OMW::Engine::frame(unsigned frameNumber, float frametime)
 
         mMechanicsManager->reportStats(frameNumber, *stats);
         mWorld->reportStats(frameNumber, *stats);
+        PerformanceToolkit::Toolkit::getInstance().reportStats(frameNumber, *stats);
         mLuaManager->reportStats(frameNumber, *stats);
 
         stats->setAttribute(frameNumber, "StringRefId Count", static_cast<double>(ESM::StringRefId::totalCount()));

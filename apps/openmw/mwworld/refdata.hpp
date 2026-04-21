@@ -51,6 +51,7 @@ namespace MWWorld
         ESM::AnimationState mAnimationState;
         std::unique_ptr<CustomData> mCustomData;
         unsigned int mFlags;
+        unsigned int mVisibilityState;
 
         /// separate delete flag used for deletion by a content file
         /// @note not stored in the save game file.
@@ -146,6 +147,9 @@ namespace MWWorld
 
         const ESM::AnimationState& getAnimationState() const;
         ESM::AnimationState& getAnimationState();
+
+        unsigned int getVisibilityState() const { return mVisibilityState; }
+        void setVisibilityState(unsigned int state) { mVisibilityState = state; }
     };
 }
 

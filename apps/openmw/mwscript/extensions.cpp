@@ -12,6 +12,7 @@
 #include "dialogueextensions.hpp"
 #include "guiextensions.hpp"
 #include "miscextensions.hpp"
+#include "performanceextensions.hpp"
 #include "skyextensions.hpp"
 #include "soundextensions.hpp"
 #include "statsextensions.hpp"
@@ -35,6 +36,7 @@ namespace MWScript
         Dialogue::installOpcodes(interpreter);
         Animation::installOpcodes(interpreter);
         Transformation::installOpcodes(interpreter);
+        Performance::installOpcodes(interpreter);
 
         if (consoleOnly)
         {
