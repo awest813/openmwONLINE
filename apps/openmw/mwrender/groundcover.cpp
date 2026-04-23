@@ -324,9 +324,10 @@ namespace MWRender
         }
     }
 
-    osg::ref_ptr<osg::Node> Groundcover::getChunk(float size, const osg::Vec2f& center, unsigned char lod,
-        unsigned int lodFlags, bool activeGrid, const osg::Vec3f& viewPoint, bool compile)
+    osg::ref_ptr<osg::Node> Groundcover::getChunk(float size, const osg::Vec2f& center, unsigned int lodFlags,
+        bool activeGrid, const osg::Vec3f& viewPoint, bool compile)
     {
+        unsigned char lod = static_cast<unsigned char>(lodFlags >> (4 * 4));
         if (lod > getMaxLodLevel())
             return nullptr;
         GroundcoverChunkId id = std::make_tuple(center, size);

@@ -1,6 +1,7 @@
 #ifndef COMPONENTS_TERRAIN_QUADTREEWORLD_H
 #define COMPONENTS_TERRAIN_QUADTREEWORLD_H
 
+#include "quadtreenode.hpp"
 #include "terraingrid.hpp"
 
 #include <atomic>

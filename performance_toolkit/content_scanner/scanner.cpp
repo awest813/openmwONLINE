@@ -6,7 +6,9 @@
 #include <osg/Geometry>
 #include <osg/Texture>
 #include <osg/NodeVisitor>
+#include <osg/ComputeBoundsVisitor>
 #include <algorithm>
+#include <set>
 
 namespace PerformanceToolkit
 {

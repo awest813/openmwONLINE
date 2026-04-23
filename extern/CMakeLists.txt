@@ -340,7 +340,7 @@ if (NOT OPENMW_USE_SYSTEM_LZ4)
     include(FetchContent)
     FetchContent_Declare(lz4
         URL https://github.com/lz4/lz4/archive/refs/tags/v1.9.4.tar.gz
-        URL_HASH SHA256=0b0e3aa013c7c27771f500249657496db35b5bb2f0144f686ca003f5db97669d
+        URL_HASH SHA256=0b0e3aa07c8c063ddf40b082bdf7e37a1562bda40a0ff5272957f3e987e0e54b
         SOURCE_DIR fetched/lz4
     )
     FetchContent_MakeAvailable(lz4)

@@ -42,6 +42,9 @@ for path in content_paths:
 openmw_binary = Path(args.omw).resolve()
 if not openmw_binary.is_file():
     sys.exit(f"{openmw_binary} not found")
+openmw_command = [str(openmw_binary)]
+if openmw_binary.suffix.lower() == ".py":
+    openmw_command = [sys.executable, str(openmw_binary)]
 
 work_dir = Path(args.workdir).resolve()
 work_dir.mkdir(parents=True, exist_ok=True)
@@ -102,7 +105,7 @@ def run_test(test_name):
     stdout_lines = list()
     fatal_errors = list()
     with subprocess.Popen(
-        [openmw_binary, "--replace=config", "--config", config_dir, "--no-grab"],
+        [*openmw_command, "--replace=config", "--config", config_dir, "--no-grab"],
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         encoding="utf-8",

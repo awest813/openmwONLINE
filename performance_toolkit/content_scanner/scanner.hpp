@@ -7,7 +7,7 @@
 #include <osg/BoundingBox>
 
 namespace MWWorld {
-    class Ptr;
+    class CellStore;
 }
 
 namespace PerformanceToolkit
@@ -29,6 +29,8 @@ namespace PerformanceToolkit
         void scanCell(const MWWorld::CellStore* cell);
         
         AssetMetrics auditNode(osg::Node* node);
+
+        float scoreOccluderCandidate(osg::Node* node);
         
         const AssetMetrics& getCellMetrics() const { return mCurrentCellMetrics; }
 

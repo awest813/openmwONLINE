@@ -13,7 +13,9 @@
 #include <components/misc/mathutil.hpp>
 #include <components/resource/resourcesystem.hpp>
 #include <components/sceneutil/positionattitudetransform.hpp>
-#include <components/settings/settings.hpp>
+#include <components/settings/values.hpp>
+
+#include "../../performance_toolkit/toolkit.hpp"
 
 #include "chunkmanager.hpp"
 #include "compositemaprenderer.hpp"
@@ -280,7 +282,8 @@ namespace Terrain
         unsigned int mNodeMask;
     };
 
-        Storage* storage, unsigned int nodeMask, unsigned int preCompileMask, unsigned int borderMask,
+    QuadTreeWorld::QuadTreeWorld(osg::Group* parent, osg::Group* compileRoot,
+        Resource::ResourceSystem* resourceSystem, Storage* storage, unsigned int nodeMask, unsigned int preCompileMask, unsigned int borderMask,
         int compMapResolution, float compMapLevel, float lodFactor, float maxCompGeometrySize,
         bool debugChunks, ESM::RefId worldspace, double expiryDelay)
         : TerrainGrid(

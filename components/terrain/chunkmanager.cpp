@@ -11,6 +11,8 @@
 
 #include <components/sceneutil/lightmanager.hpp>
 
+#include "../../performance_toolkit/toolkit.hpp"
+
 #include "compositemaprenderer.hpp"
 #include "material.hpp"
 #include "storage.hpp"
@@ -240,9 +242,9 @@ namespace Terrain
         else
         {
             // Milestone 2 Polish: Use recycled arrays for template clones
-            osg::Vec3Array* srcPos = static_cast<osg::Vec3Array*>(templateGeometry->getVertexArray());
-            osg::Vec3Array* srcNorm = static_cast<osg::Vec3Array*>(templateGeometry->getNormalArray());
-            osg::Vec4ubArray* srcColor = static_cast<osg::Vec4ubArray*>(templateGeometry->getColorArray());
+            const osg::Vec3Array* srcPos = static_cast<const osg::Vec3Array*>(templateGeometry->getVertexArray());
+            const osg::Vec3Array* srcNorm = static_cast<const osg::Vec3Array*>(templateGeometry->getNormalArray());
+            const osg::Vec4ubArray* srcColor = static_cast<const osg::Vec4ubArray*>(templateGeometry->getColorArray());
 
             osg::ref_ptr<osg::Vec3Array> positions = mBufferCache.takeVec3Array(srcPos->size());
             osg::ref_ptr<osg::Vec3Array> normals = mBufferCache.takeVec3Array(srcNorm->size());

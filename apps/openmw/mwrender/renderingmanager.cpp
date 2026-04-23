@@ -1422,7 +1422,7 @@ namespace MWRender
  
         if (mShadowManager)
         {
-            float shadowDistance = std::min(mViewDistance, Settings::shadows().mMaximumShadowMapDistance);
+            float shadowDistance = std::min(mViewDistance, static_cast<float>(Settings::shadows().mMaximumShadowMapDistance));
             mShadowManager->updateMaximumShadowDistance(shadowDistance, Settings::shadows().mShadowFadeStart);
         }
 

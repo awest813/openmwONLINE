@@ -74,7 +74,7 @@ namespace MWRender
         ptr.getRefData().setBaseNode(std::move(insert));
 
         // Diagnostics
-        PerformanceToolkit::VisibilityTracker::attach(ptr.getRefData().getBaseNode(), ptr);
+        PerformanceToolkit::VisibilityTracker::attach(ptr.getRefData().getBaseNode());
 
         // Phase 1: Occlusion
         auto& scanner = PerformanceToolkit::Scanner::getInstance();

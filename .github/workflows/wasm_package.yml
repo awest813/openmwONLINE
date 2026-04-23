@@ -16,6 +16,8 @@ on:
       - 'deploy/**'
       - 'scripts/package_wasm.sh'
       - 'scripts/serve_wasm.py'
+      - 'scripts/serve_wasm_detect.py'
+      - 'scripts/tests/test_serve_wasm_detect.py'
       - 'DEPLOYMENT.md'
       - '.github/workflows/wasm_package.yml'
   pull_request:
@@ -23,6 +25,8 @@ on:
       - 'deploy/**'
       - 'scripts/package_wasm.sh'
       - 'scripts/serve_wasm.py'
+      - 'scripts/serve_wasm_detect.py'
+      - 'scripts/tests/test_serve_wasm_detect.py'
       - 'DEPLOYMENT.md'
       - '.github/workflows/wasm_package.yml'
   workflow_dispatch:
@@ -40,6 +44,9 @@ jobs:
       # ── Verify shell script syntax ─────────────────────────────────────────
       - name: Check package_wasm.sh syntax
         run: bash -n scripts/package_wasm.sh
+
+      - name: Run WASM server detection tests
+        run: python3 -m unittest scripts.tests.test_serve_wasm_detect
 
       # ── Verify JSON configs are valid ──────────────────────────────────────
       - name: Validate vercel.json
@@ -74,7 +81,12 @@ jobs:
           unzip -l openmw-wasm-no-threads.zip | grep -q 'netlify\.toml'
           unzip -l openmw-wasm-no-threads.zip | grep -q 'vercel\.json'
           unzip -l openmw-wasm-no-threads.zip | grep -q 'serve_wasm\.py'
+          unzip -l openmw-wasm-no-threads.zip | grep -q 'serve_wasm_detect\.py'
           unzip -l openmw-wasm-no-threads.zip | grep -q 'README\.md'
+          unzip -p openmw-wasm-no-threads.zip 'openmw-wasm-no-threads/serve_wasm.py' \
+            | grep -q 'from serve_wasm_detect import detect_pthread_openmw_js'
+          unzip -p openmw-wasm-no-threads.zip 'openmw-wasm-no-threads/serve_wasm_detect.py' \
+            | grep -q 'def detect_pthread_openmw_js'
           # Non-pthread configs must NOT contain COOP/COEP headers
           unzip -p openmw-wasm-no-threads.zip 'openmw-wasm-no-threads/deploy/netlify.toml' \
             | grep -qv 'Cross-Origin-Opener-Policy'

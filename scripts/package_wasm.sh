@@ -198,9 +198,10 @@ for full deployment documentation.
 EOREADME
 
 # ──────────────────────────────────────────────────────────────────────────
-# 4. Bundle local dev server script for convenience
+# 4. Bundle local dev server scripts for convenience
 # ──────────────────────────────────────────────────────────────────────────
 cp "$ROOT_DIR/scripts/serve_wasm.py" "$STAGE_DIR/"
+cp "$ROOT_DIR/scripts/serve_wasm_detect.py" "$STAGE_DIR/"
 
 # ──────────────────────────────────────────────────────────────────────────
 # 5. Create the ZIP archive

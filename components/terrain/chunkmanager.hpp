@@ -5,6 +5,7 @@
 
 #include <components/resource/resourcemanager.hpp>
 
+#include "bufferrecycler.hpp"
 #include "buffercache.hpp"
 #include "quadtreeworld.hpp"
 

@@ -32,6 +32,11 @@ namespace Terrain
     {
     }
 
+    void TerrainDrawable::setCompositeMap(CompositeMap* map)
+    {
+        mCompositeMap = map;
+    }
+
     void TerrainDrawable::accept(osg::NodeVisitor& nv)
     {
         if (nv.getVisitorType() != osg::NodeVisitor::CULL_VISITOR)

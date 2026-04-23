@@ -3,6 +3,8 @@
 
 #include <osg/Geometry>
 
+#include "bufferrecycler.hpp"
+
 namespace osg
 {
     class ClusterCullingCallback;
@@ -23,14 +25,6 @@ namespace Terrain
 
     class CompositeMap;
     class CompositeMapRenderer;
-
-    class BufferRecycler
-    {
-    public:
-        virtual ~BufferRecycler() = default;
-        virtual void returnVec3Array(osg::ref_ptr<osg::Vec3Array> array) = 0;
-        virtual void returnVec4ubArray(osg::ref_ptr<osg::Vec4ubArray> array) = 0;
-    };
 
     /**
      * Subclass of Geometry that supports built in multi-pass rendering and built in LightListCallback.
@@ -67,7 +61,7 @@ namespace Terrain
         void setupWaterBoundingBox(float waterheight, float margin);
         const osg::BoundingBox& getWaterBoundingBox() const { return mWaterBoundingBox; }
 
-        void setCompositeMap(CompositeMap* map) { mCompositeMap = map; }
+        void setCompositeMap(CompositeMap* map);
         CompositeMap* getCompositeMap() const { return mCompositeMap; }
         void setCompositeMapRenderer(CompositeMapRenderer* renderer) { mCompositeMapRenderer = renderer; }
 
